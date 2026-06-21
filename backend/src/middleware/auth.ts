@@ -4,14 +4,20 @@ import { GymOwner, SuperAdmin } from '../models';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-india-gym-saas-2026';
 
-export interface AuthenticatedRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    role: 'super_admin' | 'gym_owner';
-    gymName?: string;
-  };
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: string;
+        email: string;
+        role: 'super_admin' | 'gym_owner';
+        gymName?: string;
+      };
+    }
+  }
 }
+
+export type AuthenticatedRequest = Request;
 
 // Global Authentication Middleware
 export async function authenticateToken(req: AuthenticatedRequest, res: Response, next: NextFunction) {
