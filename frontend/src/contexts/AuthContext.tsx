@@ -22,12 +22,14 @@ export interface User {
     contactNumber: string;
     whatsAppNumber: string;
   };
+  isTrial?: boolean;
 }
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
+  loginWithToken: (token: string, user: any) => void;
   logout: () => void;
   updateUserBranding: (branding: NonNullable<User['branding']>) => void;
   isAuthenticated: boolean;
@@ -58,7 +60,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               email: res.user.email,
               role: res.user.role || (res.user.passwordHash ? 'gym_owner' : 'super_admin'),
               subscription: res.user.subscription,
-              branding: res.user.branding
+              branding: res.user.branding,
+              isTrial: res.user.isTrial
             };
             setUser(mappedUser);
             localStorage.setItem('user', JSON.stringify(mappedUser));
@@ -87,11 +90,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         email: res.user.email,
         role: res.user.role,
         subscription: res.user.subscription,
-        branding: res.user.branding
+        branding: res.user.branding,
+        isTrial: res.user.isTrial
       };
       setUser(mappedUser);
       localStorage.setItem('user', JSON.stringify(mappedUser));
     }
+  };
+
+  const loginWithToken = (token: string, rawUser: any) => {
+    localStorage.setItem('token', token);
+    const mappedUser: User = {
+      id: rawUser._id || rawUser.id,
+      name: rawUser.name || rawUser.ownerName,
+      ownerName: rawUser.ownerName,
+      gymName: rawUser.gymName,
+      email: rawUser.email,
+      role: rawUser.role || 'gym_owner',
+      subscription: rawUser.subscription,
+      branding: rawUser.branding,
+      isTrial: rawUser.isTrial
+    };
+    setUser(mappedUser);
+    localStorage.setItem('user', JSON.stringify(mappedUser));
   };
 
   const logout = () => {
@@ -118,6 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         user,
         loading,
         login,
+        loginWithToken,
         logout,
         updateUserBranding,
         isAuthenticated,

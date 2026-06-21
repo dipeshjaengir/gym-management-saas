@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import {
   Users,
   Award,
@@ -48,11 +49,21 @@ interface CheckIn {
 }
 
 export const GymOwnerDashboard: React.FC = () => {
+  const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [recentCheckIns, setRecentCheckIns] = useState<CheckIn[]>([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useNotification();
   const navigate = useNavigate();
+
+  // Trial calculations
+  const isTrial = user?.isTrial || false;
+  let remainingTrialDays = 0;
+  if (isTrial && user?.subscription?.expiryDate) {
+    const expiry = new Date(user.subscription.expiryDate);
+    const diffTime = expiry.getTime() - new Date().getTime();
+    remainingTrialDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }
 
   useEffect(() => {
     async function loadDashboardData() {
@@ -89,6 +100,31 @@ export const GymOwnerDashboard: React.FC = () => {
         <h1 className="text-2xl font-bold tracking-tight">Gym Console</h1>
         <p className="text-xs text-muted-foreground">Monitor member attendance and studio operations.</p>
       </div>
+
+      {/* Trial Banner */}
+      {isTrial && (
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/20 via-primary/20 to-purple-500/20 border border-primary/30 text-primary-foreground flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm">
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-primary flex-shrink-0 animate-pulse" />
+            <div>
+              <span className="font-bold text-white">7-Day Free Trial Activated:</span> You have{' '}
+              <span className="font-bold text-primary text-sm bg-primary/20 px-2 py-0.5 rounded">
+                {remainingTrialDays > 0 ? remainingTrialDays : 0} days remaining
+              </span>{' '}
+              on your trial workspace. Upgrade to keep full management active.
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              const text = encodeURIComponent(`Hello, I want to upgrade my Gym Management Trial Workspace "${user?.gymName || ''}" (${user?.email || ''}) to a Premium Subscription.`);
+              window.open(`https://wa.me/919999999999?text=${text}`, '_blank');
+            }}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-primary hover:bg-primary/95 text-primary-foreground shadow-md transition-all whitespace-nowrap"
+          >
+            Upgrade Plan Now
+          </button>
+        </div>
+      )}
 
       {/* Expiry / Dues Alert banner */}
       {stats.metrics.membershipExpiringSoon > 0 && (

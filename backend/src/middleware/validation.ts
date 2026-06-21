@@ -90,7 +90,7 @@ export const createLeadSchema = z.object({
   name: z.string().min(2, 'Lead name must be at least 2 characters.'),
   phone: z.string().min(10, 'Contact number must be at least 10 digits.'),
   city: z.string().min(2, 'City is required.'),
-  interestedPlan: z.enum(['1_month', '3_month', '6_month', '12_month']),
+  interestedPlan: z.enum(['1_month', '3_month', '6_month', '12_month']).optional(),
   source: z.enum(['whatsapp', 'website', 'instagram', 'facebook', 'other']).optional(),
   status: z.enum(['new', 'contacted', 'negotiation', 'converted', 'lost']).optional()
 });
@@ -148,3 +148,11 @@ export const checkInSchema = z.object({
   qrCode: z.string().min(1, 'QR code is required.')
 });
 
+// 13. Free Trial Onboarding Schema
+export const freeTrialSchema = z.object({
+  gymName: z.string().min(2, 'Gym name must be at least 2 characters.'),
+  ownerName: z.string().min(2, 'Owner name must be at least 2 characters.'),
+  phone: z.string().min(10, 'Contact number must be at least 10 digits.'),
+  email: z.string().email('Invalid email address.'),
+  city: z.string().min(2, 'City is required.')
+});

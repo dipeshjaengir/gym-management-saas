@@ -69,6 +69,7 @@ export interface IGymOwner extends Document {
     status: 'active' | 'expired' | 'suspended';
     amountPaid: number;
   };
+  isTrial: boolean;
   isDeleted: boolean;
 }
 
@@ -94,6 +95,7 @@ const GymOwnerSchema = new Schema<IGymOwner>({
     status: { type: String, enum: ['active', 'expired', 'suspended'], default: 'active', index: true },
     amountPaid: { type: Number, required: true }
   },
+  isTrial: { type: Boolean, default: false },
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 

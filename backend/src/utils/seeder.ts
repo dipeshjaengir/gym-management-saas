@@ -10,8 +10,26 @@ async function seed() {
     // 1. Connect to Database
     await connectDatabase();
 
-    // Clear existing collections to ensure a clean slate
-    await SuperAdmin.deleteMany({});
+    // Check if Super Admin already exists
+    const existingAdmin = await SuperAdmin.findOne({ role: 'super_admin' });
+    let admin;
+    if (existingAdmin) {
+      console.log(`[SEEDER] Super Admin already exists: ${existingAdmin.email}. Retaining existing credentials.`);
+      admin = existingAdmin;
+    } else {
+      // Clear existing Super Admin collections only if none exists
+      await SuperAdmin.deleteMany({});
+      const hashedAdminPassword = await bcrypt.hash('admin123', 10);
+      admin = await SuperAdmin.create({
+        name: 'Alex Mercer (SaaS Admin)',
+        email: 'admin@fitsaas.com',
+        passwordHash: hashedAdminPassword,
+        role: 'super_admin'
+      });
+      console.log(`[SEEDER] Created Super Admin: ${admin.email}`);
+    }
+
+    // Clear and seed other collections to ensure clean tenant slate
     await GymOwner.deleteMany({});
     await PlatformLead.deleteMany({});
     await MembershipPlan.deleteMany({});
@@ -21,20 +39,10 @@ async function seed() {
     await Trainer.deleteMany({});
     await AuditLog.deleteMany({});
 
-    console.log('[SEEDER] Cleared existing database records.');
+    console.log('[SEEDER] Cleared existing tenant database records.');
 
     // 2. Hash Default Passwords
-    const hashedAdminPassword = await bcrypt.hash('admin123', 10);
     const hashedOwnerPassword = await bcrypt.hash('owner123', 10);
-
-    // 3. Seed Super Admin
-    const admin = await SuperAdmin.create({
-      name: 'Alex Mercer (SaaS Admin)',
-      email: 'admin@fitsaas.com',
-      passwordHash: hashedAdminPassword,
-      role: 'super_admin'
-    });
-    console.log(`[SEEDER] Created Super Admin: ${admin.email}`);
 
     // 4. Seed Platform Leads (CRM Board)
     const lead1 = await PlatformLead.create({

@@ -1,7 +1,11 @@
 import { Router, Response } from 'express';
-import { PlatformLead } from '../models';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { PlatformLead, GymOwner, AuditLog } from '../models';
+import { validateBody, freeTrialSchema } from '../middleware/validation';
 
 const router = Router();
+const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-india-gym-saas-2026';
 
 // 1. GET Subscription Plans Pricing (INR ₹)
 router.get('/plans', (req, res) => {
@@ -39,6 +43,90 @@ router.post('/leads', async (req, res) => {
     });
   } catch (err) {
     return res.status(500).json({ message: 'Error submitting demo request.' });
+  }
+});
+
+// 3. POST Free Trial Onboarding (generates trial account)
+router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
+  const { gymName, ownerName, email, phone, city } = req.body;
+
+  try {
+    // A. Check for existing owner
+    const existing = await GymOwner.findOne({ email, isDeleted: false });
+    if (existing) {
+      return res.status(400).json({ message: 'An account with this email is already registered.' });
+    }
+
+    // B. Generate secure readable password
+    const generatedPassword = `trial_${Math.random().toString(36).slice(2, 8)}`;
+    const passwordHash = await bcrypt.hash(generatedPassword, 10);
+
+    // C. Calculate Expiry Date (7 days from now)
+    const startDate = new Date();
+    const expiryDate = new Date();
+    expiryDate.setDate(expiryDate.getDate() + 7);
+
+    // D. Create Gym Owner
+    const owner = await GymOwner.create({
+      gymName,
+      ownerName,
+      email,
+      passwordHash,
+      phone,
+      address: city,
+      role: 'gym_owner',
+      isTrial: true,
+      branding: {
+        gymName,
+        address: city,
+        contactNumber: phone,
+        whatsAppNumber: phone,
+        logo: ''
+      },
+      subscription: {
+        planType: '1_month',
+        startDate,
+        expiryDate,
+        status: 'active',
+        amountPaid: 0
+      }
+    });
+
+    // E. Log credentials in database AuditLogs for recovery if SMTP is missing
+    await AuditLog.create({
+      action: `Trial Registered: ${gymName} (${email}) - Password: ${generatedPassword}`,
+      user: `SYSTEM (Free Trial Sign Up)`,
+      ipAddress: req.ip || '127.0.0.1',
+      timestamp: new Date()
+    });
+
+    // F. Generate JWT Token for Auto-Login
+    const token = jwt.sign(
+      { id: owner._id, email: owner.email, role: 'gym_owner' },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    return res.status(201).json({
+      message: '7-Day Free Trial portal created successfully!',
+      token,
+      email: owner.email,
+      password: generatedPassword,
+      user: {
+        id: owner._id,
+        name: owner.ownerName,
+        ownerName: owner.ownerName,
+        gymName: owner.gymName,
+        email: owner.email,
+        role: owner.role,
+        subscription: owner.subscription,
+        branding: owner.branding,
+        isTrial: true
+      }
+    });
+  } catch (err) {
+    console.error('Free trial setup error:', err);
+    return res.status(500).json({ message: 'Error setting up free trial account.' });
   }
 });
 
