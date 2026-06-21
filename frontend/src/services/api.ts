@@ -1,4 +1,9 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL as string) || '/api';
+const getApiBase = () => {
+  const url = (import.meta.env.VITE_API_BASE_URL as string) || '';
+  if (!url) return '/api';
+  return url.endsWith('/api') ? url : `${url.replace(/\/$/, '')}/api`;
+};
+const API_BASE = getApiBase();
 
 export interface ApiResponse<T = any> {
   data?: T;
