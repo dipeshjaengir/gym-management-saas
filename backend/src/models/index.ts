@@ -1,0 +1,350 @@
+import mongoose, { Schema, Document } from 'mongoose';
+
+// ----------------------------------------------------
+// 1. SUPER ADMIN SCHEMA
+// ----------------------------------------------------
+export interface ISuperAdmin extends Document {
+  name: string;
+  email: string;
+  passwordHash: string;
+  role: 'super_admin';
+}
+
+const SuperAdminSchema = new Schema<ISuperAdmin>({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true, index: true },
+  passwordHash: { type: String, required: true },
+  role: { type: String, default: 'super_admin' }
+}, { timestamps: true });
+
+export const SuperAdmin = mongoose.model<ISuperAdmin>('SuperAdmin', SuperAdminSchema);
+
+// ----------------------------------------------------
+// 2. PLATFORM LEAD SCHEMA
+// ----------------------------------------------------
+export interface IPlatformLead extends Document {
+  name: string;
+  phone: string;
+  city: string;
+  interestedPlan: '1_month' | '3_month' | '6_month' | '12_month';
+  source: 'whatsapp' | 'website' | 'instagram' | 'facebook' | 'other';
+  status: 'new' | 'contacted' | 'negotiation' | 'converted' | 'lost';
+  isDeleted: boolean;
+}
+
+const PlatformLeadSchema = new Schema<IPlatformLead>({
+  name: { type: String, required: true },
+  phone: { type: String, required: true, index: true },
+  city: { type: String, required: true },
+  interestedPlan: { type: String, enum: ['1_month', '3_month', '6_month', '12_month'], required: true },
+  source: { type: String, enum: ['whatsapp', 'website', 'instagram', 'facebook', 'other'], default: 'other' },
+  status: { type: String, enum: ['new', 'contacted', 'negotiation', 'converted', 'lost'], default: 'new' },
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const PlatformLead = mongoose.model<IPlatformLead>('PlatformLead', PlatformLeadSchema);
+
+// ----------------------------------------------------
+// 3. GYM OWNER (TENANT) SCHEMA
+// ----------------------------------------------------
+export interface IGymOwner extends Document {
+  gymName: string;
+  ownerName: string;
+  email: string;
+  passwordHash: string;
+  phone: string;
+  address: string;
+  role: 'gym_owner';
+  branding: {
+    logo?: string;
+    gymName?: string;
+    address?: string;
+    contactNumber?: string;
+    whatsAppNumber?: string;
+  };
+  subscription: {
+    planType: '1_month' | '3_month' | '6_month' | '12_month';
+    startDate: Date;
+    expiryDate: Date;
+    status: 'active' | 'expired' | 'suspended';
+    amountPaid: number;
+  };
+  isDeleted: boolean;
+}
+
+const GymOwnerSchema = new Schema<IGymOwner>({
+  gymName: { type: String, required: true },
+  ownerName: { type: String, required: true },
+  email: { type: String, required: true, unique: true, index: true },
+  passwordHash: { type: String, required: true },
+  phone: { type: String, required: true },
+  address: { type: String, required: true },
+  role: { type: String, default: 'gym_owner' },
+  branding: {
+    logo: { type: String, default: '' },
+    gymName: { type: String, default: '' },
+    address: { type: String, default: '' },
+    contactNumber: { type: String, default: '' },
+    whatsAppNumber: { type: String, default: '' }
+  },
+  subscription: {
+    planType: { type: String, enum: ['1_month', '3_month', '6_month', '12_month'], required: true },
+    startDate: { type: Date, required: true },
+    expiryDate: { type: Date, required: true, index: true },
+    status: { type: String, enum: ['active', 'expired', 'suspended'], default: 'active', index: true },
+    amountPaid: { type: Number, required: true }
+  },
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const GymOwner = mongoose.model<IGymOwner>('GymOwner', GymOwnerSchema);
+
+// ----------------------------------------------------
+// 4. AUDIT LOG SCHEMA
+// ----------------------------------------------------
+export interface IAuditLog extends Document {
+  action: string;
+  user: string;
+  ipAddress: string;
+  timestamp: Date;
+}
+
+const AuditLogSchema = new Schema<IAuditLog>({
+  action: { type: String, required: true },
+  user: { type: String, required: true },
+  ipAddress: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now, index: true }
+});
+
+export const AuditLog = mongoose.model<IAuditLog>('AuditLog', AuditLogSchema);
+
+// ----------------------------------------------------
+// 5. MEMBERSHIP PLAN SCHEMA
+// ----------------------------------------------------
+export interface IMembershipPlan extends Document {
+  gymOwnerId: any;
+  name: string;
+  durationMonths: number;
+  price: number;
+  status: 'active' | 'inactive';
+  isDeleted: boolean;
+}
+
+const MembershipPlanSchema = new Schema<IMembershipPlan>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', required: true, index: true },
+  name: { type: String, required: true },
+  durationMonths: { type: Number, required: true },
+  price: { type: Number, required: true },
+  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const MembershipPlan = mongoose.model<IMembershipPlan>('MembershipPlan', MembershipPlanSchema);
+
+// ----------------------------------------------------
+// 6. MEMBER SCHEMA
+// ----------------------------------------------------
+export interface IMember extends Document {
+  gymOwnerId: any;
+  name: string;
+  phone: string;
+  email: string;
+  gender: 'male' | 'female' | 'other';
+  dob: Date;
+  height: number;
+  weight: number;
+  address: string;
+  joiningDate: Date;
+  planId: any;
+  membershipStart: Date;
+  membershipEnd: Date;
+  amountPaid: number;
+  remainingAmount: number;
+  paymentStatus: 'paid' | 'partial' | 'unpaid';
+  qrCode: string;
+  emergencyContact: {
+    name: string;
+    phone: string;
+    relation: string;
+  };
+  notes: string[];
+  isDeleted: boolean;
+}
+
+const MemberSchema = new Schema<IMember>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', required: true, index: true },
+  name: { type: String, required: true, index: true },
+  phone: { type: String, required: true, index: true },
+  email: { type: String, default: '' },
+  gender: { type: String, enum: ['male', 'female', 'other'], required: true },
+  dob: { type: Date, required: true },
+  height: { type: Number, required: true },
+  weight: { type: Number, required: true },
+  address: { type: String, default: '' },
+  joiningDate: { type: Date, default: Date.now },
+  planId: { type: Schema.Types.ObjectId, ref: 'MembershipPlan', required: true },
+  membershipStart: { type: Date, required: true },
+  membershipEnd: { type: Date, required: true, index: true },
+  amountPaid: { type: Number, default: 0 },
+  remainingAmount: { type: Number, default: 0, index: true },
+  paymentStatus: { type: String, enum: ['paid', 'partial', 'unpaid'], default: 'unpaid' },
+  qrCode: { type: String, required: true, unique: true, index: true },
+  emergencyContact: {
+    name: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    relation: { type: String, default: '' }
+  },
+  notes: { type: [String], default: [] },
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const Member = mongoose.model<IMember>('Member', MemberSchema);
+
+// ----------------------------------------------------
+// 7. PAYMENT SCHEMA
+// ----------------------------------------------------
+export interface IPayment extends Document {
+  gymOwnerId: any;
+  memberId: any;
+  amount: number;
+  pendingAmount: number;
+  paymentDate: Date;
+  paymentMethod: 'upi' | 'cash' | 'card' | 'bank_transfer';
+  receiptNumber: string;
+  notes: string;
+  isDeleted: boolean;
+}
+
+const PaymentSchema = new Schema<IPayment>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', required: true, index: true },
+  memberId: { type: Schema.Types.ObjectId, ref: 'Member', required: true, index: true },
+  amount: { type: Number, required: true },
+  pendingAmount: { type: Number, default: 0 },
+  paymentDate: { type: Date, default: Date.now, index: true },
+  paymentMethod: { type: String, enum: ['upi', 'cash', 'card', 'bank_transfer'], required: true },
+  receiptNumber: { type: String, required: true, unique: true },
+  notes: { type: String, default: '' },
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const Payment = mongoose.model<IPayment>('Payment', PaymentSchema);
+
+// ----------------------------------------------------
+// 8. ATTENDANCE SCHEMA
+// ----------------------------------------------------
+export interface IAttendance extends Document {
+  gymOwnerId: any;
+  memberId: any;
+  date: string;
+  checkInTime: string;
+  status: 'present' | 'absent';
+}
+
+const AttendanceSchema = new Schema<IAttendance>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', required: true, index: true },
+  memberId: { type: Schema.Types.ObjectId, ref: 'Member', required: true, index: true },
+  date: { type: String, required: true, index: true }, // Format YYYY-MM-DD
+  checkInTime: { type: String, required: true },
+  status: { type: String, enum: ['present', 'absent'], default: 'present' }
+}, { timestamps: true });
+
+export const Attendance = mongoose.model<IAttendance>('Attendance', AttendanceSchema);
+
+// ----------------------------------------------------
+// 9. TRAINER SCHEMA
+// ----------------------------------------------------
+export interface ITrainer extends Document {
+  gymOwnerId: any;
+  name: string;
+  phone: string;
+  specialization: string;
+  status: 'active' | 'inactive';
+  isDeleted: boolean;
+}
+
+const TrainerSchema = new Schema<ITrainer>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', required: true, index: true },
+  name: { type: String, required: true },
+  phone: { type: String, required: true },
+  specialization: { type: String, default: '' },
+  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const Trainer = mongoose.model<ITrainer>('Trainer', TrainerSchema);
+
+// ----------------------------------------------------
+// 10. WORKOUT PLAN SCHEMA
+// ----------------------------------------------------
+export interface IWorkoutPlan extends Document {
+  gymOwnerId: any;
+  memberId: any;
+  instructions: string;
+  exercises: { day: string; name: string; sets: number; reps: string }[];
+  isDeleted: boolean;
+}
+
+const WorkoutPlanSchema = new Schema<IWorkoutPlan>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', required: true, index: true },
+  memberId: { type: Schema.Types.ObjectId, ref: 'Member', required: true, index: true },
+  instructions: { type: String, default: '' },
+  exercises: [{
+    day: { type: String, required: true },
+    name: { type: String, required: true },
+    sets: { type: Number, required: true },
+    reps: { type: String, required: true }
+  }],
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const WorkoutPlan = mongoose.model<IWorkoutPlan>('WorkoutPlan', WorkoutPlanSchema);
+
+// ----------------------------------------------------
+// 11. DIET PLAN SCHEMA
+// ----------------------------------------------------
+export interface IDietPlan extends Document {
+  gymOwnerId: any;
+  memberId: any;
+  instructions: string;
+  meals: { time: string; items: string; calories: number }[];
+  isDeleted: boolean;
+}
+
+const DietPlanSchema = new Schema<IDietPlan>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', required: true, index: true },
+  memberId: { type: Schema.Types.ObjectId, ref: 'Member', required: true, index: true },
+  instructions: { type: String, default: '' },
+  meals: [{
+    time: { type: String, required: true },
+    items: { type: String, required: true },
+    calories: { type: Number, default: 0 }
+  }],
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const DietPlan = mongoose.model<IDietPlan>('DietPlan', DietPlanSchema);
+
+// ----------------------------------------------------
+// 12. PROGRESS METRIC SCHEMA
+// ----------------------------------------------------
+export interface IProgressMetric extends Document {
+  memberId: any;
+  date: Date;
+  weight: number;
+  bmi: number;
+  chest: number;
+  waist: number;
+  biceps: number;
+}
+
+const ProgressMetricSchema = new Schema<IProgressMetric>({
+  memberId: { type: Schema.Types.ObjectId, ref: 'Member', required: true, index: true },
+  date: { type: Date, default: Date.now, index: true },
+  weight: { type: Number, required: true },
+  bmi: { type: Number, required: true },
+  chest: { type: Number, default: 0 },
+  waist: { type: Number, default: 0 },
+  biceps: { type: Number, default: 0 }
+}, { timestamps: true });
+
+export const ProgressMetric = mongoose.model<IProgressMetric>('ProgressMetric', ProgressMetricSchema);
