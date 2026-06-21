@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { Member, MembershipPlan, ProgressMetric, GymOwner } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
-import { validateBody, createMemberSchema } from '../middleware/validation';
+import { validateBody, createMemberSchema, updateMemberSchema } from '../middleware/validation';
 
 const router = Router();
 
@@ -137,7 +137,7 @@ router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequ
 });
 
 // 4. PUT Edit Member Details
-router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRequest, res: Response) => {
   const {
     name, phone, email, gender, dob, height, weight, address,
     planId, membershipStart, amountPaid, emergencyContact, notes

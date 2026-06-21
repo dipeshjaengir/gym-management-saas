@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { GymOwner, Member, Payment } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
+import { validateBody, updateBrandingSchema } from '../middleware/validation';
 
 const router = Router();
 
@@ -28,7 +29,8 @@ router.get('/branding', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // 2. Update Branding configuration
-router.put('/branding', async (req: AuthenticatedRequest, res: Response) => {
+router.put('/branding', validateBody(updateBrandingSchema), async (req: AuthenticatedRequest, res: Response) => {
+
   const { logo, gymName, address, contactNumber, whatsAppNumber } = req.body;
 
   try {

@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { Trainer } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
-import { validateBody, createTrainerSchema } from '../middleware/validation';
+import { validateBody, createTrainerSchema, updateTrainerSchema } from '../middleware/validation';
 
 const router = Router();
 
@@ -37,7 +37,7 @@ router.post('/', validateBody(createTrainerSchema), async (req: AuthenticatedReq
 });
 
 // 3. PUT update trainer
-router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id', validateBody(updateTrainerSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const trainer = await Trainer.findOneAndUpdate(
       { _id: req.params.id, gymOwnerId: req.user!.id, isDeleted: false },

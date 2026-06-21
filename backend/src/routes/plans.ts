@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { MembershipPlan } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
-import { validateBody, createPlanSchema } from '../middleware/validation';
+import { validateBody, createPlanSchema, updatePlanSchema } from '../middleware/validation';
 
 const router = Router();
 
@@ -41,7 +41,7 @@ router.post('/', validateBody(createPlanSchema), async (req: AuthenticatedReques
 });
 
 // 3. PUT edit plan
-router.put('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.put('/:id', validateBody(updatePlanSchema), async (req: AuthenticatedRequest, res: Response) => {
   try {
     const plan = await MembershipPlan.findOneAndUpdate(
       { _id: req.params.id, gymOwnerId: req.user!.id, isDeleted: false },

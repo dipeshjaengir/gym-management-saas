@@ -34,6 +34,10 @@ export const createGymOwnerSchema = z.object({
   amountPaid: z.number().nonnegative('Amount paid cannot be negative.')
 });
 
+export const updateGymOwnerSchema = createGymOwnerSchema.partial().extend({
+  password: z.string().min(6, 'Password must be at least 6 characters.').optional()
+});
+
 // 2. Member Registration/Update Schema
 export const createMemberSchema = z.object({
   name: z.string().min(2, 'Member name must be at least 2 characters.'),
@@ -51,6 +55,8 @@ export const createMemberSchema = z.object({
   notes: z.string().optional().or(z.literal(''))
 });
 
+export const updateMemberSchema = createMemberSchema.partial();
+
 // 3. Payment Registration Schema
 export const createPaymentSchema = z.object({
   memberId: z.string().min(10, 'Invalid member ID referenced.'),
@@ -67,6 +73,8 @@ export const createPlanSchema = z.object({
   status: z.enum(['active', 'inactive']).optional()
 });
 
+export const updatePlanSchema = createPlanSchema.partial();
+
 // 5. Trainer Schema
 export const createTrainerSchema = z.object({
   name: z.string().min(2, 'Trainer name must be at least 2 characters.'),
@@ -74,6 +82,8 @@ export const createTrainerSchema = z.object({
   specialization: z.string().optional().or(z.literal('')),
   status: z.enum(['active', 'inactive']).optional()
 });
+
+export const updateTrainerSchema = createTrainerSchema.partial();
 
 // 6. Lead CRM Schema
 export const createLeadSchema = z.object({
@@ -84,3 +94,57 @@ export const createLeadSchema = z.object({
   source: z.enum(['whatsapp', 'website', 'instagram', 'facebook', 'other']).optional(),
   status: z.enum(['new', 'contacted', 'negotiation', 'converted', 'lost']).optional()
 });
+
+export const updateLeadSchema = createLeadSchema.partial();
+
+// 7. Login Schema
+export const loginSchema = z.object({
+  email: z.string().email('Invalid email address format.'),
+  password: z.string().min(1, 'Password is required.')
+});
+
+// 8. Gym Branding Settings Schema
+export const updateBrandingSchema = z.object({
+  logo: z.string().optional().or(z.literal('')),
+  gymName: z.string().min(2, 'Gym name must be at least 2 characters.').optional(),
+  address: z.string().min(5, 'Address details are too short.').optional(),
+  contactNumber: z.string().min(10, 'Contact number must be at least 10 digits.').optional(),
+  whatsAppNumber: z.string().min(10, 'WhatsApp number must be at least 10 digits.').optional()
+});
+
+// 9. Status & Renew Schemas
+export const updateGymOwnerStatusSchema = z.object({
+  status: z.enum(['active', 'expired', 'suspended'])
+});
+
+export const renewGymOwnerSubscriptionSchema = z.object({
+  planType: z.enum(['1_month', '3_month', '6_month', '12_month']),
+  amountPaid: z.number().nonnegative('Amount paid cannot be negative.')
+});
+
+// 10. Workout Schema
+export const saveWorkoutSchema = z.object({
+  instructions: z.string().optional().or(z.literal('')),
+  exercises: z.array(z.object({
+    day: z.string(),
+    name: z.string(),
+    sets: z.number().positive(),
+    reps: z.string()
+  })).optional()
+});
+
+// 11. Diet Schema
+export const saveDietSchema = z.object({
+  instructions: z.string().optional().or(z.literal('')),
+  meals: z.array(z.object({
+    time: z.string(),
+    items: z.string(),
+    calories: z.number().nonnegative()
+  })).optional()
+});
+
+// 12. Attendance Check-In Schema
+export const checkInSchema = z.object({
+  qrCode: z.string().min(1, 'QR code is required.')
+});
+

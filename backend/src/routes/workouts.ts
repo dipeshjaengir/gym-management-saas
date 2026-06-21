@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { WorkoutPlan } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
+import { validateBody, saveWorkoutSchema } from '../middleware/validation';
 
 const router = Router();
 
@@ -23,7 +24,7 @@ router.get('/member/:memberId', async (req: AuthenticatedRequest, res: Response)
 });
 
 // 2. POST Save/Update Workout Plan
-router.post('/member/:memberId', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/member/:memberId', validateBody(saveWorkoutSchema), async (req: AuthenticatedRequest, res: Response) => {
   const { instructions, exercises } = req.body;
 
   try {

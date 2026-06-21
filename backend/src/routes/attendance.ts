@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { Attendance, Member } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
+import { validateBody, checkInSchema } from '../middleware/validation';
 
 const router = Router();
 
@@ -24,7 +25,7 @@ router.get('/daily', async (req: AuthenticatedRequest, res: Response) => {
 });
 
 // 2. POST scan check-in member by QR code
-router.post('/check-in', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedRequest, res: Response) => {
   const { qrCode } = req.body;
   const gymOwnerId = req.user!.id;
 

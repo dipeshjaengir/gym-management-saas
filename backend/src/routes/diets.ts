@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import { DietPlan } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
+import { validateBody, saveDietSchema } from '../middleware/validation';
 
 const router = Router();
 
@@ -23,7 +24,7 @@ router.get('/member/:memberId', async (req: AuthenticatedRequest, res: Response)
 });
 
 // 2. POST Save/Update Diet Plan
-router.post('/member/:memberId', async (req: AuthenticatedRequest, res: Response) => {
+router.post('/member/:memberId', validateBody(saveDietSchema), async (req: AuthenticatedRequest, res: Response) => {
   const { instructions, meals } = req.body;
 
   try {

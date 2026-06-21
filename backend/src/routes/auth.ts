@@ -4,12 +4,14 @@ import jwt from 'jsonwebtoken';
 import { SuperAdmin, GymOwner } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
+import { validateBody, loginSchema } from '../middleware/validation';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-india-gym-saas-2026';
 
 // 1. Unified Login Endpoint
-router.post('/login', async (req, res) => {
+router.post('/login', validateBody(loginSchema), async (req, res) => {
+
   const { email, password } = req.body;
 
   if (!email || !password) {

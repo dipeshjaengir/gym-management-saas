@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import { GymOwner, PlatformLead, AuditLog, Member } from '../models';
 import { authenticateToken, authorizeRoles, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
-import { validateBody, createLeadSchema, createGymOwnerSchema } from '../middleware/validation';
+import { validateBody, createLeadSchema, createGymOwnerSchema, updateLeadSchema, updateGymOwnerSchema, updateGymOwnerStatusSchema, renewGymOwnerSubscriptionSchema } from '../middleware/validation';
 
 const router = Router();
 
@@ -117,7 +117,7 @@ router.post('/leads', validateBody(createLeadSchema), async (req: AuthenticatedR
 });
 
 // PUT Update Lead
-router.put('/leads/:id', async (req, res) => {
+router.put('/leads/:id', validateBody(updateLeadSchema), async (req, res) => {
   try {
     const lead = await PlatformLead.findByIdAndUpdate(req.params.id, req.body, { new: true });
     if (!lead) return res.status(404).json({ message: 'Lead not found.' });
@@ -211,7 +211,7 @@ router.post('/owners', validateBody(createGymOwnerSchema), async (req: Authentic
 });
 
 // PUT Update Gym Owner
-router.put('/owners/:id', async (req: AuthenticatedRequest, res) => {
+router.put('/owners/:id', validateBody(updateGymOwnerSchema), async (req: AuthenticatedRequest, res) => {
   const { gymName, ownerName, email, phone, address } = req.body;
 
   try {
@@ -234,7 +234,7 @@ router.put('/owners/:id', async (req: AuthenticatedRequest, res) => {
 });
 
 // PUT Suspend / Activate Gym Owner
-router.put('/owners/:id/status', async (req: AuthenticatedRequest, res) => {
+router.put('/owners/:id/status', validateBody(updateGymOwnerStatusSchema), async (req: AuthenticatedRequest, res) => {
   const { status } = req.body;
   if (!['active', 'suspended'].includes(status)) {
     return res.status(400).json({ message: 'Invalid target status.' });
@@ -256,7 +256,7 @@ router.put('/owners/:id/status', async (req: AuthenticatedRequest, res) => {
 });
 
 // PUT Renew / Extend Subscription
-router.put('/owners/:id/renew', async (req: AuthenticatedRequest, res) => {
+router.put('/owners/:id/renew', validateBody(renewGymOwnerSubscriptionSchema), async (req: AuthenticatedRequest, res) => {
   const { planType, amountPaid } = req.body;
   if (!planType || amountPaid === undefined) {
     return res.status(400).json({ message: 'Missing plan selection parameters.' });
