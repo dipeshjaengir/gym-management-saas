@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -48,6 +49,16 @@ export const PendingRecoveryDashboard: React.FC = () => {
 
   const { showToast } = useNotification();
   const { user } = useAuth();
+  const navigate = useNavigate();
+
+  const getDaysOverdue = (expiryDateStr: string) => {
+    const expiry = new Date(expiryDateStr);
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    if (expiry >= todayStart) return 0;
+    const diffTime = todayStart.getTime() - expiry.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
 
   useEffect(() => {
     loadDuesData();
@@ -122,7 +133,8 @@ export const PendingRecoveryDashboard: React.FC = () => {
       'Plan Price': m.planId?.price || 0,
       'Plan Name': m.planId?.name || 'N/A',
       'Membership Expiry': new Date(m.membershipEnd).toLocaleDateString('en-IN'),
-      'Last Payment Date': m.lastPaymentDate ? new Date(m.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A'
+      'Last Payment Date': m.lastPaymentDate ? new Date(m.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A',
+      'Days Overdue': getDaysOverdue(m.membershipEnd)
     }));
     exportToCSV(data, 'pending_dues_recovery');
   };
@@ -244,7 +256,12 @@ export const PendingRecoveryDashboard: React.FC = () => {
             {filteredMembers.map((member) => (
               <div key={member._id} className="p-4 rounded-xl bg-card border space-y-3 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm">{member.name}</span>
+                  <button
+                    onClick={() => navigate(`/app/members/${member._id}`)}
+                    className="font-bold text-sm text-primary hover:underline text-left cursor-pointer"
+                  >
+                    {member.name}
+                  </button>
                   <span className="text-xs font-extrabold text-rose-400">Dues: ₹{member.remainingAmount}</span>
                 </div>
                 
@@ -254,6 +271,7 @@ export const PendingRecoveryDashboard: React.FC = () => {
                   <div>Paid: <span className="text-foreground">₹{member.amountPaid} / ₹{member.planId?.price}</span></div>
                   <div>Last Paid: <span className="text-foreground">{member.lastPaymentDate ? new Date(member.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A'}</span></div>
                   <div>Ends: <span className="text-foreground">{new Date(member.membershipEnd).toLocaleDateString('en-IN')}</span></div>
+                  <div>Days Overdue: <span className="text-rose-400 font-bold">{getDaysOverdue(member.membershipEnd)} Days</span></div>
                 </div>
 
                 <div className="pt-2">
@@ -279,13 +297,21 @@ export const PendingRecoveryDashboard: React.FC = () => {
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Dues (Balance)</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Last Paid Date</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Expiry Date</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Days Overdue</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase text-right">Reminder Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y text-sm">
                 {filteredMembers.map((member) => (
                   <tr key={member._id} className="hover:bg-muted/15 transition-colors">
-                    <td className="p-4 font-bold">{member.name}</td>
+                    <td className="p-4 font-bold">
+                      <button
+                        onClick={() => navigate(`/app/members/${member._id}`)}
+                        className="text-primary hover:underline font-bold text-left cursor-pointer focus:outline-none"
+                      >
+                        {member.name}
+                      </button>
+                    </td>
                     <td className="p-4">{member.phone}</td>
                     <td className="p-4">
                       <div className="font-semibold">{member.planId?.name || 'Custom Plan'}</div>
@@ -297,6 +323,9 @@ export const PendingRecoveryDashboard: React.FC = () => {
                     </td>
                     <td className="p-4 text-xs text-muted-foreground">
                       {new Date(member.membershipEnd).toLocaleDateString('en-IN')}
+                    </td>
+                    <td className="p-4 text-xs font-bold text-rose-400">
+                      {getDaysOverdue(member.membershipEnd)} Days
                     </td>
                     <td className="p-4 text-right">
                       <button

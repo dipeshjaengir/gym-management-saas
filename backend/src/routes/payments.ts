@@ -180,7 +180,11 @@ router.put('/:id/void', async (req: AuthenticatedRequest, res: Response) => {
 router.get('/:id/receipt', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const payment = await Payment.findOne({ _id: req.params.id, gymOwnerId: req.user!.id, isDeleted: false })
-      .populate({ path: 'memberId', select: 'name phone address joiningDate' });
+      .populate({
+        path: 'memberId',
+        select: 'name phone address joiningDate planId',
+        populate: { path: 'planId', select: 'name price' }
+      });
     if (!payment) return res.status(404).json({ message: 'Receipt not found.' });
 
     const owner = await GymOwner.findById(req.user!.id).select('branding gymName address phone');

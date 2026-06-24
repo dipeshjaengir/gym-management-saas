@@ -315,31 +315,66 @@ export const MemberProfile: React.FC = () => {
   // Activity Timeline Builder
   const buildTimeline = () => {
     if (!member) return [];
-    const timeline: { date: Date; title: string; desc: string; type: 'info' | 'success' | 'warn' }[] = [];
+    const timeline: { date: Date; title: string; desc: string; type: 'info' | 'success' | 'warn'; details?: any }[] = [];
 
-    // Onboarding
+    // Onboarding (Registration Date)
     timeline.push({
       date: new Date(member.joiningDate),
-      title: 'Joined Gym Workspace',
-      desc: `Registered on ${member.planId?.name || 'Deleted Plan'} plan.`,
-      type: 'info'
+      title: 'Registration Date',
+      desc: `Profile registered in studio workspace. Assigned Plan: ${member.planId?.name || 'N/A'}.`,
+      type: 'info',
+      details: {
+        memberName: member.name,
+        notes: member.notes || 'Profile created successfully'
+      }
     });
 
     // Payments
     payments.forEach(p => {
+      let eventType = 'Payment Collected';
+      if (p.notes?.includes('Initial Plan Registration') || p.notes?.includes('Initial payment') || p.notes?.includes('Initial Plan Registration Payment')) {
+        eventType = 'Initial Membership Purchase';
+      } else if (p.notes?.includes('Dues Settlement') || p.notes?.includes('Collect Remaining') || p.notes?.includes('settlement') || p.notes?.includes('installment')) {
+        eventType = 'Due Collection';
+      } else if (p.notes?.includes('Renewal') || p.notes?.includes('Membership Renewal')) {
+        eventType = 'Membership Renewal';
+      } else if (p.notes?.includes('Upgrade') || p.notes?.includes('Plan Upgrade')) {
+        eventType = 'Plan Upgrade';
+      } else if (p.notes?.includes('Downgrade') || p.notes?.includes('Plan Downgrade')) {
+        eventType = 'Plan Downgrade';
+      } else if (p.pendingAmount > 0) {
+        eventType = 'Partial Payment';
+      }
+
       if (p.isVoided) {
         timeline.push({
           date: new Date(p.paymentDate),
-          title: `Payment Voided: ${p.receiptNumber}`,
-          desc: `Voided transaction of ₹${p.amount}.`,
-          type: 'warn'
+          title: `Voided: ${eventType}`,
+          desc: `Receipt ID: ${p.receiptNumber} voided. Deducted ₹${p.amount} from member paid balance.`,
+          type: 'warn',
+          details: {
+            transactionId: p.receiptNumber,
+            memberName: member.name,
+            amount: p.amount,
+            method: p.paymentMethod,
+            collectedBy: p.operatorName || 'Admin',
+            notes: `VOIDED - ${p.notes || 'N/A'}`
+          }
         });
       } else {
         timeline.push({
           date: new Date(p.paymentDate),
-          title: `Payment Logged: ${p.receiptNumber}`,
-          desc: `Received ₹${p.amount} via ${p.paymentMethod.toUpperCase()}${p.notes ? ` (${p.notes})` : ''}.`,
-          type: 'success'
+          title: eventType,
+          desc: `Transaction receipt ${p.receiptNumber} logged. Amount: ₹${p.amount} via ${p.paymentMethod.toUpperCase()}`,
+          type: 'success',
+          details: {
+            transactionId: p.receiptNumber,
+            memberName: member.name,
+            amount: p.amount,
+            method: p.paymentMethod,
+            collectedBy: p.operatorName || 'Admin',
+            notes: p.notes || 'N/A'
+          }
         });
       }
     });
@@ -784,6 +819,44 @@ export const MemberProfile: React.FC = () => {
                       <span className="text-[10px] text-muted-foreground">{item.date.toLocaleString('en-IN')}</span>
                     </div>
                     <p className="text-xs text-muted-foreground">{item.desc}</p>
+                    {item.details && (
+                      <div className="mt-2 p-3 bg-muted/20 border rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-muted-foreground">
+                        {item.details.transactionId && (
+                          <div>
+                            <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Transaction ID</span>
+                            <span className="text-foreground font-mono font-bold">{item.details.transactionId}</span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Member Name</span>
+                          <span className="text-foreground font-bold">{item.details.memberName}</span>
+                        </div>
+                        {item.details.amount !== undefined && (
+                          <div>
+                            <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Amount</span>
+                            <span className="text-foreground font-bold text-primary">₹{item.details.amount}</span>
+                          </div>
+                        )}
+                        {item.details.method && (
+                          <div>
+                            <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Payment Method</span>
+                            <span className="text-foreground uppercase font-bold">{item.details.method}</span>
+                          </div>
+                        )}
+                        {item.details.collectedBy && (
+                          <div>
+                            <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Collected By</span>
+                            <span className="text-foreground font-bold">{item.details.collectedBy}</span>
+                          </div>
+                        )}
+                        {item.details.notes && (
+                          <div className="col-span-2">
+                            <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Notes / Remarks</span>
+                            <span className="text-foreground italic">{item.details.notes}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1021,11 +1094,13 @@ export const MemberProfile: React.FC = () => {
                       <div className="mt-1 font-bold">Receipt #: {receiptDetails.receiptNumber}</div>
                       <div>Date: {new Date(receiptDetails.paymentDate).toLocaleString('en-IN')}</div>
                       <div>Method: <span className="uppercase font-semibold">{receiptDetails.paymentMethod}</span></div>
+                      <div>Collected By: <span className="font-semibold">{receiptDetails.operatorName || 'Admin'}</span></div>
                     </div>
                     <div>
                       <div className="text-[10px] font-semibold text-muted-foreground uppercase">Payer Details</div>
                       <div className="mt-1 font-bold">Name: {receiptDetails.member?.name}</div>
                       <div>Contact: {receiptDetails.member?.phone}</div>
+                      <div>Plan Name: <span className="font-bold text-primary">{receiptDetails.member?.planId?.name || 'Gym Membership'}</span></div>
                     </div>
                   </div>
 
@@ -1054,7 +1129,7 @@ export const MemberProfile: React.FC = () => {
                       <span>Amount Collected</span>
                     </div>
                     <div className="flex justify-between items-center p-3 font-medium">
-                      <span>Gym Studio Membership Fees Collection</span>
+                      <span>Gym Studio Membership Fees ({receiptDetails.member?.planId?.name || 'Custom Plan'})</span>
                       <span className="font-bold">₹{receiptDetails.amount}</span>
                     </div>
                   </div>
@@ -1082,17 +1157,38 @@ export const MemberProfile: React.FC = () => {
                   setShowReceiptModal(false);
                   setReceiptDetails(null);
                 }}
-                className="flex-1 py-2 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl text-xs cursor-pointer"
+                className="py-2 px-3 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl text-xs cursor-pointer"
               >
-                Close Receipt
+                Close
               </button>
               {receiptDetails && (
-                <button
-                  onClick={downloadReceiptPDF}
-                  className="flex-1 py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
-                >
-                  <Printer className="w-3.5 h-3.5" /> Print PDF receipt
-                </button>
+                <>
+                  <button
+                    onClick={downloadReceiptPDF}
+                    className="flex-1 py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> Print PDF
+                  </button>
+                  <a
+                    href={`https://wa.me/${receiptDetails.member?.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(
+                      `Hello ${receiptDetails.member?.name || 'Member'},\n\n` +
+                      `Here is your payment receipt from ${receiptDetails.branding?.gymName || 'GymLedger'}.\n\n` +
+                      `Transaction ID: ${receiptDetails.receiptNumber}\n` +
+                      `Plan Name: ${receiptDetails.member?.planId?.name || 'Gym Membership'}\n` +
+                      `Amount Paid: ₹${receiptDetails.amount}\n` +
+                      `Remaining Due: ₹${receiptDetails.pendingAmount}\n` +
+                      `Payment Method: ${receiptDetails.paymentMethod.toUpperCase()}\n` +
+                      `Date & Time: ${new Date(receiptDetails.paymentDate).toLocaleString('en-IN')}\n` +
+                      `Collected By: ${receiptDetails.operatorName || 'Admin'}\n\n` +
+                      `Thank you for working out with us!`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                  </a>
+                </>
               )}
             </div>
           </div>

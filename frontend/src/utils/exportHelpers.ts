@@ -22,10 +22,14 @@ export function generateReceiptPDF(receipt: {
   pendingAmount: number;
   paymentMethod: string;
   notes: string;
+  operatorName?: string;
   member: {
     name: string;
     phone: string;
     address: string;
+    planId?: {
+      name: string;
+    } | null;
   } | null;
   branding: {
     logo?: string;
@@ -60,12 +64,14 @@ export function generateReceiptPDF(receipt: {
   doc.text(`Receipt Number: ${receipt.receiptNumber}`, 15, 67);
   doc.text(`Date & Time: ${new Date(receipt.paymentDate).toLocaleString('en-IN')}`, 15, 74);
   doc.text(`Payment Method: ${receipt.paymentMethod.toUpperCase()}`, 15, 81);
+  doc.text(`Collected By: ${receipt.operatorName || 'Admin'}`, 15, 88);
 
   doc.setFont('helvetica', 'bold');
   doc.text('Received From:', 120, 60);
   doc.setFont('helvetica', 'normal');
   doc.text(`Name: ${receipt.member?.name || 'Gym Member'}`, 120, 67);
   doc.text(`Phone: ${receipt.member?.phone || 'N/A'}`, 120, 74);
+  doc.text(`Plan Name: ${receipt.member?.planId?.name || 'Gym Membership'}`, 120, 81);
 
   // Items Table Header
   doc.setFillColor(240, 240, 240);
@@ -76,7 +82,7 @@ export function generateReceiptPDF(receipt: {
 
   // Table Row
   doc.setFont('helvetica', 'normal');
-  doc.text('Gym Studio Membership Fees Collection', 18, 112);
+  doc.text(`Gym Membership Fees - ${receipt.member?.planId?.name || 'Custom Plan'}`, 18, 112);
   doc.text(`Rs. ${receipt.amount}.00`, 160, 112);
 
   // Table Divider Line

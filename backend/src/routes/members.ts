@@ -248,6 +248,17 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
         member.remainingAmount = plan.price - newPaid;
         member.paymentStatus = member.remainingAmount <= 0 ? 'paid' : (newPaid > 0 ? 'partial' : 'unpaid');
 
+        // Check for plan upgrade/downgrade/renewal event type
+        const oldPlan = await MembershipPlan.findById(oldPlanId);
+        let planAction = 'Membership Renewal';
+        if (oldPlan) {
+          if (plan.price > oldPlan.price) {
+            planAction = 'Plan Upgrade';
+          } else if (plan.price < oldPlan.price) {
+            planAction = 'Plan Downgrade';
+          }
+        }
+
         // Log payment receipt for additional amount
         const paidDiff = newPaid - oldPaid;
         if (paidDiff > 0) {
@@ -264,7 +275,7 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
             pendingAmount: member.remainingAmount,
             paymentMethod: req.body.paymentMethod || 'cash',
             receiptNumber,
-            notes: 'Membership Renewal Payment',
+            notes: `${planAction} Payment`,
             operatorName: owner ? owner.ownerName : 'Admin',
             isVoided: false
           });
@@ -309,7 +320,15 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
     }
 
     const owner = await GymOwner.findById(req.user!.id);
-    await logAudit(`Updated Member Profile: ${member.name}`, owner!.email, req);
+    let auditMsg = `Updated Member Profile: ${member.name}`;
+    if (planId && planId !== oldPlanId) {
+      const oldPlan = await MembershipPlan.findById(oldPlanId);
+      const newPlan = await MembershipPlan.findById(planId);
+      if (oldPlan && newPlan) {
+        auditMsg += ` - Plan updated from ${oldPlan.name} (₹${oldPlan.price}) to ${newPlan.name} (₹${newPlan.price})`;
+      }
+    }
+    await logAudit(auditMsg, owner!.email, req);
 
     let whatsappUrl = '';
     if (isRenewal) {

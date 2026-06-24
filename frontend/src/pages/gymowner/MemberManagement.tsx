@@ -198,7 +198,7 @@ export const MemberManagement: React.FC = () => {
 
     setAdding(true);
     try {
-      await api.post('/members', {
+      const res = await api.post('/members', {
         name,
         phone,
         email,
@@ -217,6 +217,11 @@ export const MemberManagement: React.FC = () => {
       setShowAddModal(false);
       resetAddForm();
       loadMembersData();
+
+      if (res && res.whatsappUrl) {
+        showToast('WhatsApp link generated successfully!', 'info');
+        window.open(res.whatsappUrl, '_blank');
+      }
     } catch (err: any) {
       showToast(err.message || 'Failed to register member.', 'error');
     } finally {
@@ -275,7 +280,7 @@ export const MemberManagement: React.FC = () => {
 
     setUpdating(true);
     try {
-      await api.put(`/members/${selectedMember._id}`, {
+      const res = await api.put(`/members/${selectedMember._id}`, {
         name: editName,
         phone: editPhone,
         email: editEmail,
@@ -293,6 +298,11 @@ export const MemberManagement: React.FC = () => {
       showToast('Member profile updated.', 'success');
       setShowEditModal(false);
       loadMembersData();
+
+      if (res && res.whatsappUrl) {
+        showToast('WhatsApp link generated successfully!', 'info');
+        window.open(res.whatsappUrl, '_blank');
+      }
     } catch (err: any) {
       showToast(err.message || 'Failed to update member profile.', 'error');
     } finally {
