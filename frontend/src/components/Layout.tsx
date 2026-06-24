@@ -38,6 +38,24 @@ export const Layout: React.FC = () => {
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col justify-between">
           <div className="flex-grow">
+            {(user?.status === 'suspended' || user?.subscription?.status === 'suspended' || user?.subscription?.status === 'expired') && (
+              <div className="mb-6 p-4 rounded-xl bg-rose-950/40 border border-rose-800/60 text-rose-200 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
+                  <p className="text-sm font-medium">
+                    Your GymLedger subscription/account is currently <strong>{(user.status === 'suspended' || user.subscription?.status === 'suspended') ? 'SUSPENDED' : 'EXPIRED'}</strong>. Modifying operations are disabled. Please contact the platform admin to renew.
+                  </p>
+                </div>
+                <a
+                  href={`https://wa.me/917742111581?text=Hi%20Admin,%20I%27d%20like%20to%20renew%2520my%20subscription%20for%20my%20gym%20${encodeURIComponent(user.gymName || '')}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-md shrink-0 inline-flex items-center gap-1 cursor-pointer"
+                >
+                  Renew via WhatsApp
+                </a>
+              </div>
+            )}
             <Outlet />
           </div>
           <footer className="mt-8 pt-4 border-t border-border/40 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1">

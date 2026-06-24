@@ -235,3 +235,32 @@ export function generateRevenueReportPDF(metrics: {
 
   doc.save('revenue-reports.pdf');
 }
+
+export function exportToCSV(data: any[], fileName: string) {
+  if (!data || data.length === 0) return;
+  const headers = Object.keys(data[0]);
+  const csvRows = [];
+  
+  // Add headers row
+  csvRows.push(headers.join(','));
+  
+  // Add data rows
+  for (const row of data) {
+    const values = headers.map(header => {
+      const val = row[header] ?? '';
+      const escape = ('' + val).replace(/"/g, '""');
+      return `"${escape}"`;
+    });
+    csvRows.push(values.join(','));
+  }
+  
+  const csvString = csvRows.join('\n');
+  const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${fileName}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}

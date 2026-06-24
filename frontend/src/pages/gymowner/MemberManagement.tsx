@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -43,6 +44,7 @@ interface Member {
   paymentStatus: 'paid' | 'partial' | 'unpaid';
   qrCode: string;
   status: 'active' | 'expired';
+  isArchived: boolean;
   emergencyContact?: string;
   notes?: string;
 }
@@ -58,6 +60,7 @@ interface ProgressLog {
 }
 
 export const MemberManagement: React.FC = () => {
+  const navigate = useNavigate();
   const [members, setMembers] = useState<Member[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
@@ -67,6 +70,7 @@ export const MemberManagement: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState('all');
   const { showToast } = useNotification();
   const { user } = useAuth();
+  const isSuspended = user?.status === 'suspended' || user?.subscription?.status === 'suspended' || user?.subscription?.status === 'expired';
 
   // Create Modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -123,7 +127,7 @@ export const MemberManagement: React.FC = () => {
     setPlansLoaded(false);
     try {
       const [membersData, plansData] = await Promise.all([
-        api.get('/members'),
+        api.get('/members?includeArchived=true'),
         api.get('/plans')
       ]);
       setMembers(membersData);
@@ -297,14 +301,24 @@ export const MemberManagement: React.FC = () => {
   };
 
   const handleDeleteMember = async (id: string) => {
-    if (!window.confirm('Delete member? This soft-deletes their profile.')) return;
+    if (!window.confirm('Are you sure you want to archive this member? Their payment and attendance history will be preserved.')) return;
     try {
       await api.delete(`/members/${id}`);
-      showToast('Member profile deleted.', 'success');
-      setMembers(prev => prev.filter(m => m._id !== id));
-      if (detailMember?._id === id) setShowDrawer(false);
+      showToast('Member profile archived successfully.', 'success');
+      loadMembersData();
     } catch (err: any) {
-      showToast(err.message || 'Failed to delete member.', 'error');
+      showToast(err.message || 'Failed to archive member.', 'error');
+    }
+  };
+
+  const handleRestoreMember = async (id: string) => {
+    if (!window.confirm('Restore this member profile?')) return;
+    try {
+      await api.put(`/members/${id}/restore`, {});
+      showToast('Member profile restored successfully.', 'success');
+      loadMembersData();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to restore member.', 'error');
     }
   };
 
@@ -379,13 +393,7 @@ export const MemberManagement: React.FC = () => {
   };
 
   const openDetailDrawer = (member: Member) => {
-    setDetailMember(member);
-    setLogWeight(member.weight);
-    setLogChest(0);
-    setLogWaist(0);
-    setLogBiceps(0);
-    loadProgressLogs(member._id);
-    setShowDrawer(true);
+    navigate(`/app/members/${member._id}`);
   };
 
   const calculateBMI = (hCm: number, wKg: number) => {
@@ -436,6 +444,11 @@ export const MemberManagement: React.FC = () => {
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const isExpired = new Date(m.membershipEnd) < todayStart;
 
+    if (filterStatus === 'archived') {
+      return matchesSearch && m.isArchived;
+    }
+    if (m.isArchived) return false;
+
     if (filterStatus === 'active') return matchesSearch && !isExpired;
     if (filterStatus === 'expired') return matchesSearch && isExpired;
     return matchesSearch;
@@ -456,12 +469,14 @@ export const MemberManagement: React.FC = () => {
           >
             Export Excel
           </button>
-          <button
-            onClick={openAddModal}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-primary-foreground text-sm shadow-md flex-1 sm:flex-none"
-          >
-            <Plus className="w-4 h-4" /> Register Member
-          </button>
+          {!isSuspended && (
+            <button
+              onClick={openAddModal}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-primary-foreground text-sm shadow-md flex-1 sm:flex-none"
+            >
+              <Plus className="w-4 h-4" /> Register Member
+            </button>
+          )}
         </div>
       </div>
 
@@ -488,6 +503,7 @@ export const MemberManagement: React.FC = () => {
           <option value="all">All Members</option>
           <option value="active">Active Members</option>
           <option value="expired">Expired Members</option>
+          <option value="archived">Archived Members</option>
         </select>
       </div>
 
@@ -536,18 +552,33 @@ export const MemberManagement: React.FC = () => {
                     >
                       <Activity className="w-3.5 h-3.5" /> Open Profile
                     </button>
-                    <button
-                      onClick={() => openEditModal(member)}
-                      className="p-2 border hover:bg-muted text-foreground rounded-lg transition-colors"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteMember(member._id)}
-                      className="p-2 border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    {member.isArchived ? (
+                      <button
+                        onClick={() => handleRestoreMember(member._id)}
+                        className="px-4 py-2 bg-emerald-950/40 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-950/60 rounded-lg text-xs font-semibold transition-colors flex-1"
+                      >
+                        Restore
+                      </button>
+                    ) : (
+                      <>
+                        {!isSuspended && (
+                          <>
+                            <button
+                              onClick={() => openEditModal(member)}
+                              className="p-2 border hover:bg-muted text-foreground rounded-lg transition-colors"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMember(member._id)}
+                              className="p-2 border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </>
+                    )}
                   </div>
                 </div>
               );
@@ -605,18 +636,33 @@ export const MemberManagement: React.FC = () => {
                         >
                           <Activity className="w-3.5 h-3.5" /> Profile
                         </button>
-                        <button
-                          onClick={() => openEditModal(member)}
-                          className="p-1.5 border hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteMember(member._id)}
-                          className="p-1.5 border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {member.isArchived ? (
+                          <button
+                            onClick={() => handleRestoreMember(member._id)}
+                            className="px-2.5 py-1.5 bg-emerald-950/40 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-950/60 rounded-lg text-xs font-semibold transition-colors flex items-center gap-1"
+                          >
+                            Restore
+                          </button>
+                        ) : (
+                          <>
+                            {!isSuspended && (
+                              <>
+                                <button
+                                  onClick={() => openEditModal(member)}
+                                  className="p-1.5 border hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteMember(member._id)}
+                                  className="p-1.5 border border-rose-500/30 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
+                          </>
+                        )}
                       </td>
                     </tr>
                   );

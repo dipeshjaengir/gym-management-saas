@@ -3,6 +3,7 @@ import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { exportToCSV } from '../../utils/exportHelpers';
 import {
   Users,
   Award,
@@ -22,7 +23,8 @@ import {
   PlusCircle,
   FolderPlus,
   X,
-  PhoneCall
+  PhoneCall,
+  Download
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -33,6 +35,7 @@ interface DashboardStats {
     blockedMembers: number;
     monthlyCollections: number;
     newMembersToday: number;
+    outstandingDuesCount: number;
   };
   ptPlanOverview: {
     activePtPlans: number;
@@ -179,16 +182,72 @@ export const GymOwnerDashboard: React.FC = () => {
   const todayDateStr = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   const currentMonthStr = new Date().toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
 
+  const handleExportMembersCSV = async () => {
+    try {
+      const data = await api.get('/members?includeArchived=true');
+      const formatted = data.map((m: any) => ({
+        'Member Name': m.name,
+        'Phone': m.phone,
+        'Email': m.email || 'N/A',
+        'Gender': m.gender,
+        'Dues Balance': m.remainingAmount,
+        'Total Paid': m.amountPaid,
+        'Plan Name': m.planId?.name || 'N/A',
+        'Expiry Date': new Date(m.membershipEnd).toLocaleDateString('en-IN'),
+        'Archived': m.isArchived ? 'Yes' : 'No'
+      }));
+      exportToCSV(formatted, 'gym_members_report');
+      showToast('Members report exported successfully.', 'success');
+    } catch (err) {
+      showToast('Error exporting members roster.', 'error');
+    }
+  };
+
+  const handleExportPaymentsCSV = async () => {
+    try {
+      const data = await api.get('/payments');
+      const formatted = data.map((p: any) => ({
+        'Receipt Number': p.receiptNumber,
+        'Member Name': p.memberId?.name || 'N/A',
+        'Phone': p.memberId?.phone || 'N/A',
+        'Amount Collected': p.amount,
+        'Remaining Due': p.pendingAmount,
+        'Payment Method': p.paymentMethod.toUpperCase(),
+        'Payment Date': new Date(p.paymentDate).toLocaleDateString('en-IN'),
+        'Operator': p.operatorName || 'Admin',
+        'Voided': p.isVoided ? 'Yes' : 'No'
+      }));
+      exportToCSV(formatted, 'gym_payments_report');
+      showToast('Payments report exported successfully.', 'success');
+    } catch (err) {
+      showToast('Error exporting payments history.', 'error');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20 md:pb-6 font-sans">
       {/* Title */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gym Console</h1>
           <p className="text-xs text-muted-foreground">Monitor member attendance and studio operations.</p>
         </div>
-        <div className="hidden sm:block text-xs font-semibold bg-muted px-3 py-1.5 rounded-xl border">
-          🏢 {user?.branding?.gymName || user?.gymName || 'GymLedger'}
+        <div className="flex flex-wrap gap-2 items-center">
+          <button
+            onClick={handleExportMembersCSV}
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-semibold bg-card border hover:bg-muted text-foreground text-xs shadow-sm cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" /> Export Members CSV
+          </button>
+          <button
+            onClick={handleExportPaymentsCSV}
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-semibold bg-card border hover:bg-muted text-foreground text-xs shadow-sm cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" /> Export Payments CSV
+          </button>
+          <div className="text-xs font-semibold bg-muted px-3 py-1.5 rounded-xl border">
+            🏢 {user?.branding?.gymName || user?.gymName || 'GymLedger'}
+          </div>
         </div>
       </div>
 
@@ -235,20 +294,22 @@ export const GymOwnerDashboard: React.FC = () => {
           <div className="text-xl font-extrabold text-emerald-400">{stats.metrics.activeMembers}</div>
         </div>
         <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-rose-500/10">
-          <span className="text-[10px] font-bold text-rose-400 uppercase block">Expired Members</span>
-          <div className="text-xl font-extrabold text-rose-400">{stats.metrics.expiredMembers}</div>
-        </div>
-        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-blue-500/10">
-          <span className="text-[10px] font-bold text-secondary uppercase block">Today's Attendance</span>
-          <div className="text-xl font-extrabold text-secondary">{stats.attendanceOverview.todayAttendance}</div>
+          <span className="text-[10px] font-bold text-rose-400 uppercase block">Members With Dues</span>
+          <div className="text-xl font-extrabold text-rose-400">{stats.metrics.outstandingDuesCount || 0}</div>
         </div>
         <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-emerald-500/10">
-          <span className="text-[10px] font-bold text-emerald-400 uppercase block">Today's Revenue</span>
+          <span className="text-[10px] font-bold text-emerald-400 uppercase block">Today's Collection</span>
           <div className="text-xl font-extrabold text-emerald-400">₹{stats.paymentOverview.todayCollection}</div>
         </div>
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-blue-500/10">
+          <span className="text-[10px] font-bold text-secondary uppercase block">Monthly Revenue</span>
+          <div className="text-xl font-extrabold text-secondary">₹{stats.metrics.monthlyCollections}</div>
+        </div>
         <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-amber-500/10">
-          <span className="text-[10px] font-bold text-amber-400 uppercase block">Pending Dues</span>
-          <div className="text-xl font-extrabold text-amber-400">₹{stats.paymentOverview.membershipDue}</div>
+          <span className="text-[10px] font-bold text-amber-400 uppercase block">Expiring This Week</span>
+          <div className="text-xl font-extrabold text-amber-400">
+            {stats.attendanceOverview.expiringToday + stats.attendanceOverview.expiring1to3Days + stats.attendanceOverview.expiring4to7Days}
+          </div>
         </div>
       </div>
 

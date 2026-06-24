@@ -21,6 +21,7 @@ import { CouponManagement } from './pages/superadmin/CouponManagement';
 // Gym Owner Pages
 import { GymOwnerDashboard } from './pages/gymowner/GymOwnerDashboard';
 import { MemberManagement } from './pages/gymowner/MemberManagement';
+import { MemberProfile } from './pages/gymowner/MemberProfile';
 import { PendingRecoveryDashboard } from './pages/gymowner/PendingRecoveryDashboard';
 import { MembershipPlans } from './pages/gymowner/MembershipPlans';
 import { PaymentsTracker } from './pages/gymowner/PaymentsTracker';
@@ -112,6 +113,14 @@ export const App: React.FC = () => {
                   element={
                     <RoleGuard allowed="gym_owner">
                       <MemberManagement />
+                    </RoleGuard>
+                  }
+                />
+                <Route
+                  path="members/:id"
+                  element={
+                    <RoleGuard allowed="gym_owner">
+                      <MemberProfile />
                     </RoleGuard>
                   }
                 />

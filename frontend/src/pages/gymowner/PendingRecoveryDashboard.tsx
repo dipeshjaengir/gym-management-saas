@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { exportToCSV } from '../../utils/exportHelpers';
 import {
   IndianRupee,
   AlertTriangle,
@@ -11,7 +12,8 @@ import {
   CheckCircle,
   Mail,
   UserCheck,
-  TrendingDown
+  TrendingDown,
+  Download
 } from 'lucide-react';
 
 interface Member {
@@ -24,6 +26,7 @@ interface Member {
   paymentStatus: 'paid' | 'partial' | 'unpaid';
   membershipStart: string;
   membershipEnd: string;
+  lastPaymentDate?: string;
   planId?: {
     name: string;
     price: number;
@@ -34,6 +37,7 @@ export const PendingRecoveryDashboard: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<'all' | 'today' | 'week' | 'overdue'>('all');
   const [dashboardMetrics, setDashboardMetrics] = useState({
     totalPendingAmount: 0,
     outstandingDuesCount: 0,
@@ -82,18 +86,61 @@ export const PendingRecoveryDashboard: React.FC = () => {
     window.open(`https://wa.me/${formattedPhone}?text=${text}`, '_blank');
   };
 
-  const filteredMembers = members.filter(
-    (m) =>
+  const filteredMembers = members.filter((m) => {
+    const matchesSearch =
       m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.phone.includes(searchQuery)
-  );
+      m.phone.includes(searchQuery);
+
+    if (!matchesSearch) return false;
+
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+    const end = new Date(m.membershipEnd);
+
+    if (activeTab === 'today') {
+      return end >= todayStart && end <= todayEnd;
+    }
+    if (activeTab === 'week') {
+      const sevenDaysFromNow = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+      return end >= todayStart && end <= sevenDaysFromNow;
+    }
+    if (activeTab === 'overdue') {
+      return end < todayStart;
+    }
+
+    return true;
+  });
+
+  const handleExportCSV = () => {
+    const data = filteredMembers.map(m => ({
+      'Member Name': m.name,
+      'Phone': m.phone,
+      'Email': m.email || 'N/A',
+      'Remaining Due': m.remainingAmount,
+      'Total Paid': m.amountPaid,
+      'Plan Price': m.planId?.price || 0,
+      'Plan Name': m.planId?.name || 'N/A',
+      'Membership Expiry': new Date(m.membershipEnd).toLocaleDateString('en-IN'),
+      'Last Payment Date': m.lastPaymentDate ? new Date(m.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A'
+    }));
+    exportToCSV(data, 'pending_dues_recovery');
+  };
 
   return (
     <div className="space-y-6">
       {/* Title */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Pending Fee Recovery</h1>
-        <p className="text-xs text-muted-foreground">Manage unpaid balances and send payment reminders to members.</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Pending Fee Recovery</h1>
+          <p className="text-xs text-muted-foreground">Manage unpaid balances and send payment reminders to members.</p>
+        </div>
+        <button
+          onClick={handleExportCSV}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-card border hover:bg-muted text-foreground text-sm shadow-sm cursor-pointer shrink-0"
+        >
+          <Download className="w-4 h-4" /> Export CSV
+        </button>
       </div>
 
       {/* KPI Stats */}
@@ -146,17 +193,37 @@ export const PendingRecoveryDashboard: React.FC = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className="relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
-          <Search className="w-4 h-4" />
+      <div className="flex flex-col md:flex-row gap-4 justify-between items-stretch md:items-center p-4 rounded-xl bg-card border">
+        <div className="relative flex-grow max-w-md">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+            <Search className="w-4 h-4" />
+          </div>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search by name or contact..."
+            className="w-full pl-10 pr-4 py-2 rounded-xl border bg-background text-xs focus:outline-none"
+          />
         </div>
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Filter outstanding member profiles by name or contact number..."
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl border bg-card text-sm focus:outline-none"
-        />
+        <div className="flex gap-2 overflow-x-auto">
+          {(['all', 'today', 'week', 'overdue'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold uppercase tracking-wider transition-all border whitespace-nowrap cursor-pointer ${
+                activeTab === tab
+                  ? 'bg-primary border-primary text-primary-foreground shadow'
+                  : 'bg-background hover:bg-muted border-border text-muted-foreground'
+              }`}
+            >
+              {tab === 'all' && 'All Dues'}
+              {tab === 'today' && 'Due Today'}
+              {tab === 'week' && 'Due This Week'}
+              {tab === 'overdue' && 'Overdue'}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Main Dues List */}
@@ -185,6 +252,7 @@ export const PendingRecoveryDashboard: React.FC = () => {
                   <div>Phone: <span className="text-foreground">{member.phone}</span></div>
                   <div>Plan: <span className="text-foreground">{member.planId?.name || 'General Membership'}</span></div>
                   <div>Paid: <span className="text-foreground">₹{member.amountPaid} / ₹{member.planId?.price}</span></div>
+                  <div>Last Paid: <span className="text-foreground">{member.lastPaymentDate ? new Date(member.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A'}</span></div>
                   <div>Ends: <span className="text-foreground">{new Date(member.membershipEnd).toLocaleDateString('en-IN')}</span></div>
                 </div>
 
@@ -209,6 +277,7 @@ export const PendingRecoveryDashboard: React.FC = () => {
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Phone</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Membership Plan</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Dues (Balance)</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Last Paid Date</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Expiry Date</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase text-right">Reminder Action</th>
                 </tr>
@@ -223,6 +292,9 @@ export const PendingRecoveryDashboard: React.FC = () => {
                       <div className="text-xs text-muted-foreground">Paid ₹{member.amountPaid} / ₹{member.planId?.price}</div>
                     </td>
                     <td className="p-4 font-bold text-rose-400">₹{member.remainingAmount}</td>
+                    <td className="p-4 text-xs text-muted-foreground">
+                      {member.lastPaymentDate ? new Date(member.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A'}
+                    </td>
                     <td className="p-4 text-xs text-muted-foreground">
                       {new Date(member.membershipEnd).toLocaleDateString('en-IN')}
                     </td>

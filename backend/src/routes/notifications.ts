@@ -36,6 +36,19 @@ router.post('/send', async (req: AuthenticatedRequest, res: Response) => {
         startDate: member.membershipStart.toISOString().split('T')[0],
         expiryDate: member.membershipEnd.toISOString().split('T')[0]
       });
+    } else if (type === 'renewal') {
+      result = await notificationProvider.sendRenewalMessage(to, {
+        memberName: member.name,
+        planName: (member.planId as any)?.name || 'General Membership',
+        expiryDate: member.membershipEnd.toISOString().split('T')[0]
+      });
+    } else if (type === 'due_collection') {
+      const { amount } = req.body;
+      result = await notificationProvider.sendDueCollectionMessage(to, {
+        memberName: member.name,
+        amount: amount || 0,
+        remaining: member.remainingAmount
+      });
     } else if (type === 'expiry_warning') {
       result = await notificationProvider.sendExpiryWarning(to, {
         gymName,

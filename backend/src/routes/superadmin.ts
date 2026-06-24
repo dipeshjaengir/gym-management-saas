@@ -46,13 +46,26 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
 
     let expiringThisMonthCount = 0;
     let renewalsDueCount = 0;
+    let trialCount = 0;
+    let activeSubscribersCount = 0;
+    let suspendedAccountsCount = 0;
 
     owners.forEach(owner => {
       const expDate = new Date(owner.subscription.expiryDate);
       const isExpiringThisMonth = expDate.getMonth() === currentMonth && expDate.getFullYear() === currentYear;
 
-      if (owner.subscription.status === 'active') {
+      if (owner.isTrial) {
+        trialCount++;
+      }
+
+      if (owner.status === 'suspended' || owner.subscription.status === 'suspended') {
+        suspendedAccountsCount++;
+        suspendedCount++;
+      } else if (owner.status === 'active' && owner.subscription.status === 'active') {
         activeCount++;
+        if (!owner.isTrial) {
+          activeSubscribersCount++;
+        }
         // Calculate monthly/yearly platform revenue from gym owners subscription dues
         if (owner.subscription.startDate) {
           const startDate = new Date(owner.subscription.startDate);
@@ -65,8 +78,6 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
         }
       } else if (owner.subscription.status === 'expired') {
         expiredCount++;
-      } else if (owner.subscription.status === 'suspended') {
-        suspendedCount++;
       }
 
       if (isExpiringThisMonth) {
@@ -87,7 +98,10 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
         yearlyRevenue,
         expectedRenewalRevenue,
         expiringThisMonth: expiringThisMonthCount,
-        renewalsDue: renewalsDueCount
+        renewalsDue: renewalsDueCount,
+        trialUsers: trialCount,
+        activeSubscribers: activeSubscribersCount,
+        suspendedAccounts: suspendedAccountsCount
       }
     });
   } catch (err) {
@@ -200,7 +214,15 @@ router.post('/owners', validateBody(createGymOwnerByAdminSchema), async (req: Au
         expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: 'active',
         amountPaid: 0
-      }
+      },
+      subscriptionHistory: [{
+        planType: 'Monthly',
+        amountPaid: 0,
+        startDate: new Date(),
+        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+        renewedBy: req.user!.email,
+        transactionDate: new Date()
+      }]
     });
 
     await logAudit(`Gym Owner Pending Activation Created: ${gymName} (${email})`, req.user!.email, req);
@@ -285,26 +307,42 @@ router.put('/owners/:id/renew', validateBody(renewGymOwnerSubscriptionSchema), a
     const now = new Date();
     const currentExpiry = new Date(owner.subscription.expiryDate);
     const startDate = currentExpiry > now ? currentExpiry : now;
-    const expiryDate = new Date(startDate.getTime());
 
-    let months = 1;
+    let days = 30;
     // Map custom plan duration if possible, otherwise default monthly/quarterly/half-yearly/yearly mapping
     const plan = await PlatformPlan.findOne({ name: planType, isDeleted: false });
     if (plan) {
-      months = plan.durationMonths;
+      const duration = plan.durationMonths;
+      if (duration === 1) days = 30;
+      else if (duration === 3) days = 90;
+      else if (duration === 6) days = 180;
+      else if (duration === 12) days = 365;
+      else days = duration * 30;
     } else {
-      if (planType.toLowerCase().includes('quarter') || planType === '3_month') months = 3;
-      else if (planType.toLowerCase().includes('half') || planType === '6_month') months = 6;
-      else if (planType.toLowerCase().includes('year') || planType === '12_month') months = 12;
-      else months = 1;
+      if (planType.toLowerCase().includes('quarter') || planType === '3_month' || planType === '3 Months') days = 90;
+      else if (planType.toLowerCase().includes('half') || planType === '6_month' || planType === '6 Months') days = 180;
+      else if (planType.toLowerCase().includes('year') || planType === '12_month' || planType === '12 Months') days = 365;
+      else days = 30;
     }
-    expiryDate.setMonth(expiryDate.getMonth() + months);
+    
+    const expiryDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
 
     owner.subscription.planType = planType;
     owner.subscription.startDate = startDate;
     owner.subscription.expiryDate = expiryDate;
     owner.subscription.status = 'active';
     owner.subscription.amountPaid = amountPaid;
+
+    // Track Subscription History
+    owner.subscriptionHistory = owner.subscriptionHistory || [];
+    owner.subscriptionHistory.push({
+      planType,
+      amountPaid,
+      startDate,
+      expiryDate,
+      renewedBy: req.user!.email,
+      transactionDate: new Date()
+    });
 
     await owner.save();
     await logAudit(`Subscription Renewed for ${owner.gymName} (Plan: ${planType})`, req.user!.email, req);

@@ -88,4 +88,16 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
   }
 });
 
+// 3. GET Member check-in history
+router.get('/member/:memberId', async (req: AuthenticatedRequest, res: Response) => {
+  const gymOwnerId = req.user!.id;
+  try {
+    const list = await Attendance.find({ gymOwnerId, memberId: req.params.memberId })
+      .sort({ createdAt: -1 });
+    return res.json(list);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error retrieving member check-in history.' });
+  }
+});
+
 export default router;

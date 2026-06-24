@@ -1,8 +1,9 @@
 import { Router, Response } from 'express';
-import { Member, MembershipPlan, ProgressMetric, GymOwner } from '../models';
+import { Member, MembershipPlan, ProgressMetric, GymOwner, Payment } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
 import { validateBody, createMemberSchema, updateMemberSchema } from '../middleware/validation';
+import { notificationProvider } from '../config/notifications';
 
 const router = Router();
 
@@ -10,12 +11,15 @@ router.use(authenticateToken);
 
 // 1. GET Members list with search & filter
 router.get('/', async (req: AuthenticatedRequest, res: Response) => {
-  const { search, status } = req.query;
+  const { search, status, includeArchived } = req.query;
   const gymOwnerId = req.user!.id;
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
   const query: any = { gymOwnerId, isDeleted: false };
+  if (includeArchived !== 'true') {
+    query.isArchived = { $ne: true };
+  }
 
   if (search) {
     query.$or = [
@@ -34,22 +38,34 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
         const isExpired = expiry < todayStart;
 
         if (status === 'active') {
-          return !isExpired;
+          return !isExpired && !m.isArchived;
         } else if (status === 'expired') {
-          return isExpired;
+          return isExpired && !m.isArchived;
         } else if (status === 'expiring_soon') {
           const sevenDaysFromNow = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-          return !isExpired && expiry <= sevenDaysFromNow;
+          return !isExpired && expiry <= sevenDaysFromNow && !m.isArchived;
         } else if (status === 'new') {
           const oneWeekAgo = new Date(todayStart.getTime() - 7 * 24 * 60 * 60 * 1000);
-          return new Date(m.joiningDate) >= oneWeekAgo;
+          return new Date(m.joiningDate) >= oneWeekAgo && !m.isArchived;
+        } else if (status === 'archived') {
+          return m.isArchived;
         }
         return true;
       });
     }
 
-    return res.json(members);
+    // Attach lastPaymentDate dynamically
+    const membersWithPaymentDate = await Promise.all(members.map(async (m) => {
+      const latestPayment = await Payment.findOne({ memberId: m._id, isDeleted: false, isVoided: false }).sort({ paymentDate: -1 });
+      return {
+        ...m.toObject(),
+        lastPaymentDate: latestPayment ? latestPayment.paymentDate : null
+      };
+    }));
+
+    return res.json(membersWithPaymentDate);
   } catch (err) {
+    console.error('Error fetching members:', err);
     return res.status(500).json({ message: 'Error fetching members.' });
   }
 });
@@ -59,7 +75,14 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const member = await Member.findOne({ _id: req.params.id, gymOwnerId: req.user!.id, isDeleted: false }).populate('planId');
     if (!member) return res.status(404).json({ message: 'Member not found.' });
-    return res.json(member);
+
+    const latestPayment = await Payment.findOne({ memberId: member._id, isDeleted: false, isVoided: false }).sort({ paymentDate: -1 });
+    const memberObj = {
+      ...member.toObject(),
+      lastPaymentDate: latestPayment ? latestPayment.paymentDate : null
+    };
+
+    return res.json(memberObj);
   } catch (err) {
     return res.status(500).json({ message: 'Error retrieving member profile.' });
   }
@@ -80,10 +103,17 @@ router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequ
     const plan = await MembershipPlan.findOne({ _id: planId, gymOwnerId: req.user!.id, isDeleted: false });
     if (!plan) return res.status(400).json({ message: 'Selected membership package is invalid.' });
 
-    // Calculate Expiry Date
+    // Calculate Expiry Date automatically in days:
+    // 1 Month = +30 days, 3 Months = +90 days, 6 Months = +180 days, 12 Months = +365 days
     const start = new Date(membershipStart);
-    const end = new Date(start.getTime());
-    end.setMonth(end.getMonth() + plan.durationMonths);
+    let days = 30;
+    if (plan.durationMonths === 1) days = 30;
+    else if (plan.durationMonths === 3) days = 90;
+    else if (plan.durationMonths === 6) days = 180;
+    else if (plan.durationMonths === 12) days = 365;
+    else days = plan.durationMonths * 30;
+
+    const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
 
     // Calculate outstanding dues
     const price = plan.price;
@@ -113,8 +143,31 @@ router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequ
       paymentStatus,
       qrCode,
       emergencyContact,
-      notes
+      notes,
+      isArchived: false
     });
+
+    // Log initial payment receipt if amountPaid > 0
+    if (amountPaid > 0) {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
+      const rand = Math.floor(1000 + Math.random() * 9000);
+      const receiptNumber = `REC-${dateStr}-${rand}`;
+      
+      const owner = await GymOwner.findById(gymOwnerId);
+
+      await Payment.create({
+        gymOwnerId,
+        memberId: member._id,
+        amount: amountPaid,
+        pendingAmount: remainingAmount,
+        paymentMethod: req.body.paymentMethod || 'cash',
+        receiptNumber,
+        notes: 'Initial Plan Registration Payment',
+        operatorName: owner ? owner.ownerName : 'Admin',
+        isVoided: false
+      });
+    }
 
     // Create Initial Progress Metric Log
     const heightInMeters = height / 100;
@@ -129,14 +182,27 @@ router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequ
     const owner = await GymOwner.findById(req.user!.id);
     await logAudit(`Registered Member: ${name} (Plan: ${plan.name})`, owner!.email, req);
 
-    return res.status(201).json(member);
+    // WhatsApp Welcome notification url
+    const welcomeResult = await notificationProvider.sendWelcomeMessage(member.phone, {
+      gymName: owner!.branding?.gymName || owner!.gymName,
+      memberName: member.name,
+      planName: plan.name,
+      amountPaid,
+      startDate: member.membershipStart.toISOString().split('T')[0],
+      expiryDate: member.membershipEnd.toISOString().split('T')[0]
+    });
+
+    return res.status(201).json({
+      member,
+      whatsappUrl: welcomeResult.url
+    });
   } catch (err) {
     console.error('Error creating member:', err);
     return res.status(500).json({ message: 'Internal server error.' });
   }
 });
 
-// 4. PUT Edit Member Details
+// 4. PUT Edit Member Details (with renewal triggers)
 router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRequest, res: Response) => {
   const {
     name, phone, email, gender, dob, height, weight, address,
@@ -147,20 +213,62 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
     const member = await Member.findOne({ _id: req.params.id, gymOwnerId: req.user!.id, isDeleted: false });
     if (!member) return res.status(404).json({ message: 'Member not found.' });
 
+    let isRenewal = false;
+    const oldPlanId = String(member.planId);
+    const oldStart = member.membershipStart.toISOString().split('T')[0];
+
+    if (planId && planId !== oldPlanId) {
+      isRenewal = true;
+    }
+    if (membershipStart && membershipStart !== oldStart) {
+      isRenewal = true;
+    }
+
     // Handle plan update recalculation if plan changes
-    if (planId && planId !== String(member.planId)) {
+    if (planId && planId !== oldPlanId) {
       const plan = await MembershipPlan.findOne({ _id: planId, gymOwnerId: req.user!.id, isDeleted: false });
       if (plan) {
         member.planId = planId;
         const start = membershipStart ? new Date(membershipStart) : new Date(member.membershipStart);
-        const end = new Date(start.getTime());
-        end.setMonth(end.getMonth() + plan.durationMonths);
+        
+        let days = 30;
+        if (plan.durationMonths === 1) days = 30;
+        else if (plan.durationMonths === 3) days = 90;
+        else if (plan.durationMonths === 6) days = 180;
+        else if (plan.durationMonths === 12) days = 365;
+        else days = plan.durationMonths * 30;
+
+        const end = new Date(start.getTime() + days * 24 * 60 * 60 * 1000);
         member.membershipStart = start;
         member.membershipEnd = end;
         
-        member.amountPaid = amountPaid !== undefined ? amountPaid : member.amountPaid;
-        member.remainingAmount = plan.price - member.amountPaid;
-        member.paymentStatus = member.remainingAmount <= 0 ? 'paid' : (member.amountPaid > 0 ? 'partial' : 'unpaid');
+        const oldPaid = member.amountPaid;
+        const newPaid = amountPaid !== undefined ? amountPaid : member.amountPaid;
+        member.amountPaid = newPaid;
+        member.remainingAmount = plan.price - newPaid;
+        member.paymentStatus = member.remainingAmount <= 0 ? 'paid' : (newPaid > 0 ? 'partial' : 'unpaid');
+
+        // Log payment receipt for additional amount
+        const paidDiff = newPaid - oldPaid;
+        if (paidDiff > 0) {
+          const now = new Date();
+          const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
+          const rand = Math.floor(1000 + Math.random() * 9000);
+          const receiptNumber = `REC-${dateStr}-${rand}`;
+          const owner = await GymOwner.findById(req.user!.id);
+          
+          await Payment.create({
+            gymOwnerId: req.user!.id,
+            memberId: member._id,
+            amount: paidDiff,
+            pendingAmount: member.remainingAmount,
+            paymentMethod: req.body.paymentMethod || 'cash',
+            receiptNumber,
+            notes: 'Membership Renewal Payment',
+            operatorName: owner ? owner.ownerName : 'Admin',
+            isVoided: false
+          });
+        }
       }
     } else {
       // Direct parameters override
@@ -174,6 +282,16 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
       member.address = address || member.address;
       member.emergencyContact = emergencyContact || member.emergencyContact;
       member.notes = notes || member.notes;
+
+      // Update amountPaid directly
+      if (amountPaid !== undefined && amountPaid !== member.amountPaid) {
+        member.amountPaid = amountPaid;
+        const plan = await MembershipPlan.findById(member.planId);
+        if (plan) {
+          member.remainingAmount = plan.price - amountPaid;
+          member.paymentStatus = member.remainingAmount <= 0 ? 'paid' : (amountPaid > 0 ? 'partial' : 'unpaid');
+        }
+      }
     }
 
     await member.save();
@@ -193,31 +311,63 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
     const owner = await GymOwner.findById(req.user!.id);
     await logAudit(`Updated Member Profile: ${member.name}`, owner!.email, req);
 
-    return res.json(member);
+    let whatsappUrl = '';
+    if (isRenewal) {
+      const plan = await MembershipPlan.findById(member.planId);
+      const renewalResult = await notificationProvider.sendRenewalMessage(member.phone, {
+        memberName: member.name,
+        planName: plan ? plan.name : 'Gym Membership',
+        expiryDate: member.membershipEnd.toISOString().split('T')[0]
+      });
+      whatsappUrl = renewalResult.url || '';
+    }
+
+    return res.json({
+      member,
+      whatsappUrl
+    });
   } catch (err) {
     return res.status(500).json({ message: 'Error updating member.' });
   }
 });
 
-// 5. DELETE Soft Delete Member
+// 5. DELETE Soft Delete Member -> Now ARCHIVES member!
 router.delete('/:id', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const member = await Member.findOne({ _id: req.params.id, gymOwnerId: req.user!.id, isDeleted: false });
     if (!member) return res.status(404).json({ message: 'Member not found.' });
 
-    member.isDeleted = true;
+    member.isArchived = true;
     await member.save();
 
     const owner = await GymOwner.findById(req.user!.id);
-    await logAudit(`Deleted Member Profile: ${member.name}`, owner!.email, req);
+    await logAudit(`Archived Member Profile: ${member.name}`, owner!.email, req);
 
-    return res.json({ message: 'Member profile deleted successfully.' });
+    return res.json({ message: 'Member profile archived successfully.', member });
   } catch (err) {
-    return res.status(500).json({ message: 'Error deleting member.' });
+    return res.status(500).json({ message: 'Error archiving member.' });
   }
 });
 
-// 6. POST Progress parameter metric (weight log)
+// 6. PUT Restore Member from Archive
+router.put('/:id/restore', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const member = await Member.findOne({ _id: req.params.id, gymOwnerId: req.user!.id, isDeleted: false });
+    if (!member) return res.status(404).json({ message: 'Member not found.' });
+
+    member.isArchived = false;
+    await member.save();
+
+    const owner = await GymOwner.findById(req.user!.id);
+    await logAudit(`Restored Member Profile from Archive: ${member.name}`, owner!.email, req);
+
+    return res.json({ message: 'Member profile restored successfully.', member });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error restoring member.' });
+  }
+});
+
+// 7. POST Progress parameter metric (weight log)
 router.post('/:id/progress', async (req: AuthenticatedRequest, res: Response) => {
   const { weight, chest, waist, biceps } = req.body;
   if (!weight) return res.status(400).json({ message: 'Weight parameter is required.' });
@@ -245,19 +395,6 @@ router.post('/:id/progress', async (req: AuthenticatedRequest, res: Response) =>
     return res.status(201).json(metric);
   } catch (err) {
     return res.status(500).json({ message: 'Error logging progress parameter.' });
-  }
-});
-
-// 7. GET Progress metrics history log
-router.get('/:id/progress', async (req: AuthenticatedRequest, res: Response) => {
-  try {
-    const member = await Member.findOne({ _id: req.params.id, gymOwnerId: req.user!.id, isDeleted: false });
-    if (!member) return res.status(404).json({ message: 'Member not found.' });
-
-    const logs = await ProgressMetric.find({ memberId: member._id }).sort({ date: 1 });
-    return res.json(logs);
-  } catch (err) {
-    return res.status(500).json({ message: 'Error retrieving progress logs.' });
   }
 });
 

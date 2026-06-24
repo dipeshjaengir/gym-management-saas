@@ -1,0 +1,1104 @@
+import React, { useEffect, useState } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { api } from '../../services/api';
+import { useNotification } from '../../contexts/NotificationContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { generateReceiptPDF } from '../../utils/exportHelpers';
+import {
+  ArrowLeft,
+  User,
+  Phone,
+  Mail,
+  Calendar,
+  Scale,
+  MapPin,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Edit,
+  Trash2,
+  Printer,
+  Activity,
+  Plus,
+  FileText,
+  Check,
+  AlertTriangle,
+  AlertCircle,
+  MessageCircle,
+  QrCode,
+  Dumbbell,
+  Utensils,
+  RefreshCw,
+  IndianRupee
+} from 'lucide-react';
+
+interface Plan {
+  _id: string;
+  name: string;
+  price: number;
+  durationMonths: number;
+}
+
+interface Member {
+  _id: string;
+  name: string;
+  phone: string;
+  email: string;
+  gender: 'male' | 'female' | 'other';
+  dob: string;
+  height: number;
+  weight: number;
+  address: string;
+  joiningDate: string;
+  planId: Plan | null;
+  membershipStart: string;
+  membershipEnd: string;
+  amountPaid: number;
+  remainingAmount: number;
+  paymentStatus: 'paid' | 'partial' | 'unpaid';
+  qrCode: string;
+  emergencyContact?: string;
+  notes?: string;
+  isArchived: boolean;
+  lastPaymentDate?: string;
+}
+
+interface Payment {
+  _id: string;
+  amount: number;
+  pendingAmount: number;
+  paymentDate: string;
+  paymentMethod: 'upi' | 'cash' | 'card' | 'bank_transfer';
+  receiptNumber: string;
+  notes: string;
+  operatorName?: string;
+  isVoided?: boolean;
+  originalAmount?: number;
+  updatedAmount?: number;
+  updatedBy?: string;
+  updatedDate?: string;
+}
+
+interface AttendanceLog {
+  _id: string;
+  date: string;
+  checkInTime: string;
+  status: 'present' | 'absent';
+}
+
+interface WorkoutPlan {
+  _id: string;
+  instructions: string;
+  exercises: { day: string; name: string; sets: number; reps: string }[];
+}
+
+interface DietPlan {
+  _id: string;
+  instructions: string;
+  meals: { time: string; items: string; calories: number }[];
+}
+
+export const MemberProfile: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { showToast } = useNotification();
+  const { user } = useAuth();
+  const isSuspended = user?.status === 'suspended' || user?.subscription?.status === 'suspended' || user?.subscription?.status === 'expired';
+
+  const [member, setMember] = useState<Member | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceLog[]>([]);
+  const [workout, setWorkout] = useState<WorkoutPlan | null>(null);
+  const [diet, setDiet] = useState<DietPlan | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Collect Due Modal
+  const [showCollectModal, setShowCollectModal] = useState(false);
+  const [collectAmount, setCollectAmount] = useState<number>(0);
+  const [collectMethod, setCollectMethod] = useState<'upi' | 'cash' | 'card' | 'bank_transfer'>('cash');
+  const [collectNotes, setCollectNotes] = useState('');
+  const [collecting, setCollecting] = useState(false);
+
+  // WhatsApp Status Modal
+  const [whatsAppModal, setWhatsAppModal] = useState<{
+    show: boolean;
+    url: string;
+    sentClicked: boolean;
+  }>({ show: false, url: '', sentClicked: false });
+
+  // Edit Payment Modal
+  const [editPayment, setEditPayment] = useState<Payment | null>(null);
+  const [showEditPaymentModal, setShowEditPaymentModal] = useState(false);
+  const [editPaymentAmount, setEditPaymentAmount] = useState<number>(0);
+  const [editPaymentNotes, setEditPaymentNotes] = useState('');
+  const [updatingPayment, setUpdatingPayment] = useState(false);
+
+  // View Receipt Modal
+  const [receiptDetails, setReceiptDetails] = useState<any | null>(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [loadingReceipt, setLoadingReceipt] = useState(false);
+
+  // Tab State
+  const [activeTab, setActiveTab] = useState<'payments' | 'attendance' | 'workout' | 'diet'>('payments');
+
+  useEffect(() => {
+    if (id) {
+      loadProfileData();
+    }
+  }, [id]);
+
+  const loadProfileData = async () => {
+    setLoading(true);
+    try {
+      const [mRes, payRes, attRes, wkRes, dtRes] = await Promise.all([
+        api.get(`/members/${id}`),
+        api.get(`/payments/member/${id}`),
+        api.get(`/attendance/member/${id}`).catch(() => []),
+        api.get(`/workouts/member/${id}`).catch(() => null),
+        api.get(`/diets/member/${id}`).catch(() => null)
+      ]);
+
+      setMember(mRes);
+      setPayments(payRes);
+      setAttendance(attRes);
+      setWorkout(wkRes);
+      setDiet(dtRes);
+      setCollectAmount(mRes.remainingAmount);
+    } catch (err: any) {
+      showToast(err.message || 'Error loading member profile details.', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCollectDues = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isSuspended) {
+      showToast('Write operational changes blocked for suspended accounts.', 'error');
+      return;
+    }
+    if (collectAmount <= 0) {
+      showToast('Please enter a valid payment amount.', 'error');
+      return;
+    }
+    if (member && collectAmount > member.remainingAmount) {
+      showToast('Payment amount exceeds outstanding dues balance.', 'error');
+      return;
+    }
+
+    setCollecting(true);
+    try {
+      const res = await api.post('/payments', {
+        memberId: id,
+        amount: collectAmount,
+        paymentMethod: collectMethod,
+        notes: collectNotes || 'Dues Settlement Collection'
+      });
+
+      showToast('Payment collected successfully!', 'success');
+      setShowCollectModal(false);
+      setCollectNotes('');
+      
+      // Reload profile data
+      await loadProfileData();
+
+      // Trigger WhatsApp Status popover
+      if (res.whatsappUrl) {
+        setWhatsAppModal({
+          show: true,
+          url: res.whatsappUrl,
+          sentClicked: false
+        });
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Error executing dues collection.', 'error');
+    } finally {
+      setCollecting(false);
+    }
+  };
+
+  const handleEditPaymentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editPayment) return;
+    if (isSuspended) {
+      showToast('Write operations are disabled.', 'error');
+      return;
+    }
+    if (editPaymentAmount <= 0) {
+      showToast('Please enter a valid amount.', 'error');
+      return;
+    }
+
+    setUpdatingPayment(true);
+    try {
+      await api.put(`/payments/${editPayment._id}/edit`, {
+        amount: editPaymentAmount,
+        notes: editPaymentNotes
+      });
+      showToast('Transaction ledger record updated successfully.', 'success');
+      setShowEditPaymentModal(false);
+      setEditPayment(null);
+      loadProfileData();
+    } catch (err: any) {
+      showToast(err.message || 'Error updating transaction.', 'error');
+    } finally {
+      setUpdatingPayment(false);
+    }
+  };
+
+  const handleVoidPayment = async (payId: string) => {
+    if (isSuspended) {
+      showToast('Write operations are disabled.', 'error');
+      return;
+    }
+    if (!window.confirm('Are you sure you want to VOID this payment receipt? This will deduct the amount from member paid balance and restore their dues.')) return;
+
+    try {
+      await api.put(`/payments/${payId}/void`, {});
+      showToast('Payment transaction voided successfully.', 'success');
+      loadProfileData();
+    } catch (err: any) {
+      showToast(err.message || 'Error voiding transaction.', 'error');
+    }
+  };
+
+  const handleArchiveProfile = async () => {
+    if (isSuspended) {
+      showToast('Write operations are disabled.', 'error');
+      return;
+    }
+    if (!window.confirm('Are you sure you want to archive this member? All metrics and billing histories remain saved.')) return;
+
+    try {
+      await api.delete(`/members/${id}`);
+      showToast('Member profile archived successfully.', 'success');
+      loadProfileData();
+    } catch (err: any) {
+      showToast(err.message || 'Error archiving profile.', 'error');
+    }
+  };
+
+  const handleRestoreProfile = async () => {
+    if (isSuspended) {
+      showToast('Write operations are disabled.', 'error');
+      return;
+    }
+    try {
+      await api.put(`/members/${id}/restore`, {});
+      showToast('Member profile restored successfully.', 'success');
+      loadProfileData();
+    } catch (err: any) {
+      showToast(err.message || 'Error restoring profile.', 'error');
+    }
+  };
+
+  const openViewReceipt = async (payId: string) => {
+    setLoadingReceipt(true);
+    setShowReceiptModal(true);
+    try {
+      const details = await api.get(`/payments/${payId}/receipt`);
+      setReceiptDetails(details);
+    } catch (err: any) {
+      showToast('Error loading receipt data.', 'error');
+      setShowReceiptModal(false);
+    } finally {
+      setLoadingReceipt(false);
+    }
+  };
+
+  const downloadReceiptPDF = () => {
+    if (receiptDetails) {
+      generateReceiptPDF(receiptDetails);
+    }
+  };
+
+  // Activity Timeline Builder
+  const buildTimeline = () => {
+    if (!member) return [];
+    const timeline: { date: Date; title: string; desc: string; type: 'info' | 'success' | 'warn' }[] = [];
+
+    // Onboarding
+    timeline.push({
+      date: new Date(member.joiningDate),
+      title: 'Joined Gym Workspace',
+      desc: `Registered on ${member.planId?.name || 'Deleted Plan'} plan.`,
+      type: 'info'
+    });
+
+    // Payments
+    payments.forEach(p => {
+      if (p.isVoided) {
+        timeline.push({
+          date: new Date(p.paymentDate),
+          title: `Payment Voided: ${p.receiptNumber}`,
+          desc: `Voided transaction of ₹${p.amount}.`,
+          type: 'warn'
+        });
+      } else {
+        timeline.push({
+          date: new Date(p.paymentDate),
+          title: `Payment Logged: ${p.receiptNumber}`,
+          desc: `Received ₹${p.amount} via ${p.paymentMethod.toUpperCase()}${p.notes ? ` (${p.notes})` : ''}.`,
+          type: 'success'
+        });
+      }
+    });
+
+    // Sort newest first
+    return timeline.sort((a, b) => b.date.getTime() - a.date.getTime());
+  };
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="w-10 h-10 rounded-full border-4 border-primary/25 border-t-primary animate-spin" />
+      </div>
+    );
+  }
+
+  if (!member) {
+    return (
+      <div className="p-8 text-center bg-card border rounded-2xl">
+        <AlertTriangle className="w-12 h-12 text-rose-400 mx-auto mb-4" />
+        <h2 className="text-xl font-bold text-foreground">Member Not Found</h2>
+        <p className="text-sm text-muted-foreground mt-2">The requested member file was not found or has been permanently removed.</p>
+        <button onClick={() => navigate('/app/members')} className="mt-4 px-4 py-2 bg-primary text-white rounded-lg text-xs font-semibold">
+          Return to Directory
+        </button>
+      </div>
+    );
+  }
+
+  const timelineItems = buildTimeline();
+
+  return (
+    <div className="space-y-6 font-sans text-foreground">
+      {/* Top Navigation */}
+      <div className="flex items-center gap-4">
+        <button
+          onClick={() => navigate('/app/members')}
+          className="p-2 border rounded-xl hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">{member.name}</h1>
+          <p className="text-xs text-muted-foreground">Gym Member Profile &amp; Transactions Timeline</p>
+        </div>
+      </div>
+
+      {/* Grid Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* Left Column: Member Card & Stats */}
+        <div className="space-y-6 lg:col-span-1">
+          {/* Main Info Card */}
+          <div className="bg-card border rounded-3xl p-6 shadow-sm space-y-6 relative overflow-hidden">
+            {/* Background highlight */}
+            <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-bl-full pointer-events-none" />
+
+            <div className="flex items-center gap-4">
+              <div className="p-4 bg-primary/10 text-primary rounded-2xl">
+                <User className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold">{member.name}</h3>
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${
+                  member.isArchived 
+                    ? 'bg-rose-950/40 text-rose-400 border-rose-500/25'
+                    : 'bg-emerald-950/40 text-emerald-400 border-emerald-500/25'
+                }`}>
+                  {member.isArchived ? 'Archived File' : 'Active Member'}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-4 border-t text-xs">
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Phone className="w-4 h-4 shrink-0 text-primary" />
+                <span className="text-foreground">{member.phone}</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Mail className="w-4 h-4 shrink-0 text-primary" />
+                <span className="text-foreground">{member.email || 'N/A'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Calendar className="w-4 h-4 shrink-0 text-primary" />
+                <span>DOB: <span className="text-foreground">{new Date(member.dob).toLocaleDateString('en-IN')}</span></span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Scale className="w-4 h-4 shrink-0 text-primary" />
+                <span>Metrics: <span className="text-foreground">{member.height}cm / {member.weight}kg</span></span>
+              </div>
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <MapPin className="w-4 h-4 shrink-0 text-primary" />
+                <span className="text-foreground truncate">{member.address || 'No Address Logged'}</span>
+              </div>
+              {member.emergencyContact && (
+                <div className="p-3 bg-rose-950/20 border border-rose-900/40 rounded-xl mt-2">
+                  <div className="text-[10px] uppercase font-bold text-rose-400">Emergency Contact</div>
+                  <div className="text-sm font-semibold mt-0.5 text-rose-200">{member.emergencyContact}</div>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-4 border-t flex gap-2">
+              {member.isArchived ? (
+                <button
+                  onClick={handleRestoreProfile}
+                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold transition-all cursor-pointer text-center"
+                >
+                  Restore Member
+                </button>
+              ) : (
+                <button
+                  onClick={handleArchiveProfile}
+                  className="flex-1 py-2 bg-rose-950/40 hover:bg-rose-950/60 border border-rose-900/40 text-rose-400 rounded-xl text-xs font-semibold transition-all cursor-pointer text-center"
+                >
+                  Archive Profile
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Membership Plan Info */}
+          <div className="bg-card border rounded-3xl p-6 shadow-sm space-y-4">
+            <h4 className="text-sm font-extrabold uppercase text-muted-foreground tracking-wider">Membership Plan</h4>
+            <div className="p-4 rounded-2xl bg-muted/30 border space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-bold text-foreground">{member.planId?.name || 'Deleted Plan'}</span>
+                <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase border ${
+                  member.paymentStatus === 'paid'
+                    ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/25'
+                    : member.paymentStatus === 'partial'
+                    ? 'bg-amber-950/40 text-amber-400 border-amber-500/25'
+                    : 'bg-rose-950/40 text-rose-400 border-rose-500/25'
+                }`}>
+                  {member.paymentStatus.toUpperCase()}
+                </span>
+              </div>
+              <div className="text-xs text-muted-foreground space-y-1">
+                <div className="flex justify-between">
+                  <span>Start Date:</span>
+                  <span className="text-foreground font-medium">{new Date(member.membershipStart).toLocaleDateString('en-IN')}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Expiry Date:</span>
+                  <span className="text-foreground font-medium">{new Date(member.membershipEnd).toLocaleDateString('en-IN')}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-col gap-2">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-muted-foreground">Plan Total Price:</span>
+                <span className="font-semibold text-foreground">₹{member.planId?.price || 0}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-muted-foreground">Total Paid:</span>
+                <span className="font-semibold text-emerald-400">₹{member.amountPaid}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm pt-2 border-t font-bold">
+                <span>Outstanding Due:</span>
+                <span className={member.remainingAmount > 0 ? 'text-rose-400' : 'text-emerald-400'}>
+                  ₹{member.remainingAmount}
+                </span>
+              </div>
+            </div>
+
+            {member.remainingAmount > 0 && !isSuspended && (
+              <button
+                onClick={() => setShowCollectModal(true)}
+                className="w-full mt-2 py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1"
+              >
+                <IndianRupee className="w-4 h-4" /> Collect Remaining ₹{member.remainingAmount}
+              </button>
+            )}
+          </div>
+
+          {/* QR Receptionist Pass */}
+          <div className="bg-card border rounded-3xl p-6 shadow-sm text-center space-y-4">
+            <h4 className="text-sm font-extrabold uppercase text-muted-foreground tracking-wider">Receptionist QR Pass</h4>
+            <div className="p-4 bg-white rounded-2xl inline-block border shadow-inner">
+              {/* Fallback visual QR Representation */}
+              <div className="w-36 h-36 bg-slate-100 flex flex-col items-center justify-center gap-2 border border-slate-200 rounded-xl relative">
+                <QrCode className="w-20 h-20 text-slate-800" />
+                <span className="text-[10px] text-slate-500 font-mono font-semibold uppercase">{member.qrCode}</span>
+              </div>
+            </div>
+            <p className="text-[10px] text-muted-foreground"> receptionist scans this code to log check-in attendance.</p>
+          </div>
+        </div>
+
+        {/* Right Column: Ledger, Logs, Schedules & Timeline */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Section Navigation Tabs */}
+          <div className="flex border-b border-border overflow-x-auto pb-px">
+            {(['payments', 'attendance', 'workout', 'diet'] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`py-3 px-6 text-xs font-bold uppercase tracking-wider transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+                  activeTab === tab
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {tab === 'payments' && 'Payment Ledger'}
+                {tab === 'attendance' && 'Attendance Logs'}
+                {tab === 'workout' && 'Workout Schedule'}
+                {tab === 'diet' && 'Diet Routine'}
+              </button>
+            ))}
+          </div>
+
+          {/* Dynamic Tab Contents */}
+          <div className="space-y-6">
+            {activeTab === 'payments' && (
+              <div className="bg-card border rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-bold">Transaction History Ledger</h3>
+                  <span className="text-xs text-muted-foreground font-semibold">Total Receipts: {payments.length}</span>
+                </div>
+
+                {payments.length === 0 ? (
+                  <div className="p-8 text-center bg-muted/20 border border-dashed rounded-2xl">
+                    <p className="text-sm text-muted-foreground">No payments logged for this member yet.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase">
+                          <th className="p-3">Receipt No</th>
+                          <th className="p-3">Amount</th>
+                          <th className="p-3">Method</th>
+                          <th className="p-3">Date</th>
+                          <th className="p-3">Operator</th>
+                          <th className="p-3 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {payments.map((p) => (
+                          <tr key={p._id} className={`hover:bg-muted/10 transition-colors ${p.isVoided ? 'opacity-40 line-through bg-rose-950/5' : ''}`}>
+                            <td className="p-3 font-mono font-semibold text-foreground">
+                              {p.receiptNumber}
+                              {p.isVoided && <span className="ml-1 text-[9px] text-rose-400 uppercase font-extrabold">(Voided)</span>}
+                            </td>
+                            <td className="p-3 font-bold text-foreground">
+                              ₹{p.amount}
+                              {p.originalAmount && (
+                                <span className="block text-[9px] text-muted-foreground line-through font-normal">Orig: ₹{p.originalAmount}</span>
+                              )}
+                            </td>
+                            <td className="p-3 uppercase font-medium">{p.paymentMethod}</td>
+                            <td className="p-3 text-muted-foreground">{new Date(p.paymentDate).toLocaleDateString('en-IN')}</td>
+                            <td className="p-3 text-muted-foreground font-medium">{p.operatorName || 'Admin'}</td>
+                            <td className="p-3 text-right flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => openViewReceipt(p._id)}
+                                className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-foreground cursor-pointer"
+                                title="View details & Print"
+                              >
+                                <Printer className="w-3.5 h-3.5" />
+                              </button>
+                              {!p.isVoided && !isSuspended && (
+                                <>
+                                  <button
+                                    onClick={() => {
+                                      setEditPayment(p);
+                                      setEditPaymentAmount(p.amount);
+                                      setEditPaymentNotes(p.notes || '');
+                                      setShowEditPaymentModal(true);
+                                    }}
+                                    className="p-1 hover:bg-muted rounded text-primary hover:text-primary/95 cursor-pointer"
+                                    title="Edit payment amount"
+                                  >
+                                    <Edit className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleVoidPayment(p._id)}
+                                    className="p-1 hover:bg-muted rounded text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+                                    title="Void transaction"
+                                  >
+                                    <XCircle className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'attendance' && (
+              <div className="bg-card border rounded-3xl p-6 shadow-sm space-y-4">
+                <h3 className="text-lg font-bold">Attendance Check-in Logs</h3>
+                {attendance.length === 0 ? (
+                  <div className="p-8 text-center bg-muted/20 border border-dashed rounded-2xl">
+                    <p className="text-sm text-muted-foreground">No scans registered. Daily QR check-in will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase">
+                          <th className="p-3">Log Date</th>
+                          <th className="p-3">Check-in Time</th>
+                          <th className="p-3">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {attendance.map((log) => (
+                          <tr key={log._id} className="hover:bg-muted/10 transition-colors">
+                            <td className="p-3 font-semibold text-foreground">{log.date}</td>
+                            <td className="p-3 text-muted-foreground">{log.checkInTime}</td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 uppercase">
+                                Present
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'workout' && (
+              <div className="bg-card border rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    <Dumbbell className="w-5 h-5 text-primary" /> Active Workout Routine
+                  </h3>
+                </div>
+
+                {!workout || !workout.exercises || workout.exercises.length === 0 ? (
+                  <div className="p-8 text-center bg-muted/20 border border-dashed rounded-2xl">
+                    <p className="text-sm text-muted-foreground font-semibold">No exercise routine assigned.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Assign a routine via the Diet/Workout Planner tab.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {workout.instructions && (
+                      <div className="p-3.5 bg-muted/20 border rounded-2xl text-xs text-muted-foreground italic">
+                        <strong>Dietitian Instructions:</strong> {workout.instructions}
+                      </div>
+                    )}
+                    <div className="overflow-hidden border rounded-2xl">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase">
+                            <th className="p-3">Day</th>
+                            <th className="p-3">Exercise Name</th>
+                            <th className="p-3">Sets</th>
+                            <th className="p-3">Reps / Duration</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {workout.exercises.map((ex, idx) => (
+                            <tr key={idx} className="hover:bg-muted/10 transition-colors">
+                              <td className="p-3 font-bold uppercase text-primary">{ex.day}</td>
+                              <td className="p-3 font-semibold">{ex.name}</td>
+                              <td className="p-3">{ex.sets} Sets</td>
+                              <td className="p-3 text-muted-foreground">{ex.reps}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'diet' && (
+              <div className="bg-card border rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-bold flex items-center gap-2">
+                    <Utensils className="w-5 h-5 text-primary" /> Nutrition &amp; Meals Schedule
+                  </h3>
+                </div>
+
+                {!diet || !diet.meals || diet.meals.length === 0 ? (
+                  <div className="p-8 text-center bg-muted/20 border border-dashed rounded-2xl">
+                    <p className="text-sm text-muted-foreground font-semibold">No diet routine assigned.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Assign a plan via the Diet/Workout Planner tab.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {diet.instructions && (
+                      <div className="p-3.5 bg-muted/20 border rounded-2xl text-xs text-muted-foreground italic">
+                        <strong>General Instructions:</strong> {diet.instructions}
+                      </div>
+                    )}
+                    <div className="overflow-hidden border rounded-2xl">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/40 font-semibold text-muted-foreground uppercase">
+                            <th className="p-3">Meal Time</th>
+                            <th className="p-3">Recommended Items</th>
+                            <th className="p-3 text-right">Calories</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {diet.meals.map((m, idx) => (
+                            <tr key={idx} className="hover:bg-muted/10 transition-colors">
+                              <td className="p-3 font-bold text-primary">{m.time}</td>
+                              <td className="p-3 font-semibold">{m.items}</td>
+                              <td className="p-3 text-right text-muted-foreground">{m.calories} Kcal</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Activity Timeline */}
+          <div className="bg-card border rounded-3xl p-6 shadow-sm space-y-6">
+            <h3 className="text-lg font-bold">Profile Activity Timeline</h3>
+            <div className="relative border-l border-border pl-6 ml-2 space-y-6">
+              {timelineItems.map((item, idx) => (
+                <div key={idx} className="relative">
+                  {/* Dot */}
+                  <span className={`absolute -left-[31px] top-1.5 w-4.5 h-4.5 rounded-full border-4 border-card flex items-center justify-center ${
+                    item.type === 'success' 
+                      ? 'bg-emerald-500' 
+                      : item.type === 'warn'
+                      ? 'bg-rose-500'
+                      : 'bg-primary'
+                  }`} />
+                  <div className="space-y-1">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                      <h4 className="text-xs font-bold text-foreground">{item.title}</h4>
+                      <span className="text-[10px] text-muted-foreground">{item.date.toLocaleString('en-IN')}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Collect Due Payment Modal */}
+      {showCollectModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-card border rounded-3xl p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowCollectModal(false)}
+              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-xl font-bold mb-1">Log Outstanding Payment</h2>
+            <p className="text-xs text-muted-foreground mb-4">Settle dues for member: <span className="font-semibold text-foreground">{member.name}</span></p>
+
+            <form onSubmit={handleCollectDues} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Amount to Collect (₹)</label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  max={member.remainingAmount}
+                  value={collectAmount}
+                  onChange={(e) => setCollectAmount(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+                <span className="text-[10px] text-muted-foreground mt-1 block">Maximum remaining due balance is ₹{member.remainingAmount}</span>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Payment Method</label>
+                <select
+                  value={collectMethod}
+                  onChange={(e) => setCollectMethod(e.target.value as any)}
+                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                >
+                  <option value="cash">Cash Payment</option>
+                  <option value="upi">UPI / QR Code Scan</option>
+                  <option value="card">Credit/Debit Card</option>
+                  <option value="bank_transfer">Bank Wire Transfer</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Payment Notes / Remarks</label>
+                <input
+                  type="text"
+                  value={collectNotes}
+                  onChange={(e) => setCollectNotes(e.target.value)}
+                  placeholder="e.g. Settle remaining installment"
+                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowCollectModal(false)}
+                  className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={collecting}
+                  className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                >
+                  {collecting ? 'Processing...' : 'Settle Payment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Status Indicator Modal */}
+      {whatsAppModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-card border rounded-3xl p-6 shadow-2xl relative text-center space-y-4">
+            <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-full inline-block">
+              <MessageCircle className="w-8 h-8" />
+            </div>
+
+            <h3 className="text-lg font-bold text-foreground text-center">WhatsApp Delivery Trace</h3>
+
+            <div className="text-left space-y-3 p-4 bg-muted/30 border rounded-2xl">
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+                <Check className="w-4 h-4" /> <span>Generated: WhatsApp link generated successfully</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+                {whatsAppModal.sentClicked ? (
+                  <Check className="w-4 h-4" />
+                ) : (
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping ml-1 mr-0.5" />
+                )}
+                <span>Sent: {whatsAppModal.sentClicked ? 'Message Sent successfully' : 'Waiting for Click-to-Chat execution'}</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <AlertCircle className="w-4 h-4 text-muted-foreground/60" />
+                <span>Opened: Not supported (Requires live Gateway configurations)</span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 pt-2">
+              <a
+                href={whatsAppModal.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setWhatsAppModal(prev => ({ ...prev, sentClicked: true }))}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <MessageCircle className="w-4 h-4" /> Send Payment Notification
+              </a>
+              <button
+                onClick={() => setWhatsAppModal({ show: false, url: '', sentClicked: false })}
+                className="w-full py-2.5 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Close Trace
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Payment Modal */}
+      {showEditPaymentModal && editPayment && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-card border rounded-3xl p-6 shadow-2xl relative">
+            <button
+              onClick={() => {
+                setShowEditPaymentModal(false);
+                setEditPayment(null);
+              }}
+              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-xl font-bold mb-1">Modify Payment Ledger Item</h2>
+            <p className="text-xs text-muted-foreground mb-4">Editing transaction: <span className="font-semibold text-foreground">{editPayment.receiptNumber}</span></p>
+
+            <form onSubmit={handleEditPaymentSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">New Amount Collected (₹)</label>
+                <input
+                  type="number"
+                  required
+                  min={1}
+                  value={editPaymentAmount}
+                  onChange={(e) => setEditPaymentAmount(Number(e.target.value))}
+                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Audit Log Notes / Reasons</label>
+                <input
+                  type="text"
+                  required
+                  value={editPaymentNotes}
+                  onChange={(e) => setEditPaymentNotes(e.target.value)}
+                  placeholder="e.g. Correct typo error from ₹10000 to ₹1000"
+                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowEditPaymentModal(false);
+                    setEditPayment(null);
+                  }}
+                  className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingPayment}
+                  className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                >
+                  {updatingPayment ? 'Updating...' : 'Save Audit Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Receipt Modal */}
+      {showReceiptModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-card border rounded-3xl p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <button
+              onClick={() => {
+                setShowReceiptModal(false);
+                setReceiptDetails(null);
+              }}
+              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-xl font-bold mb-4">Invoice Payment Receipt</h2>
+
+            <div className="flex-grow overflow-y-auto pr-1 space-y-4 text-xs">
+              {loadingReceipt ? (
+                <div className="flex justify-center py-12">
+                  <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                </div>
+              ) : !receiptDetails ? (
+                <p className="text-center text-muted-foreground">Error loading invoice metadata.</p>
+              ) : (
+                <div className="space-y-4">
+                  {/* Branding Header */}
+                  <div className="text-center border-b pb-4">
+                    <h3 className="text-lg font-black text-foreground uppercase tracking-tight">{receiptDetails.branding?.gymName}</h3>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{receiptDetails.branding?.address}</p>
+                    <p className="text-[10px] text-muted-foreground">Contact: {receiptDetails.branding?.contactNumber}</p>
+                  </div>
+
+                  {/* Receipt Metadata Grid */}
+                  <div className="grid grid-cols-2 gap-4 border-b pb-4">
+                    <div>
+                      <div className="text-[10px] font-semibold text-muted-foreground uppercase">Transaction Details</div>
+                      <div className="mt-1 font-bold">Receipt #: {receiptDetails.receiptNumber}</div>
+                      <div>Date: {new Date(receiptDetails.paymentDate).toLocaleString('en-IN')}</div>
+                      <div>Method: <span className="uppercase font-semibold">{receiptDetails.paymentMethod}</span></div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] font-semibold text-muted-foreground uppercase">Payer Details</div>
+                      <div className="mt-1 font-bold">Name: {receiptDetails.member?.name}</div>
+                      <div>Contact: {receiptDetails.member?.phone}</div>
+                    </div>
+                  </div>
+
+                  {/* Receipt Audit History details */}
+                  {(receiptDetails.originalAmount !== undefined || receiptDetails.isVoided) && (
+                    <div className="p-3 bg-rose-950/20 border border-rose-900/40 rounded-xl text-rose-300 space-y-1">
+                      <div className="font-bold flex items-center gap-1">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" /> Audited Transaction Log
+                      </div>
+                      {receiptDetails.isVoided && <div className="text-[10px] font-extrabold uppercase">✓ THIS TRANSACTION IS VOIDED / CANCELLED</div>}
+                      {receiptDetails.originalAmount !== undefined && (
+                        <div className="text-[10px] space-y-0.5">
+                          <div>Original Amount: ₹{receiptDetails.originalAmount}</div>
+                          <div>Updated Amount: ₹{receiptDetails.updatedAmount}</div>
+                          <div>Updated By: {receiptDetails.updatedBy}</div>
+                          <div>Updated Date: {receiptDetails.updatedDate ? new Date(receiptDetails.updatedDate).toLocaleString('en-IN') : 'N/A'}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Receipt Row Table */}
+                  <div className="border rounded-xl overflow-hidden bg-muted/15">
+                    <div className="flex justify-between items-center p-3 font-semibold bg-muted/30 border-b">
+                      <span>Description</span>
+                      <span>Amount Collected</span>
+                    </div>
+                    <div className="flex justify-between items-center p-3 font-medium">
+                      <span>Gym Studio Membership Fees Collection</span>
+                      <span className="font-bold">₹{receiptDetails.amount}</span>
+                    </div>
+                  </div>
+
+                  {/* Balances */}
+                  <div className="space-y-1 text-right pt-2">
+                    <div className="text-sm font-black text-foreground">Total Paid: ₹{receiptDetails.amount}</div>
+                    <div className="text-muted-foreground">Outstanding Dues Balance: ₹{receiptDetails.pendingAmount}</div>
+                  </div>
+
+                  {/* Notes */}
+                  {receiptDetails.notes && (
+                    <div className="p-3 rounded-xl bg-muted/20 italic text-muted-foreground">
+                      Remarks: {receiptDetails.notes}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-3 pt-6 mt-4 border-t">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowReceiptModal(false);
+                  setReceiptDetails(null);
+                }}
+                className="flex-1 py-2 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl text-xs cursor-pointer"
+              >
+                Close Receipt
+              </button>
+              {receiptDetails && (
+                <button
+                  onClick={downloadReceiptPDF}
+                  className="flex-1 py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Print PDF receipt
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+};

@@ -173,7 +173,8 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
         expiredMembers,
         blockedMembers: 0,
         monthlyCollections,
-        newMembersToday
+        newMembersToday,
+        outstandingDuesCount
       },
       ptPlanOverview: {
         activePtPlans: 0,

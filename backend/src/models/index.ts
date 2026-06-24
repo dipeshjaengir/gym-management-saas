@@ -47,6 +47,15 @@ export const PlatformLead = mongoose.model<IPlatformLead>('PlatformLead', Platfo
 // ----------------------------------------------------
 // 3. GYM OWNER (TENANT) SCHEMA
 // ----------------------------------------------------
+export interface ISubscriptionHistory {
+  planType: string;
+  amountPaid: number;
+  startDate: Date;
+  expiryDate: Date;
+  renewedBy: string;
+  transactionDate: Date;
+}
+
 export interface IGymOwner extends Document {
   gymName: string;
   ownerName: string;
@@ -72,6 +81,7 @@ export interface IGymOwner extends Document {
     status: 'active' | 'expired' | 'suspended';
     amountPaid: number;
   };
+  subscriptionHistory?: ISubscriptionHistory[];
   isTrial: boolean;
   isDeleted: boolean;
 }
@@ -101,6 +111,14 @@ const GymOwnerSchema = new Schema<IGymOwner>({
     status: { type: String, enum: ['active', 'expired', 'suspended'], default: 'active', index: true },
     amountPaid: { type: Number, required: true }
   },
+  subscriptionHistory: [{
+    planType: { type: String, required: true },
+    amountPaid: { type: Number, required: true },
+    startDate: { type: Date, required: true },
+    expiryDate: { type: Date, required: true },
+    renewedBy: { type: String, required: true },
+    transactionDate: { type: Date, default: Date.now }
+  }],
   isTrial: { type: Boolean, default: false },
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
@@ -172,6 +190,7 @@ export interface IMember extends Document {
   qrCode: string;
   emergencyContact: string;
   notes: string;
+  isArchived: boolean;
   isDeleted: boolean;
 }
 
@@ -195,6 +214,7 @@ const MemberSchema = new Schema<IMember>({
   qrCode: { type: String, required: true, unique: true, index: true },
   emergencyContact: { type: String, default: '' },
   notes: { type: String, default: '' },
+  isArchived: { type: Boolean, default: false, index: true },
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 
@@ -212,6 +232,12 @@ export interface IPayment extends Document {
   paymentMethod: 'upi' | 'cash' | 'card' | 'bank_transfer';
   receiptNumber: string;
   notes: string;
+  operatorName?: string;
+  isVoided?: boolean;
+  originalAmount?: number;
+  updatedAmount?: number;
+  updatedBy?: string;
+  updatedDate?: Date;
   isDeleted: boolean;
 }
 
@@ -224,6 +250,12 @@ const PaymentSchema = new Schema<IPayment>({
   paymentMethod: { type: String, enum: ['upi', 'cash', 'card', 'bank_transfer'], required: true },
   receiptNumber: { type: String, required: true, unique: true },
   notes: { type: String, default: '' },
+  operatorName: { type: String, default: 'Admin' },
+  isVoided: { type: Boolean, default: false, index: true },
+  originalAmount: { type: Number },
+  updatedAmount: { type: Number },
+  updatedBy: { type: String },
+  updatedDate: { type: Date },
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 

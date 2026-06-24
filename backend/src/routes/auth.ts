@@ -63,13 +63,8 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
         await gymOwner.save();
       }
 
-      if (gymOwner.status === 'suspended' || gymOwner.subscription.status === 'suspended') {
-        return res.status(403).json({
-          message: 'Your account is suspended. Please contact the platform Super Admin on WhatsApp.',
-          status: 'suspended',
-          whatsAppRedirect: true
-        });
-      }
+      // Suspended status check is now handled at route middleware level to allow read-only dashboard access.
+      // So we allow login here.
 
       const token = jwt.sign(
         { id: gymOwner._id, email: gymOwner.email, role: 'gym_owner', gymName: gymOwner.gymName },

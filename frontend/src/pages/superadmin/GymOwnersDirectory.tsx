@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
+import { exportToCSV } from '../../utils/exportHelpers';
 import {
   UserCheck,
   Building,
@@ -13,8 +14,19 @@ import {
   Pause,
   X,
   Edit2,
-  Copy
+  Copy,
+  Download,
+  History
 } from 'lucide-react';
+
+interface SubscriptionHistoryItem {
+  planType: string;
+  amountPaid: number;
+  startDate: string;
+  expiryDate: string;
+  renewedBy: string;
+  transactionDate: string;
+}
 
 interface GymOwner {
   _id: string;
@@ -31,6 +43,8 @@ interface GymOwner {
     status: 'active' | 'expired' | 'suspended';
     amountPaid: number;
   };
+  isTrial?: boolean;
+  subscriptionHistory?: SubscriptionHistoryItem[];
   createdAt: string;
 }
 
@@ -67,6 +81,8 @@ export const GymOwnersDirectory: React.FC = () => {
   const [renewAmountPaid, setRenewAmountPaid] = useState<number>(179);
   const [renewing, setRenewing] = useState(false);
   const [platformPlans, setPlatformPlans] = useState<any[]>([]);
+  const [historyOwner, setHistoryOwner] = useState<GymOwner | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
 
   useEffect(() => {
     loadOwners();
@@ -233,6 +249,46 @@ export const GymOwnersDirectory: React.FC = () => {
     return status;
   };
 
+  const handleExportCSV = () => {
+    const data = owners.map(o => {
+      const isTrial = o.isTrial;
+      let planDisplay = o.subscription.planType;
+      if (isTrial) {
+        const expiry = new Date(o.subscription.expiryDate);
+        const today = new Date();
+        const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const diffTime = expiry.getTime() - todayStart.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        planDisplay = `7 DAY TRIAL (${diffDays > 0 ? diffDays : 0} Days Left)`;
+      }
+      return {
+        'Gym Name': o.gymName,
+        'Owner Name': o.ownerName,
+        'Email': o.email,
+        'Phone': o.phone,
+        'Address': o.address || 'N/A',
+        'Status': o.status,
+        'Plan Type': planDisplay,
+        'Expiry Date': new Date(o.subscription.expiryDate).toLocaleDateString('en-IN'),
+        'Amount Paid': o.subscription.amountPaid,
+        'Created Date': new Date(o.createdAt).toLocaleDateString('en-IN')
+      };
+    });
+    exportToCSV(data, 'gym_owners_directory');
+  };
+
+  const getPlanDisplay = (owner: GymOwner) => {
+    if (owner.isTrial) {
+      const expiry = new Date(owner.subscription.expiryDate);
+      const today = new Date();
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const diffTime = expiry.getTime() - todayStart.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return `7 DAY TRIAL (${diffDays > 0 ? diffDays : 0} Days Left)`;
+    }
+    return owner.subscription.planType;
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -241,12 +297,20 @@ export const GymOwnersDirectory: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight">Gym Owners Directory</h1>
           <p className="text-xs text-muted-foreground">Register gym owners and monitor platform statuses.</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-primary-foreground text-sm shadow-md w-full sm:w-auto"
-        >
-          <Plus className="w-4 h-4" /> Register Gym Owner
-        </button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-card border hover:bg-muted text-foreground text-sm shadow-sm flex-1 sm:flex-none cursor-pointer"
+          >
+            <Download className="w-4 h-4" /> Export CSV
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-primary-foreground text-sm shadow-md flex-1 sm:flex-none cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Register Gym Owner
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -274,7 +338,7 @@ export const GymOwnersDirectory: React.FC = () => {
                   <div>Owner: <span className="text-foreground">{owner.ownerName}</span></div>
                   <div>Email: <span className="text-foreground">{owner.email}</span></div>
                   <div>Phone: <span className="text-foreground">{owner.phone}</span></div>
-                  <div>Plan: <span className="text-foreground uppercase font-medium">{owner.subscription.planType}</span></div>
+                  <div>Plan: <span className="text-foreground uppercase font-medium">{getPlanDisplay(owner)}</span></div>
                   <div>Expires: <span className="text-foreground font-semibold">{new Date(owner.subscription.expiryDate).toLocaleDateString('en-IN')}</span></div>
                 </div>
 
@@ -290,6 +354,15 @@ export const GymOwnersDirectory: React.FC = () => {
                     className="flex-grow py-2 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 rounded-lg text-xs font-semibold flex items-center justify-center gap-1 transition-colors"
                   >
                     <Calendar className="w-3.5 h-3.5" /> Renew Plan
+                  </button>
+                  <button
+                    onClick={() => {
+                      setHistoryOwner(owner);
+                      setShowHistoryModal(true);
+                    }}
+                    className="flex-grow py-2 border rounded-lg text-xs font-semibold hover:bg-muted flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <History className="w-3.5 h-3.5" /> History
                   </button>
                   <button
                     onClick={() => toggleStatus(owner._id, owner.status)}
@@ -338,7 +411,7 @@ export const GymOwnersDirectory: React.FC = () => {
                       <div>{owner.email}</div>
                       <div className="text-xs text-muted-foreground">{owner.phone}</div>
                     </td>
-                    <td className="p-4 uppercase font-semibold text-xs text-primary">{owner.subscription.planType}</td>
+                    <td className="p-4 uppercase font-semibold text-xs text-primary">{getPlanDisplay(owner)}</td>
                     <td className="p-4 font-semibold text-xs">
                       {new Date(owner.subscription.expiryDate).toLocaleDateString('en-IN')}
                     </td>
@@ -348,6 +421,16 @@ export const GymOwnersDirectory: React.FC = () => {
                       </span>
                     </td>
                     <td className="p-4 text-right flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => {
+                          setHistoryOwner(owner);
+                          setShowHistoryModal(true);
+                        }}
+                        className="p-1.5 border hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                        title="Subscription History"
+                      >
+                        <History className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => openEditModal(owner)}
                         className="p-1.5 border hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
@@ -670,6 +753,75 @@ export const GymOwnersDirectory: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Subscription History Modal */}
+      {showHistoryModal && historyOwner && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-2xl bg-card border rounded-3xl p-6 shadow-2xl relative my-8 max-h-[85vh] flex flex-col">
+            <button
+              onClick={() => {
+                setShowHistoryModal(false);
+                setHistoryOwner(null);
+              }}
+              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-xl font-bold mb-1 text-foreground">Subscription History</h2>
+            <p className="text-xs text-muted-foreground mb-4">
+              Billing logs for <span className="text-primary font-semibold">{historyOwner.gymName}</span>
+            </p>
+
+            <div className="flex-grow overflow-y-auto pr-1">
+              {!historyOwner.subscriptionHistory || historyOwner.subscriptionHistory.length === 0 ? (
+                <div className="p-8 text-center bg-muted/20 border border-dashed rounded-2xl">
+                  <p className="text-sm text-muted-foreground">No historical subscription payments logged for this owner.</p>
+                </div>
+              ) : (
+                <div className="overflow-hidden rounded-2xl border bg-card">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b bg-muted/40 text-xs font-semibold text-muted-foreground uppercase">
+                        <th className="p-3">Plan Name</th>
+                        <th className="p-3">Amount</th>
+                        <th className="p-3">Date Range</th>
+                        <th className="p-3">Renewed By</th>
+                        <th className="p-3">Txn Date</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y text-xs">
+                      {historyOwner.subscriptionHistory.map((h, i) => (
+                        <tr key={i} className="hover:bg-muted/10 transition-colors">
+                          <td className="p-3 font-semibold text-primary">{h.planType}</td>
+                          <td className="p-3 font-bold text-foreground">₹{h.amountPaid}</td>
+                          <td className="p-3 text-muted-foreground">
+                            {new Date(h.startDate).toLocaleDateString('en-IN')} - {new Date(h.expiryDate).toLocaleDateString('en-IN')}
+                          </td>
+                          <td className="p-3 text-muted-foreground">{h.renewedBy}</td>
+                          <td className="p-3 text-muted-foreground">
+                            {new Date(h.transactionDate).toLocaleDateString('en-IN')}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                setShowHistoryModal(false);
+                setHistoryOwner(null);
+              }}
+              className="mt-6 py-2 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl text-sm transition-all cursor-pointer"
+            >
+              Close Window
+            </button>
           </div>
         </div>
       )}

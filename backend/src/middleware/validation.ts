@@ -121,7 +121,7 @@ export const updateGymOwnerStatusSchema = z.object({
 });
 
 export const renewGymOwnerSubscriptionSchema = z.object({
-  planType: z.enum(['1_month', '3_month', '6_month', '12_month']),
+  planType: z.string().min(1, 'Plan type is required.'),
   amountPaid: z.number().nonnegative('Amount paid cannot be negative.')
 });
 

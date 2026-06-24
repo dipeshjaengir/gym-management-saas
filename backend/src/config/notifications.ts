@@ -15,14 +15,28 @@ export interface ExpiryTemplateData {
   expiryDate: string;
 }
 
+export interface RenewalTemplateData {
+  memberName: string;
+  planName: string;
+  expiryDate: string;
+}
+
+export interface DueCollectionTemplateData {
+  memberName: string;
+  amount: number;
+  remaining: number;
+}
+
 export interface INotificationProvider {
   sendWelcomeMessage(to: string, data: WelcomeTemplateData): Promise<{ success: boolean; url?: string; rawMessage: string }>;
   sendExpiryWarning(to: string, data: ExpiryTemplateData): Promise<{ success: boolean; url?: string; rawMessage: string }>;
   sendPostExpiryNotice(to: string, data: ExpiryTemplateData): Promise<{ success: boolean; url?: string; rawMessage: string }>;
+  sendRenewalMessage(to: string, data: RenewalTemplateData): Promise<{ success: boolean; url?: string; rawMessage: string }>;
+  sendDueCollectionMessage(to: string, data: DueCollectionTemplateData): Promise<{ success: boolean; url?: string; rawMessage: string }>;
 }
 
 // ----------------------------------------------------
-// 1. WHATSAPP CLICK-TO-CHAT PROVIDER (CURRENT IMPLEMENTATION)
+// 1. WHATSAPP CLICK-TO-CHAT PROVIDER
 // ----------------------------------------------------
 export class WhatsAppClickToChatProvider implements INotificationProvider {
   private formatPhone(phone: string): string {
@@ -39,7 +53,7 @@ export class WhatsAppClickToChatProvider implements INotificationProvider {
   }
 
   async sendWelcomeMessage(to: string, data: WelcomeTemplateData) {
-    const rawMessage = `Welcome to ${data.gymName}.\nYour membership has been activated.\n\nPlan: ${data.planName}\nAmount Paid: ₹${data.amountPaid}\nStart Date: ${data.startDate}\nExpiry Date: ${data.expiryDate}`;
+    const rawMessage = `Hello ${data.memberName}\n\nWelcome to ${data.gymName}.\n\nMembership Plan:\n${data.planName}\n\nAmount Paid:\n₹${data.amountPaid}\n\nExpiry:\n${data.expiryDate}\n\nThank you.`;
     return {
       success: true,
       url: this.buildUrl(to, rawMessage),
@@ -48,7 +62,7 @@ export class WhatsAppClickToChatProvider implements INotificationProvider {
   }
 
   async sendExpiryWarning(to: string, data: ExpiryTemplateData) {
-    const rawMessage = `Hi ${data.memberName}, this is a friendly reminder from ${data.gymName}. Your gym membership is expiring in ${data.daysRemaining} days (on ${data.expiryDate}). Please renew at the reception to continue training!`;
+    const rawMessage = `Hello ${data.memberName}\n\nThis is a friendly reminder from ${data.gymName}. Your membership is expiring in ${data.daysRemaining} days (on ${data.expiryDate}). Please renew at the reception to continue training!\n\nThank you.`;
     return {
       success: true,
       url: this.buildUrl(to, rawMessage),
@@ -57,7 +71,25 @@ export class WhatsAppClickToChatProvider implements INotificationProvider {
   }
 
   async sendPostExpiryNotice(to: string, data: ExpiryTemplateData) {
-    const rawMessage = `Dear ${data.memberName}, your gym membership at ${data.gymName} expired on ${data.expiryDate}. Please contact the gym desk to renew your package. Thank you!`;
+    const rawMessage = `Hello ${data.memberName}\n\nYour membership at ${data.gymName} has expired. Please contact the desk to renew your package.\n\nThank you.`;
+    return {
+      success: true,
+      url: this.buildUrl(to, rawMessage),
+      rawMessage
+    };
+  }
+
+  async sendRenewalMessage(to: string, data: RenewalTemplateData) {
+    const rawMessage = `Hello ${data.memberName}\n\nYour membership has been renewed.\n\nPlan:\n${data.planName}\n\nExpiry:\n${data.expiryDate}`;
+    return {
+      success: true,
+      url: this.buildUrl(to, rawMessage),
+      rawMessage
+    };
+  }
+
+  async sendDueCollectionMessage(to: string, data: DueCollectionTemplateData) {
+    const rawMessage = `Hello ${data.memberName}\n\nWe have received your payment of ₹${data.amount}.\n\nOutstanding balance:\n₹${data.remaining}\n\nThank you.`;
     return {
       success: true,
       url: this.buildUrl(to, rawMessage),
@@ -66,18 +98,4 @@ export class WhatsAppClickToChatProvider implements INotificationProvider {
   }
 }
 
-// ----------------------------------------------------
-// FUTURE PROVIDER PLACEHOLDERS (e.g. WATI, Twilio, Gupshup)
-// ----------------------------------------------------
-/*
-export class WatiProvider implements INotificationProvider {
-  async sendWelcomeMessage(to: string, data: WelcomeTemplateData) {
-    // Call WATI API endpoint
-    return { success: true, rawMessage: 'Sent via WATI' };
-  }
-  ...
-}
-*/
-
-// Export active notification provider mapping
 export const notificationProvider: INotificationProvider = new WhatsAppClickToChatProvider();

@@ -8,8 +8,9 @@ export interface User {
   gymName?: string;
   email: string;
   role: 'super_admin' | 'gym_owner';
+  status?: 'pending_activation' | 'active' | 'suspended';
   subscription?: {
-    planType: '1_month' | '3_month' | '6_month' | '12_month';
+    planType: string;
     startDate: string;
     expiryDate: string;
     status: 'active' | 'expired' | 'suspended';
@@ -61,7 +62,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               role: res.user.role || (res.user.passwordHash ? 'gym_owner' : 'super_admin'),
               subscription: res.user.subscription,
               branding: res.user.branding,
-              isTrial: res.user.isTrial
+              isTrial: res.user.isTrial,
+              status: res.user.status
             };
             setUser(mappedUser);
             localStorage.setItem('user', JSON.stringify(mappedUser));
@@ -91,7 +93,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         role: res.user.role,
         subscription: res.user.subscription,
         branding: res.user.branding,
-        isTrial: res.user.isTrial
+        isTrial: res.user.isTrial,
+        status: res.user.status
       };
       setUser(mappedUser);
       localStorage.setItem('user', JSON.stringify(mappedUser));
@@ -109,7 +112,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       role: rawUser.role || 'gym_owner',
       subscription: rawUser.subscription,
       branding: rawUser.branding,
-      isTrial: rawUser.isTrial
+      isTrial: rawUser.isTrial,
+      status: rawUser.status
     };
     setUser(mappedUser);
     localStorage.setItem('user', JSON.stringify(mappedUser));

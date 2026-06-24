@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
+import { exportToCSV } from '../../utils/exportHelpers';
 import {
   TrendingUp,
   Users,
@@ -9,7 +10,8 @@ import {
   IndianRupee,
   Calendar,
   Layers,
-  ArrowUpRight
+  ArrowUpRight,
+  Download
 } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 import { generateRevenueReportPDF, exportToExcel } from '../../utils/exportHelpers';
@@ -25,6 +27,9 @@ interface Metrics {
   expectedRenewalRevenue: number;
   expiringThisMonth: number;
   renewalsDue: number;
+  trialUsers?: number;
+  activeSubscribers?: number;
+  suspendedAccounts?: number;
 }
 
 export const SuperAdminDashboard: React.FC = () => {
@@ -85,6 +90,71 @@ export const SuperAdminDashboard: React.FC = () => {
     { name: 'Suspended Owners', value: metrics.suspendedGymOwners, color: '#ef4444' }
   ].filter(d => d.value > 0);
 
+  const handleExportGymOwnersCSV = async () => {
+    try {
+      const data = await api.get('/superadmin/owners');
+      const formatted = data.map((o: any) => ({
+        'Gym Name': o.gymName,
+        'Owner Name': o.ownerName,
+        'Email': o.email,
+        'Phone': o.phone,
+        'Status': o.status,
+        'Plan': o.subscription.planType,
+        'Expiry': new Date(o.subscription.expiryDate).toLocaleDateString('en-IN')
+      }));
+      exportToCSV(formatted, 'saas_gym_owners');
+      showToast('Gym Owners list exported successfully.', 'success');
+    } catch (err) {
+      showToast('Failed to export Gym Owners.', 'error');
+    }
+  };
+
+  const handleExportRevenueCSV = () => {
+    if (!metrics) return;
+    const data = [{
+      'Monthly Recurring Revenue': metrics.monthlyRevenue,
+      'Yearly Revenue': metrics.yearlyRevenue,
+      'Expected Renewal Collections': metrics.expectedRenewalRevenue,
+      'Active Subscriptions': metrics.activeSubscribers,
+      'Trial Accounts': metrics.trialUsers,
+      'Suspended Accounts': metrics.suspendedAccounts
+    }];
+    exportToCSV(data, 'saas_platform_revenue');
+    showToast('Revenue metrics exported successfully.', 'success');
+  };
+
+  const handleExportSubscriptionHistoryCSV = async () => {
+    try {
+      const data = await api.get('/superadmin/owners');
+      const history: any[] = [];
+      data.forEach((o: any) => {
+        if (o.subscriptionHistory) {
+          o.subscriptionHistory.forEach((h: any) => {
+            history.push({
+              'Gym Name': o.gymName,
+              'Owner Name': o.ownerName,
+              'Owner Email': o.email,
+              'Plan Purchased': h.planType,
+              'Amount Paid': h.amountPaid,
+              'Start Date': new Date(h.startDate).toLocaleDateString('en-IN'),
+              'Expiry Date': new Date(h.expiryDate).toLocaleDateString('en-IN'),
+              'Renewed By': h.renewedBy || 'Admin',
+              'Transaction Date': new Date(h.transactionDate).toLocaleDateString('en-IN')
+            });
+          });
+        }
+      });
+      if (history.length === 0) {
+        showToast('No subscription history logs found.', 'info');
+        return;
+      }
+      exportToCSV(history, 'saas_subscription_history');
+      showToast('Subscription history exported successfully.', 'success');
+    } catch (err) {
+      showToast('Failed to export subscription history.', 'error');
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Title */}
@@ -93,16 +163,28 @@ export const SuperAdminDashboard: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight">Platform Overview</h1>
           <p className="text-xs text-muted-foreground">Real-time subscription revenues and tenant telemetry.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={handleExportExcel}
-            className="px-4 py-2 border rounded-xl bg-card hover:bg-muted text-xs font-semibold"
+            onClick={handleExportGymOwnersCSV}
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-semibold bg-card border hover:bg-muted text-foreground text-xs shadow-sm cursor-pointer"
           >
-            Export Excel
+            <Download className="w-3.5 h-3.5" /> Gym Owners CSV
+          </button>
+          <button
+            onClick={handleExportRevenueCSV}
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-semibold bg-card border hover:bg-muted text-foreground text-xs shadow-sm cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" /> Revenue CSV
+          </button>
+          <button
+            onClick={handleExportSubscriptionHistoryCSV}
+            className="flex items-center justify-center gap-2 px-3 py-2 rounded-xl font-semibold bg-card border hover:bg-muted text-foreground text-xs shadow-sm cursor-pointer"
+          >
+            <Download className="w-3.5 h-3.5" /> Sub History CSV
           </button>
           <button
             onClick={handleExportPDF}
-            className="px-4 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-xs font-semibold shadow"
+            className="px-3 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl text-xs font-bold shadow shadow-md cursor-pointer"
           >
             Export PDF Report
           </button>
@@ -110,51 +192,41 @@ export const SuperAdminDashboard: React.FC = () => {
       </div>
 
       {/* Analytics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Metric Card 1 */}
-        <div className="p-5 rounded-2xl bg-card border flex items-center justify-between shadow-sm">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Gym Owners</span>
-            <div className="text-2xl font-bold text-foreground">
-              {metrics.activeGymOwners} <span className="text-xs text-muted-foreground font-normal">/ {metrics.totalGymOwners}</span>
-            </div>
-          </div>
-          <div className="p-3 bg-indigo-500/10 rounded-xl text-primary">
-            <Building2 className="w-5 h-5" />
-          </div>
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+        {/* KPI 1 */}
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase block">Total Gym Owners</span>
+          <div className="text-xl font-extrabold text-foreground">{metrics.totalGymOwners}</div>
         </div>
 
-        {/* Metric Card 2 */}
-        <div className="p-5 rounded-2xl bg-card border flex items-center justify-between shadow-sm">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Gym Members</span>
-            <div className="text-2xl font-bold text-foreground">{metrics.totalMembers}</div>
-          </div>
-          <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400">
-            <Users className="w-5 h-5" />
-          </div>
+        {/* KPI 2 */}
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-indigo-500/10">
+          <span className="text-[10px] font-bold text-primary uppercase block">Trial Users</span>
+          <div className="text-xl font-extrabold text-foreground">{metrics.trialUsers || 0}</div>
         </div>
 
-        {/* Metric Card 3 */}
-        <div className="p-5 rounded-2xl bg-card border flex items-center justify-between shadow-sm">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Monthly Revenue</span>
-            <div className="text-2xl font-bold text-emerald-400">₹{metrics.monthlyRevenue}</div>
-          </div>
-          <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-400">
-            <IndianRupee className="w-5 h-5" />
-          </div>
+        {/* KPI 3 */}
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-emerald-500/10">
+          <span className="text-[10px] font-bold text-emerald-400 uppercase block">Active Subscribers</span>
+          <div className="text-xl font-extrabold text-emerald-400">{metrics.activeSubscribers || 0}</div>
         </div>
 
-        {/* Metric Card 4 */}
-        <div className="p-5 rounded-2xl bg-card border flex items-center justify-between shadow-sm">
-          <div className="space-y-1">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Yearly Revenue</span>
-            <div className="text-2xl font-bold text-foreground">₹{metrics.yearlyRevenue}</div>
-          </div>
-          <div className="p-3 bg-indigo-500/10 rounded-xl text-primary">
-            <TrendingUp className="w-5 h-5" />
-          </div>
+        {/* KPI 4 */}
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-rose-500/10">
+          <span className="text-[10px] font-bold text-rose-400 uppercase block">Suspended Accounts</span>
+          <div className="text-xl font-extrabold text-rose-400">{metrics.suspendedAccounts || 0}</div>
+        </div>
+
+        {/* KPI 5 */}
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-emerald-500/10">
+          <span className="text-[10px] font-bold text-emerald-400 uppercase block">Monthly Recurring Rev</span>
+          <div className="text-xl font-extrabold text-emerald-400">₹{metrics.monthlyRevenue}</div>
+        </div>
+
+        {/* KPI 6 */}
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-amber-500/10">
+          <span className="text-[10px] font-bold text-amber-400 uppercase block">Renewals Due</span>
+          <div className="text-xl font-extrabold text-amber-400">{metrics.renewalsDue}</div>
         </div>
       </div>
 

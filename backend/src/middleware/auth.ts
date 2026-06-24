@@ -47,13 +47,13 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
         await owner.save();
       }
 
-      if (owner.subscription.status === 'expired' || owner.subscription.status === 'suspended') {
-        // Allow ONLY dashboard/billing/settings read calls, block operational writes
+      if (owner.subscription.status === 'expired' || owner.subscription.status === 'suspended' || owner.status === 'suspended') {
+        // Allow all GET requests (read-only mode), but block POST, PUT, DELETE for non-bypass routes
         const isBypassRoute = req.path.startsWith('/auth') || req.path.includes('/subscription') || req.path.includes('/billing');
-        if (!isBypassRoute) {
+        if (!isBypassRoute && req.method !== 'GET') {
           return res.status(403).json({
-            message: `Your gym workspace subscription is ${owner.subscription.status.toUpperCase()}. Access blocked. Please contact the platform Super Admin on WhatsApp to renew or reactivate.`,
-            status: owner.subscription.status,
+            message: `Your gym workspace subscription is ${owner.subscription.status.toUpperCase()}. Access blocked for modifying operations. Please contact the platform Super Admin on WhatsApp to renew or reactivate.`,
+            status: owner.status === 'suspended' ? 'suspended' : owner.subscription.status,
             whatsAppRedirect: true
           });
         }
