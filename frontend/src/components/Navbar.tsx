@@ -15,7 +15,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle }) => {
   // Determine logo and name based on role / branding
   const displayName = user?.role === 'super_admin' 
     ? 'Super Admin Portal' 
-    : (user?.branding?.gymName || user?.gymName || 'Iron Forge Gym');
+    : (user?.branding?.gymName || user?.gymName || 'GymLedger Gym');
   
   const logoUrl = user?.role === 'gym_owner' && user?.branding?.gymLogo 
     ? user.branding.gymLogo 

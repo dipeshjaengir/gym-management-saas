@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { Lock, ShieldCheck, XCircle, CheckCircle2 } from 'lucide-react';
+import { Logo } from '../components/Logo';
 
 export const ActivateAccountPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -88,10 +89,10 @@ export const ActivateAccountPage: React.FC = () => {
 
   if (checking) {
     return (
-      <div className="min-h-screen bg-[#0B1220] flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background text-foreground flex flex-col justify-center items-center p-4">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
-          <p className="text-sm text-slate-400">Verifying activation token...</p>
+          <p className="text-sm text-muted-foreground animate-pulse">Verifying activation token...</p>
         </div>
       </div>
     );
@@ -99,14 +100,14 @@ export const ActivateAccountPage: React.FC = () => {
 
   if (!valid) {
     return (
-      <div className="min-h-screen bg-[#0B1220] flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-[#111827] border border-slate-800 rounded-3xl p-8 shadow-2xl text-center space-y-6">
+      <div className="min-h-screen bg-background text-foreground flex flex-col justify-center items-center p-4">
+        <div className="w-full max-w-md bg-card border border-border rounded-3xl p-8 shadow-2xl text-center space-y-6">
           <div className="mx-auto w-16 h-16 rounded-full bg-rose-950/50 flex items-center justify-center text-rose-500 border border-rose-500/20">
             <XCircle className="w-10 h-10" />
           </div>
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold tracking-tight text-white">Invalid or Expired Link</h1>
-            <p className="text-sm text-slate-400">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Invalid or Expired Link</h1>
+            <p className="text-sm text-muted-foreground">
               This activation token is invalid, expired, or has already been used. Please request a new activation link from your Super Admin.
             </p>
           </div>
@@ -117,36 +118,42 @@ export const ActivateAccountPage: React.FC = () => {
             Go to Login
           </button>
         </div>
+        <footer className="mt-8 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1">
+          <p>&copy; 2026 GymLedger SaaS Gym Management.</p>
+          <p>
+            Designed & Developed by{' '}
+            <span className="text-[#F59E0B] font-semibold">Dipesh Jangir</span>
+          </p>
+          <p className="text-[10px] opacity-75 mt-0.5">Version 1.0</p>
+        </footer>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0B1220] flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-[#111827] border border-slate-800 rounded-3xl p-8 shadow-2xl space-y-6">
+    <div className="min-h-screen bg-background text-foreground flex flex-col justify-center items-center p-4 relative overflow-hidden">
+      <div className="w-full max-w-md bg-card border border-border rounded-3xl p-8 shadow-2xl space-y-6">
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="w-12 h-12 rounded-full bg-amber-950/50 flex items-center justify-center text-primary border border-primary/20 mb-2">
-            <ShieldCheck className="w-7 h-7" />
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Activate Your Account</h1>
-          <p className="text-xs text-slate-400">
+          <Logo size={56} className="mb-2" />
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">Activate Your Account</h1>
+          <p className="text-xs text-muted-foreground">
             Setup a secure password to activate your <span className="font-semibold text-primary">{ownerInfo?.gymName}</span> portal.
           </p>
         </div>
 
         <form onSubmit={handleActivate} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-400 uppercase">Email Address</label>
+            <label className="text-xs font-semibold text-muted-foreground uppercase">Email Address</label>
             <input
               type="email"
               disabled
               value={ownerInfo?.email || ''}
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-800 bg-[#0B1220] text-slate-400 text-sm focus:outline-none cursor-not-allowed"
+              className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-muted-foreground text-sm focus:outline-none cursor-not-allowed"
             />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-400 uppercase">New Password</label>
+            <label className="text-xs font-semibold text-muted-foreground uppercase">New Password</label>
             <div className="relative">
               <input
                 type="password"
@@ -154,11 +161,11 @@ export const ActivateAccountPage: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-800 bg-[#0B1220] text-white text-sm focus:border-primary focus:outline-none transition-colors pl-10"
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:border-primary focus:outline-none transition-colors pl-10"
               />
-              <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
+              <Lock className="absolute left-3.5 top-3 w-4 h-4 text-muted-foreground" />
             </div>
-            <div className="text-[10px] text-slate-500 space-y-1 mt-1 pl-1">
+            <div className="text-[10px] text-muted-foreground space-y-1 mt-1 pl-1">
               <p className="flex items-center gap-1">
                 <CheckCircle2 className={`w-3 h-3 ${password.length >= 6 ? 'text-emerald-400' : 'text-slate-600'}`} />
                 At least 6 characters long
@@ -175,7 +182,7 @@ export const ActivateAccountPage: React.FC = () => {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-400 uppercase">Confirm Password</label>
+            <label className="text-xs font-semibold text-muted-foreground uppercase">Confirm Password</label>
             <div className="relative">
               <input
                 type="password"
@@ -183,9 +190,9 @@ export const ActivateAccountPage: React.FC = () => {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-800 bg-[#0B1220] text-white text-sm focus:border-primary focus:outline-none transition-colors pl-10"
+                className="w-full px-4 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:border-primary focus:outline-none transition-colors pl-10"
               />
-              <Lock className="absolute left-3.5 top-3 w-4 h-4 text-slate-500" />
+              <Lock className="absolute left-3.5 top-3 w-4 h-4 text-muted-foreground" />
             </div>
           </div>
 
@@ -198,6 +205,14 @@ export const ActivateAccountPage: React.FC = () => {
           </button>
         </form>
       </div>
+      <footer className="mt-8 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1">
+        <p>&copy; 2026 GymLedger SaaS Gym Management.</p>
+        <p>
+          Designed & Developed by{' '}
+          <span className="text-[#F59E0B] font-semibold">Dipesh Jangir</span>
+        </p>
+        <p className="text-[10px] opacity-75 mt-0.5">Version 1.0</p>
+      </footer>
     </div>
   );
 };

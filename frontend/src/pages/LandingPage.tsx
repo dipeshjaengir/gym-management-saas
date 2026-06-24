@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import {
@@ -22,7 +23,9 @@ import {
   BarChart3,
   Database,
   Smartphone,
-  IndianRupee
+  IndianRupee,
+  Sun,
+  Moon
 } from 'lucide-react';
 
 interface PricingPlan {
@@ -37,6 +40,7 @@ interface PricingPlan {
 export const LandingPage: React.FC = () => {
   const { loginWithToken } = useAuth();
   const { showToast } = useNotification();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   const [plans, setPlans] = useState<PricingPlan[]>([]);
@@ -269,7 +273,7 @@ export const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Logo size={36} />
-            <span className="font-extrabold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-gray-400">
+            <span className="font-extrabold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground via-foreground to-muted-foreground">
               GymLedger
             </span>
           </div>
@@ -282,6 +286,14 @@ export const LandingPage: React.FC = () => {
           </nav>
 
           <div className="flex items-center gap-3">
+            {/* Theme Toggle */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200"
+              title="Toggle Theme"
+            >
+              {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
             <button
               onClick={() => navigate('/login')}
               className="px-4 py-2 text-sm font-semibold rounded-xl hover:bg-muted border border-muted/80 transition-all duration-200"
@@ -304,7 +316,7 @@ export const LandingPage: React.FC = () => {
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold bg-primary/10 border border-primary/20 text-primary tracking-wide uppercase animate-pulse">
             <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Made for India Gyms 🇮🇳
           </div>
-          <h1 className="text-4xl sm:text-7xl font-extrabold tracking-tight leading-[1.1] text-white">
+          <h1 className="text-4xl sm:text-7xl font-extrabold tracking-tight leading-[1.1] text-foreground">
             India's Smart Gym <br />
             <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
               Management Software
@@ -332,20 +344,46 @@ export const LandingPage: React.FC = () => {
           {/* Trust Badges */}
           <div className="pt-10 grid grid-cols-2 md:grid-cols-4 gap-6 max-w-3xl mx-auto text-center border-t border-muted/30 mt-12">
             <div className="space-y-1">
-              <span className="block text-2xl font-bold text-white">100%</span>
+              <span className="block text-2xl font-bold text-foreground">100%</span>
               <span className="text-xs text-muted-foreground uppercase tracking-wider">Multi-Tenant Isolated</span>
             </div>
             <div className="space-y-1">
-              <span className="block text-2xl font-bold text-white">₹0</span>
+              <span className="block text-2xl font-bold text-foreground">₹0</span>
               <span className="text-xs text-muted-foreground uppercase tracking-wider">Setup Fees Required</span>
             </div>
             <div className="space-y-1">
-              <span className="block text-2xl font-bold text-white">Instant</span>
+              <span className="block text-2xl font-bold text-foreground">Instant</span>
               <span className="text-xs text-muted-foreground uppercase tracking-wider">WhatsApp Link Triggers</span>
             </div>
             <div className="space-y-1">
-              <span className="block text-2xl font-bold text-white">Secured</span>
+              <span className="block text-2xl font-bold text-foreground">Secured</span>
               <span className="text-xs text-muted-foreground uppercase tracking-wider">TLS &amp; Rate-Limited</span>
+            </div>
+          </div>
+
+          {/* Core Capabilities Grid */}
+          <div className="pt-10 border-t border-muted/30 mt-12 space-y-6">
+            <h3 className="text-sm font-extrabold uppercase tracking-widest text-primary">Core Modules &amp; Services</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+              {[
+                { label: 'Member Management', icon: Users, desc: 'Digital Directory' },
+                { label: 'Attendance Tracking', icon: Calendar, desc: 'Real-time Logs' },
+                { label: 'Payment Tracking', icon: IndianRupee, desc: 'Fee Collections' },
+                { label: 'WhatsApp Reminders', icon: MessageCircle, desc: '1-Click Alerts' },
+                { label: 'QR Attendance', icon: QrCode, desc: 'Self Check-In' },
+                { label: 'Trainer Management', icon: Dumbbell, desc: 'Assign Schedules' },
+              ].map((f, i) => {
+                const Icon = f.icon;
+                return (
+                  <div key={i} className="p-4 rounded-2xl bg-card border border-border/80 hover:border-primary/40 transition-all duration-300 group hover:scale-[1.03] hover:shadow-md flex flex-col items-center text-center">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-3 group-hover:bg-primary/20 transition-all">
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <span className="text-xs font-bold text-foreground block">{f.label}</span>
+                    <span className="text-[10px] text-muted-foreground mt-1 block">{f.desc}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -354,7 +392,7 @@ export const LandingPage: React.FC = () => {
       {/* 3. Dashboard Previews (Tailwind-Built Actual Platform Components) */}
       <section className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-muted/30">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">Inside the Platform</h2>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-foreground">Inside the Platform</h2>
           <p className="mt-4 text-muted-foreground text-sm">
             Experience our premium dark-mode interface built to run seamlessly on mobile, tablet, and desktop screens.
           </p>
@@ -376,13 +414,13 @@ export const LandingPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-background border border-muted/50 space-y-2">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Active Members</span>
-                <div className="text-2xl font-extrabold text-white flex items-center gap-1.5">
+                <div className="text-2xl font-extrabold text-foreground flex items-center gap-1.5">
                   142 <span className="text-xs font-semibold text-emerald-400 font-sans">+12%</span>
                 </div>
               </div>
               <div className="p-4 rounded-xl bg-background border border-muted/50 space-y-2">
                 <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Monthly Collection</span>
-                <div className="text-2xl font-extrabold text-white">₹78,500</div>
+                <div className="text-2xl font-extrabold text-foreground">₹78,500</div>
               </div>
             </div>
 
@@ -435,11 +473,11 @@ export const LandingPage: React.FC = () => {
               <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Recent Logs</span>
               <div className="space-y-1.5 text-xs">
                 <div className="flex justify-between items-center p-2 rounded bg-background/50 border border-muted/30">
-                  <span className="font-semibold text-white">Anjali Desai</span>
+                  <span className="font-semibold text-foreground">Anjali Desai</span>
                   <span className="text-[10px] text-muted-foreground">08:45 AM</span>
                 </div>
                 <div className="flex justify-between items-center p-2 rounded bg-background/50 border border-muted/30">
-                  <span className="font-semibold text-white">Rahul Patel</span>
+                  <span className="font-semibold text-foreground">Rahul Patel</span>
                   <span className="text-[10px] text-rose-400">08:12 AM (Expired Plan)</span>
                 </div>
               </div>
@@ -451,7 +489,7 @@ export const LandingPage: React.FC = () => {
       {/* 4. Comparison Section (Manual vs. SaaS) */}
       <section id="comparison" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-muted/30">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl font-bold tracking-tight text-white">Manual Gym Logs vs. Smart Gym SaaS</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">Manual Gym Logs vs. Smart Gym SaaS</h2>
           <p className="mt-4 text-muted-foreground text-sm">
             Discover why gym networks are transitioning from spreadsheets to automated cloud directories.
           </p>
@@ -513,7 +551,7 @@ export const LandingPage: React.FC = () => {
       {/* 5. Core Features Grid */}
       <section id="features" className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-muted/30">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl font-bold tracking-tight text-white">Full-Featured Management Console</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">Full-Featured Management Console</h2>
           <p className="mt-4 text-muted-foreground text-sm">
             GymLedger comes equipped with all tools required to streamline collections and satisfy customers.
           </p>
@@ -524,7 +562,7 @@ export const LandingPage: React.FC = () => {
             <div className="p-3 w-fit bg-primary/10 rounded-xl text-primary">
               <Users className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-lg text-white">Member Onboarding</h3>
+            <h3 className="font-bold text-lg text-foreground">Member Onboarding</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Track physical stats, assign membership end-dates, calculate BMI, and log contact directories easily.
             </p>
@@ -534,7 +572,7 @@ export const LandingPage: React.FC = () => {
             <div className="p-3 w-fit bg-secondary/10 rounded-xl text-secondary">
               <QrCode className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-lg text-white">QR Attendance Scanner</h3>
+            <h3 className="font-bold text-lg text-foreground">QR Attendance Scanner</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Accept camera check-ins using html5-qrcode. Expired members are automatically flagged to block entry.
             </p>
@@ -544,7 +582,7 @@ export const LandingPage: React.FC = () => {
             <div className="p-3 w-fit bg-amber-500/10 rounded-xl text-amber-400">
               <IndianRupee className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-lg text-white">Payment Tracker</h3>
+            <h3 className="font-bold text-lg text-foreground">Payment Tracker</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Log payments made via cash, card, UPI, or bank transfer. Print PDF receipts and export history to Excel.
             </p>
@@ -554,7 +592,7 @@ export const LandingPage: React.FC = () => {
             <div className="p-3 w-fit bg-emerald-500/10 rounded-xl text-emerald-400">
               <MessageCircle className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-lg text-white">WhatsApp Alerts</h3>
+            <h3 className="font-bold text-lg text-foreground">WhatsApp Alerts</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Manual WhatsApp links compile pre-formatted templates with names and outstanding dues for quick reminder triggers.
             </p>
@@ -564,7 +602,7 @@ export const LandingPage: React.FC = () => {
             <div className="p-3 w-fit bg-accent/10 rounded-xl text-accent">
               <Calendar className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-lg text-white">Workout &amp; Diet Charts</h3>
+            <h3 className="font-bold text-lg text-foreground">Workout &amp; Diet Charts</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Assign daily exercise routines, meal plans, and target calorie intake trackers directly to members.
             </p>
@@ -574,7 +612,7 @@ export const LandingPage: React.FC = () => {
             <div className="p-3 w-fit bg-rose-500/10 rounded-xl text-rose-400">
               <BarChart3 className="w-6 h-6" />
             </div>
-            <h3 className="font-bold text-lg text-white">Revenue Reports</h3>
+            <h3 className="font-bold text-lg text-foreground">Revenue Reports</h3>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Compile monthly earnings, active memberships status counts, expected renewals, and export logs to Excel sheets.
             </p>
@@ -583,10 +621,10 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* 6. Pricing Plans Section */}
-      <section id="pricing" className="py-20 bg-muted/20 border-b border-muted/30">
+      <section id="pricing" className="py-20 bg-alternate border-b border-border/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-3xl mx-auto mb-16">
-            <h2 className="text-3xl font-bold tracking-tight text-white">Affordable SaaS Subscription Plans</h2>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">Affordable SaaS Subscription Plans</h2>
             <p className="mt-4 text-muted-foreground text-sm">
               All plans include complete client-management features, QR camera scan tools, and WhatsApp triggers.
             </p>
@@ -597,57 +635,73 @@ export const LandingPage: React.FC = () => {
               <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {plans.map((plan) => (
-                <div
-                  key={plan.id}
-                  className="flex flex-col p-6 rounded-2xl bg-card border hover:border-primary/50 transition-all duration-300 relative overflow-hidden"
-                >
-                  <h3 className="font-bold text-lg text-white">{plan.name}</h3>
-                  <div className="mt-4 flex items-baseline gap-1">
-                    <span className="text-3xl font-extrabold text-white">₹{plan.price}</span>
-                    <span className="text-xs text-muted-foreground">/ {plan.durationMonths} Mo</span>
-                  </div>
-                  <p className="mt-3 text-xs text-muted-foreground flex-grow">{plan.description}</p>
-                  
-                  <ul className="mt-6 space-y-3 text-xs text-foreground/80 flex-grow border-t border-muted/30 pt-4">
-                    {plan.features && plan.features.length > 0 ? (
-                      plan.features.map((f, i) => (
-                        <li key={i} className="flex items-center gap-2">
-                          <Check className="w-4 h-4 text-emerald-400" />
-                          <span>{f}</span>
-                        </li>
-                      ))
-                    ) : (
-                      <>
-                        <li className="flex items-center gap-2">
-                          <Check className="w-4 h-4 text-emerald-400" />
-                          <span>Full Multi-Tenant Console</span>
-                        </li>
-                        <li className="flex items-center gap-2">
-                          <Check className="w-4 h-4 text-emerald-400" />
-                          <span>Unlimited Members &amp; Trainers</span>
-                        </li>
-                      </>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 max-w-5xl mx-auto">
+              {plans.map((plan, index) => {
+                const isPopular = index === 1; // Highlight second card
+                return (
+                  <div
+                    key={plan.id}
+                    className={`flex flex-col p-8 rounded-3xl bg-card border transition-all duration-300 relative overflow-hidden hover:scale-[1.03] hover:shadow-2xl ${
+                      isPopular
+                        ? 'border-primary ring-4 ring-primary/10 shadow-xl shadow-primary/5 scale-[1.01]'
+                        : 'border-border hover:border-primary/40'
+                    }`}
+                  >
+                    {isPopular && (
+                      <div className="absolute top-0 right-0 bg-primary text-primary-foreground text-[10px] font-extrabold uppercase px-4 py-1.5 rounded-bl-xl tracking-wider">
+                        Most Popular
+                      </div>
                     )}
-                  </ul>
+                    <h3 className="font-bold text-xl text-foreground">{plan.name}</h3>
+                    <div className="mt-6 flex items-baseline gap-1">
+                      <span className="text-4xl font-extrabold text-foreground tracking-tight">₹{plan.price}</span>
+                      <span className="text-sm text-muted-foreground">/ {plan.durationMonths} Mo</span>
+                    </div>
+                    <p className="mt-4 text-xs text-muted-foreground leading-relaxed flex-grow">{plan.description}</p>
+                    
+                    <ul className="mt-8 space-y-3.5 text-xs text-muted-foreground flex-grow border-t border-border pt-6">
+                      {plan.features && plan.features.length > 0 ? (
+                        plan.features.map((f, i) => (
+                          <li key={i} className="flex items-center gap-2.5">
+                            <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                            <span className="text-foreground">{f}</span>
+                          </li>
+                        ))
+                      ) : (
+                        <>
+                          <li className="flex items-center gap-2.5">
+                            <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                            <span className="text-foreground">Full Multi-Tenant Console</span>
+                          </li>
+                          <li className="flex items-center gap-2.5">
+                            <Check className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                            <span className="text-foreground">Unlimited Members &amp; Trainers</span>
+                          </li>
+                        </>
+                      )}
+                    </ul>
 
-                  <div className="mt-8 space-y-2">
-                    <button
-                      onClick={() => handleBuyPlan(plan)}
-                      className="w-full py-2.5 rounded-xl font-bold bg-primary hover:bg-primary/95 text-primary-foreground transition-all flex items-center justify-center gap-2 text-xs"
-                    >
-                      Buy Plan via WhatsApp <PhoneCall className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setShowTrialModal(true)}
-                      className="w-full py-2.5 rounded-xl font-semibold bg-transparent border border-muted hover:bg-muted text-foreground transition-all text-xs"
-                    >
-                      Start Free Trial
-                    </button>
+                    <div className="mt-8 space-y-3">
+                      <button
+                        onClick={() => handleBuyPlan(plan)}
+                        className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-xs shadow-md ${
+                          isPopular
+                            ? 'bg-primary text-primary-foreground hover:bg-primary/95 shadow-primary/20'
+                            : 'bg-primary text-primary-foreground hover:opacity-90'
+                        }`}
+                      >
+                        Buy Plan via WhatsApp <PhoneCall className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => setShowTrialModal(true)}
+                        className="w-full py-3 rounded-xl font-semibold bg-transparent border border-border hover:bg-muted text-foreground transition-all text-xs"
+                      >
+                        Start Free Trial
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -660,7 +714,7 @@ export const LandingPage: React.FC = () => {
             <div className="p-2 w-fit bg-emerald-500/10 rounded-xl text-emerald-400">
               <ShieldCheck className="w-6 h-6" />
             </div>
-            <h2 className="text-3xl font-bold text-white tracking-tight">Enterprise Grade Security &amp; Isolation</h2>
+            <h2 className="text-3xl font-bold text-foreground tracking-tight">Enterprise Grade Security &amp; Isolation</h2>
             <p className="text-xs sm:text-sm text-muted-foreground leading-relaxed">
               Every gym network operates on strict multi-tenant boundary parameters. Your member directories, financial receipt logs, and trainer profiles are locked behind hashed authorization tokens.
             </p>
@@ -677,25 +731,25 @@ export const LandingPage: React.FC = () => {
             </ul>
           </div>
           <div className="p-6 bg-card border border-muted/50 rounded-2xl space-y-4">
-            <h3 className="font-bold text-sm text-white uppercase tracking-wider flex items-center gap-1.5">
+            <h3 className="font-bold text-sm text-foreground uppercase tracking-wider flex items-center gap-1.5">
               <Database className="w-4 h-4 text-primary" /> Data Storage Parameters
             </h3>
             <div className="space-y-2 text-xs text-muted-foreground">
               <div className="flex justify-between border-b border-muted/30 pb-2">
                 <span>Encryption Protocol</span>
-                <span className="font-bold text-white">TLS 1.3</span>
+                <span className="font-bold text-foreground">TLS 1.3</span>
               </div>
               <div className="flex justify-between border-b border-muted/30 pb-2">
                 <span>Auth Handshake</span>
-                <span className="font-bold text-white">JWT Bearer Keys</span>
+                <span className="font-bold text-foreground">JWT Bearer Keys</span>
               </div>
               <div className="flex justify-between border-b border-muted/30 pb-2">
                 <span>Database Engine</span>
-                <span className="font-bold text-white">MongoDB Cloud Cluster</span>
+                <span className="font-bold text-foreground">MongoDB Cloud Cluster</span>
               </div>
               <div className="flex justify-between">
                 <span>Daily Backup</span>
-                <span className="font-bold text-white">Automatic Snapshots</span>
+                <span className="font-bold text-foreground">Automatic Snapshots</span>
               </div>
             </div>
           </div>
@@ -705,7 +759,7 @@ export const LandingPage: React.FC = () => {
       {/* 8. Testimonials Section */}
       <section className="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-b border-muted/30">
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <h2 className="text-3xl font-bold tracking-tight text-white">Trusted by Gym Owners</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">Trusted by Gym Owners</h2>
           <p className="mt-4 text-muted-foreground text-sm">
             Read how other fitness owners improved cash flow and collection recovery.
           </p>
@@ -718,7 +772,7 @@ export const LandingPage: React.FC = () => {
                 VK
               </div>
               <div>
-                <h4 className="font-bold text-sm text-white">Vijay Krish</h4>
+                <h4 className="font-bold text-sm text-foreground">Vijay Krish</h4>
                 <p className="text-[10px] text-muted-foreground">Owner, Gold Gym Delhi</p>
               </div>
             </div>
@@ -733,7 +787,7 @@ export const LandingPage: React.FC = () => {
                 SD
               </div>
               <div>
-                <h4 className="font-bold text-sm text-white">Sunita Desai</h4>
+                <h4 className="font-bold text-sm text-foreground">Sunita Desai</h4>
                 <p className="text-[10px] text-muted-foreground">Manager, Titan Fitness Mumbai</p>
               </div>
             </div>
@@ -748,7 +802,7 @@ export const LandingPage: React.FC = () => {
                 RK
               </div>
               <div>
-                <h4 className="font-bold text-sm text-white">Rohan Kapoor</h4>
+                <h4 className="font-bold text-sm text-foreground">Rohan Kapoor</h4>
                 <p className="text-[10px] text-muted-foreground">Founder, Elite Arena Bangalore</p>
               </div>
             </div>
@@ -762,31 +816,31 @@ export const LandingPage: React.FC = () => {
       {/* 9. FAQ Section */}
       <section id="faq" className="py-20 max-w-4xl mx-auto px-4 border-b border-muted/30">
         <div className="text-center mb-16">
-          <h2 className="text-3xl font-bold tracking-tight text-white">Frequently Asked Questions</h2>
+          <h2 className="text-3xl font-bold tracking-tight text-foreground">Frequently Asked Questions</h2>
           <p className="mt-2 text-muted-foreground text-sm">Everything you need to know about setting up your gym.</p>
         </div>
 
         <div className="space-y-6">
           <div className="p-5 rounded-2xl bg-card border border-muted/50 space-y-2">
-            <h4 className="font-bold text-sm text-white">How does the 7-day free trial work?</h4>
+            <h4 className="font-bold text-sm text-foreground">How does the 7-day free trial work?</h4>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Clicking "Start Free Trial" lets you register immediately. Our backend instantly configures a 7-day trial subscription and displays your login password. You can automatically log in with a single click.
             </p>
           </div>
           <div className="p-5 rounded-2xl bg-card border border-muted/50 space-y-2">
-            <h4 className="font-bold text-sm text-white">How do WhatsApp notifications function?</h4>
+            <h4 className="font-bold text-sm text-foreground">How do WhatsApp notifications function?</h4>
             <p className="text-xs text-muted-foreground leading-relaxed">
               We compile your client balance parameters (names, due dates, outstanding fees) and prefill a WhatsApp link. Clicking the reminder button opens WhatsApp with the message ready to send. No setup or manual typing needed.
             </p>
           </div>
           <div className="p-5 rounded-2xl bg-card border border-muted/50 space-y-2">
-            <h4 className="font-bold text-sm text-white">Is our member data secure?</h4>
+            <h4 className="font-bold text-sm text-foreground">Is our member data secure?</h4>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Yes. All user sessions are locked behind JSON Web Tokens (JWT), passwords are salted using bcrypt, and database collections are strictly isolated to guarantee multi-tenant security boundary locks.
             </p>
           </div>
           <div className="p-5 rounded-2xl bg-card border border-muted/50 space-y-2">
-            <h4 className="font-bold text-sm text-white">How do we scan QR check-in codes?</h4>
+            <h4 className="font-bold text-sm text-foreground">How do we scan QR check-in codes?</h4>
             <p className="text-xs text-muted-foreground leading-relaxed">
               Members receive a unique printable PDF pass card containing a QR code. Your front desk receptionist can scan the QR code using any smartphone or tablet camera directly through our browser-based scanner interface.
             </p>
@@ -797,7 +851,7 @@ export const LandingPage: React.FC = () => {
       {/* 10. Demo request inquiry (Move existing form to bottom) */}
       <section id="demo" className="py-20 max-w-md mx-auto px-4">
         <div className="bg-card border border-muted/50 p-8 rounded-3xl relative">
-          <h2 className="text-2xl font-bold text-center text-white">Book a Live Demo</h2>
+          <h2 className="text-2xl font-bold text-center text-foreground">Book a Live Demo</h2>
           <p className="mt-2 text-center text-xs text-muted-foreground">
             Still have questions? Enter your contact information, and we will get back to you within 24 hours.
           </p>
@@ -867,9 +921,14 @@ export const LandingPage: React.FC = () => {
       </section>
 
       {/* Footer */}
-      <footer className="py-8 border-t border-muted/50 bg-card">
-        <div className="max-w-7xl mx-auto px-4 text-center text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} GymLedger SaaS Gym Management. Built for gym studios across India.
+      <footer className="py-8 border-t border-border bg-card">
+        <div className="max-w-7xl mx-auto px-4 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1">
+          <p>&copy; 2026 GymLedger SaaS Gym Management.</p>
+          <p>
+            Designed & Developed by{' '}
+            <span className="text-[#F59E0B] font-semibold">Dipesh Jangir</span>
+          </p>
+          <p className="text-[10px] opacity-75 mt-0.5">Version 1.0</p>
         </div>
       </footer>
 
@@ -880,7 +939,7 @@ export const LandingPage: React.FC = () => {
       {/* A. Sticky Bottom CTA (Mobile/Tablet scroll indicator) */}
       {showStickyCta && (
         <div className="fixed bottom-0 inset-x-0 bg-card/95 border-t border-muted/80 backdrop-blur px-4 py-3 z-40 flex items-center justify-between sm:hidden shadow-lg transition-all duration-300">
-          <span className="text-xs font-bold text-white">Start 7 Days Free Trial</span>
+          <span className="text-xs font-bold text-foreground">Start 7 Days Free Trial</span>
           <button
             onClick={() => setShowTrialModal(true)}
             className="px-4 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground shadow"
@@ -890,26 +949,13 @@ export const LandingPage: React.FC = () => {
         </div>
       )}
 
-      {/* B. Floating WhatsApp Contact Bubble */}
-      <a
-        href="https://wa.me/917742111581?text=Hello!+I+am+interested+in+a+live+demo+of+GymLedger+Gym+Management+SaaS."
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 p-4 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 z-45 transition-all hover:scale-110 flex items-center justify-center group"
-      >
-        <MessageCircle className="w-6 h-6" />
-        <span className="absolute right-14 bg-card border border-muted/50 text-white text-[10px] font-bold px-3 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap shadow">
-          Chat with Sales
-        </span>
-      </a>
-
       {/* C. Exit Intent Modal */}
       {showExitModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-muted/50 p-8 rounded-3xl max-w-md w-full relative space-y-6">
             <button
               onClick={() => setShowExitModal(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-white transition-all"
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all"
             >
               <X className="w-5 h-5" />
             </button>
@@ -917,7 +963,7 @@ export const LandingPage: React.FC = () => {
               <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-400 tracking-wide uppercase">
                 Special Offer ⚠️
               </span>
-              <h3 className="text-2xl font-bold text-white">Before you go...</h3>
+              <h3 className="text-2xl font-bold text-foreground">Before you go...</h3>
               <p className="text-xs text-muted-foreground">
                 Get instant access to member portals, scan simulators, dues trackers, and billing calculators. Start your 7 days free trial right now — no payment details required!
               </p>
@@ -951,14 +997,14 @@ export const LandingPage: React.FC = () => {
               onClick={() => {
                 setShowTrialModal(false);
               }}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-white transition-all"
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all"
             >
               <X className="w-5 h-5" />
             </button>
 
             <div className="space-y-6">
               <div className="text-center space-y-1">
-                <h3 className="text-2xl font-bold text-white">Start 7-Day Free Trial</h3>
+                <h3 className="text-2xl font-bold text-foreground">Start 7-Day Free Trial</h3>
                 <p className="text-xs text-muted-foreground">
                   Get instant access to your gym console. No credit card required.
                 </p>
@@ -972,8 +1018,8 @@ export const LandingPage: React.FC = () => {
                     required
                     value={trialGymName}
                     onChange={(e) => setTrialGymName(e.target.value)}
-                    placeholder="e.g. Iron Muscle Gym"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    placeholder="e.g. GymLedger Club"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                   />
                 </div>
 
@@ -985,7 +1031,7 @@ export const LandingPage: React.FC = () => {
                     value={trialOwnerName}
                     onChange={(e) => setTrialOwnerName(e.target.value)}
                     placeholder="e.g. Rahul Sharma"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                   />
                 </div>
 
@@ -997,7 +1043,7 @@ export const LandingPage: React.FC = () => {
                     value={trialPhone}
                     onChange={(e) => setTrialPhone(e.target.value)}
                     placeholder="e.g. 9876543210"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                   />
                 </div>
 
@@ -1008,8 +1054,8 @@ export const LandingPage: React.FC = () => {
                     required
                     value={trialEmail}
                     onChange={(e) => setTrialEmail(e.target.value)}
-                    placeholder="e.g. contact@irongym.com"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    placeholder="e.g. contact@gymledger.com"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                   />
                 </div>
 
@@ -1023,7 +1069,7 @@ export const LandingPage: React.FC = () => {
                     value={trialPassword}
                     onChange={(e) => setTrialPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                   />
                 </div>
 
@@ -1035,7 +1081,7 @@ export const LandingPage: React.FC = () => {
                     value={trialConfirmPassword}
                     onChange={(e) => setTrialConfirmPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                   />
                 </div>
 
@@ -1071,7 +1117,7 @@ export const LandingPage: React.FC = () => {
 
             <div className="space-y-6">
               <div className="text-center space-y-1">
-                <h3 className="text-xl font-bold text-white">Purchase Plan via WhatsApp</h3>
+                <h3 className="text-xl font-bold text-foreground">Purchase Plan via WhatsApp</h3>
                 <p className="text-xs text-muted-foreground">
                   Complete setup details to generate your purchase link.
                 </p>
@@ -1085,8 +1131,8 @@ export const LandingPage: React.FC = () => {
                     required
                     value={checkoutGymName}
                     onChange={(e) => setCheckoutGymName(e.target.value)}
-                    placeholder="e.g. Iron Forge Gym"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-white text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    placeholder="e.g. GymLedger Club"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                   />
                 </div>
 
@@ -1098,7 +1144,7 @@ export const LandingPage: React.FC = () => {
                     value={checkoutOwnerName}
                     onChange={(e) => setCheckoutOwnerName(e.target.value)}
                     placeholder="e.g. Rahul Sharma"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-white text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                   />
                 </div>
 
@@ -1110,7 +1156,7 @@ export const LandingPage: React.FC = () => {
                       value={checkoutCoupon}
                       onChange={(e) => setCheckoutCoupon(e.target.value.toUpperCase())}
                       placeholder="e.g. WELCOME10"
-                      className="flex-grow px-4 py-2.5 rounded-xl border border-muted bg-background text-white text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
+                      className="flex-grow px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
                     />
                     <button
                       type="button"
@@ -1144,7 +1190,7 @@ export const LandingPage: React.FC = () => {
                       </span>
                     </div>
                   )}
-                  <div className="flex justify-between font-bold text-sm text-white border-t border-muted/20 pt-2">
+                  <div className="flex justify-between font-bold text-sm text-foreground border-t border-muted/20 pt-2">
                     <span>Total Amount</span>
                     <span>
                       ₹

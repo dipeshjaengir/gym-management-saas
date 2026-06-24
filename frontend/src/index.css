@@ -6,47 +6,49 @@
   :root {
     --background: 221 50% 8.4%; /* #0B1220 */
     --foreground: 210 40% 98%;
+    --alternate: 222 47% 6%; /* Alternate sections bg in dark mode */
     --card: 222 47% 11%; /* #111827 */
     --card-foreground: 210 40% 98%;
     --popover: 221 50% 8.4%;
     --popover-foreground: 210 40% 98%;
-    --primary: 38 95% 50%; /* #F59E0B Gold */
+    --primary: 37.5 91.4% 50.2%; /* #F59E0B Gold */
     --primary-foreground: 221 50% 8.4%;
-    --secondary: 221 83% 53%; /* #2563EB Electric Blue */
+    --secondary: 221.3 82.6% 53.3%; /* #2563EB Electric Blue */
     --secondary-foreground: 210 40% 98%;
     --muted: 222 47% 15%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 38 95% 50%;
+    --muted-foreground: 213.3 26.8% 84.3%; /* #CBD5E1 Secondary Text */
+    --accent: 37.5 91.4% 50.2%;
     --accent-foreground: 221 50% 8.4%;
     --destructive: 0 84% 60%; /* #EF4444 Danger */
     --destructive-foreground: 210 40% 98%;
-    --border: 222 47% 15%;
-    --input: 222 47% 15%;
-    --ring: 38 95% 50%;
+    --border: 215.4 27.9% 16.9%; /* #1F2937 Borders */
+    --input: 215.4 27.9% 16.9%; /* #1F2937 Inputs */
+    --ring: 37.5 91.4% 50.2%;
     --radius: 0.75rem;
   }
 
   /* Light Theme Specific Override */
   .light {
     --background: 210 40% 98%; /* #F8FAFC Soft Gray surface */
-    --foreground: 224 38% 7%;
+    --foreground: 222.2 47.4% 11.2%; /* #0F172A Text Primary */
+    --alternate: 213 27% 95.1%; /* #EEF2F7 Alternate Sections */
     --card: 0 0% 100%; /* #FFFFFF Clean White card */
-    --card-foreground: 224 38% 7%;
+    --card-foreground: 222.2 47.4% 11.2%; /* #0F172A Card Text */
     --popover: 0 0% 100%;
-    --popover-foreground: 224 38% 7%;
-    --primary: 38 95% 50%; /* #F59E0B Orange primary accent */
-    --primary-foreground: 210 40% 98%;
+    --popover-foreground: 222.2 47.4% 11.2%;
+    --primary: 37.5 91.4% 50.2%; /* #F59E0B Orange primary accent */
+    --primary-foreground: 221 50% 8.4%; /* Dark text for gold buttons in light mode */
     --secondary: 221 83% 53%; /* #2563EB Blue secondary accent */
-    --secondary-foreground: 224 38% 7%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 38 95% 50%;
-    --accent-foreground: 224 38% 7%;
+    --muted-foreground: 215.4 19.3% 34.5%; /* #475569 Text Secondary */
+    --accent: 37.5 91.4% 50.2%;
+    --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
+    --border: 214.3 31.8% 91.4%; /* #E2E8F0 Borders */
     --input: 214.3 31.8% 91.4%;
-    --ring: 38 95% 50%;
+    --ring: 37.5 91.4% 50.2%;
   }
 }
 
@@ -97,5 +99,14 @@ select option {
 .light select option {
   background-color: hsl(var(--card));
   color: hsl(var(--card-foreground));
+}
+
+/* Footer text utility colors */
+.footer-text {
+  color: #CBD5E1;
+}
+
+.light .footer-text {
+  color: #475569;
 }
 

@@ -194,11 +194,11 @@ export const GymOwnerDashboard: React.FC = () => {
 
       {/* Trial Banner */}
       {isTrial && (
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-primary/10 to-purple-500/10 border border-primary/20 text-primary-foreground flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm shadow-sm">
+        <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-primary/10 to-purple-500/10 border border-primary/20 text-foreground flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm shadow-sm">
           <div className="flex items-center gap-3">
             <Clock className="w-5 h-5 text-primary flex-shrink-0 animate-pulse" />
             <div>
-              <span className="font-bold text-white">7-Day Free Trial Activated:</span> You have{' '}
+              <span className="font-bold text-foreground">7-Day Free Trial Activated:</span> You have{' '}
               <span className="font-bold text-primary text-sm bg-primary/20 px-2 py-0.5 rounded">
                 {remainingTrialDays > 0 ? remainingTrialDays : 0} days remaining
               </span>{' '}
@@ -576,33 +576,32 @@ export const GymOwnerDashboard: React.FC = () => {
           <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-md w-full relative">
             <button
               onClick={() => {
-                setShowUpgradeModal(false);
-                setUpgradeCoupon('');
+                   setUpgradeCoupon('');
                 setUpgradeDiscount(null);
               }}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-white transition-all hover:bg-muted p-1 rounded-lg"
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all hover:bg-muted p-1 rounded-lg"
             >
               <X className="w-5 h-5" />
             </button>
-
+ 
             <div className="space-y-6">
               <div className="text-center space-y-1">
-                <h3 className="text-xl font-bold text-white">Upgrade to Premium Plan</h3>
+                <h3 className="text-xl font-bold text-foreground">Upgrade to Premium Plan</h3>
                 <p className="text-xs text-muted-foreground">
                   Upgrade your gym workspace and unlock full management tools.
                 </p>
               </div>
-
+ 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Select Subscription Plan</label>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Select Subscription Plan</label>
                   <select
                     value={selectedUpgradePlan?.name || ''}
                     onChange={(e) => {
                       const selected = platformPlans.find(p => p.name === e.target.value);
                       if (selected) setSelectedUpgradePlan(selected);
                     }}
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-white text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                   >
                     {platformPlans.length > 0 ? (
                       platformPlans.map((p) => (
@@ -618,16 +617,16 @@ export const GymOwnerDashboard: React.FC = () => {
                     )}
                   </select>
                 </div>
-
+ 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Coupon Code</label>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Coupon Code</label>
                   <div className="flex gap-2">
                     <input
                       type="text"
                       value={upgradeCoupon}
                       onChange={(e) => setUpgradeCoupon(e.target.value.toUpperCase())}
                       placeholder="e.g. SUMMER25"
-                      className="flex-grow px-4 py-2.5 rounded-xl border border-muted bg-background text-white text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
+                      className="flex-grow px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
                     />
                     <button
                       type="button"
@@ -644,7 +643,7 @@ export const GymOwnerDashboard: React.FC = () => {
                     </p>
                   )}
                 </div>
-
+ 
                 {selectedUpgradePlan && (
                   <div className="border-t border-muted/30 pt-4 space-y-2">
                     <div className="flex justify-between text-xs text-muted-foreground">
@@ -662,7 +661,7 @@ export const GymOwnerDashboard: React.FC = () => {
                         </span>
                       </div>
                     )}
-                    <div className="flex justify-between font-bold text-sm text-white border-t border-muted/20 pt-2">
+                    <div className="flex justify-between font-bold text-sm text-foreground border-t border-muted/20 pt-2">
                       <span>Total Amount</span>
                       <span>
                         ₹

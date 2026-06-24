@@ -40,8 +40,13 @@ export const Layout: React.FC = () => {
           <div className="flex-grow">
             <Outlet />
           </div>
-          <footer className="mt-8 pt-4 border-t border-border/40 text-center text-[10px] text-muted-foreground/50">
-            GymLedger &copy; 2026 | Built with ❤️ by Dipesh Jangir
+          <footer className="mt-8 pt-4 border-t border-border/40 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1">
+            <p>&copy; 2026 GymLedger SaaS Gym Management.</p>
+            <p>
+              Designed & Developed by{' '}
+              <span className="text-[#F59E0B] font-semibold">Dipesh Jangir</span>
+            </p>
+            <p className="text-[10px] opacity-75 mt-0.5">Version 1.0</p>
           </footer>
         </main>
       </div>
