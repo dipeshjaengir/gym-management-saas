@@ -139,6 +139,9 @@ export const LoginPage: React.FC = () => {
           </form>
         )}
       </div>
+      <footer className="mt-8 text-center text-[10px] text-slate-500">
+        GymLedger &copy; 2026 | Built with ❤️ by Dipesh Jangir
+      </footer>
     </div>
   );
 };

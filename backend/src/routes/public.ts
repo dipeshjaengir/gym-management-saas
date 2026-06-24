@@ -1,20 +1,20 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PlatformLead, GymOwner, AuditLog, Coupon } from '../models';
+import { PlatformLead, GymOwner, AuditLog, Coupon, PlatformPlan } from '../models';
 import { validateBody, freeTrialSchema } from '../middleware/validation';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-india-gym-saas-2026';
 
 // 1. GET Subscription Plans Pricing (INR ₹)
-router.get('/plans', (req, res) => {
-  return res.json([
-    { id: '1_month', name: '1 Month Kickstart', durationMonths: 1, price: 999, description: 'Best for trying out the platform and onboarding.' },
-    { id: '3_month', name: '3 Month Growth', durationMonths: 3, price: 2499, description: 'Optimal for growing gyms to stabilize collections.' },
-    { id: '6_month', name: '6 Month Premium', durationMonths: 6, price: 4499, description: 'Popular plan with QR scanners and expiry warn tools.' },
-    { id: '12_month', name: '12 Month Scale', durationMonths: 12, price: 7999, description: 'Best value for established gym networks.' }
-  ]);
+router.get('/plans', async (req, res) => {
+  try {
+    const plans = await PlatformPlan.find({ isDeleted: false, status: 'active' }).sort({ price: 1 });
+    return res.json(plans);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error fetching platform plans.' });
+  }
 });
 
 // 2. POST Demo request inquiry (logs to CRM Leads Board)

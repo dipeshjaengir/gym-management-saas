@@ -36,8 +36,13 @@ export const Layout: React.FC = () => {
       <Navbar onMenuToggle={() => setSidebarOpen((prev) => !prev)} />
       <div className="flex-1 flex overflow-hidden pb-16 md:pb-0">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
-          <Outlet />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 flex flex-col justify-between">
+          <div className="flex-grow">
+            <Outlet />
+          </div>
+          <footer className="mt-8 pt-4 border-t border-border/40 text-center text-[10px] text-muted-foreground/50">
+            GymLedger &copy; 2026 | Built with ❤️ by Dipesh Jangir
+          </footer>
         </main>
       </div>
 

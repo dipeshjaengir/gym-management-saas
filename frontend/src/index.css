@@ -4,20 +4,20 @@
 
 @layer base {
   :root {
-    --background: 224 38% 7%; /* #0B0F19 */
+    --background: 221 50% 8.4%; /* #0B1220 */
     --foreground: 210 40% 98%;
     --card: 222 47% 11%; /* #111827 */
     --card-foreground: 210 40% 98%;
-    --popover: 224 38% 7%;
+    --popover: 221 50% 8.4%;
     --popover-foreground: 210 40% 98%;
-    --primary: 38 95% 50%; /* #F59E0B Premium Gold */
-    --primary-foreground: 224 38% 7%;
+    --primary: 38 95% 50%; /* #F59E0B Gold */
+    --primary-foreground: 221 50% 8.4%;
     --secondary: 221 83% 53%; /* #2563EB Electric Blue */
     --secondary-foreground: 210 40% 98%;
     --muted: 222 47% 15%;
     --muted-foreground: 215 20.2% 65.1%;
     --accent: 38 95% 50%;
-    --accent-foreground: 224 38% 7%;
+    --accent-foreground: 221 50% 8.4%;
     --destructive: 0 84% 60%; /* #EF4444 Danger */
     --destructive-foreground: 210 40% 98%;
     --border: 222 47% 15%;
@@ -28,25 +28,25 @@
 
   /* Light Theme Specific Override */
   .light {
-    --background: 210 40% 98%; /* #F8FAFC */
+    --background: 210 40% 98%; /* #F8FAFC Soft Gray surface */
     --foreground: 224 38% 7%;
-    --card: 0 0% 100%; /* #FFFFFF */
+    --card: 0 0% 100%; /* #FFFFFF Clean White card */
     --card-foreground: 224 38% 7%;
     --popover: 0 0% 100%;
     --popover-foreground: 224 38% 7%;
-    --primary: 226 71% 40%; /* #1E40AF Primary Blue */
+    --primary: 38 95% 50%; /* #F59E0B Orange primary accent */
     --primary-foreground: 210 40% 98%;
-    --secondary: 221 83% 53%;
+    --secondary: 221 83% 53%; /* #2563EB Blue secondary accent */
     --secondary-foreground: 224 38% 7%;
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 38 95% 50%; /* #F59E0B Accent Gold */
+    --accent: 38 95% 50%;
     --accent-foreground: 224 38% 7%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 226 71% 40%;
+    --ring: 38 95% 50%;
   }
 }
 

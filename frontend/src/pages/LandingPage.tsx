@@ -3,6 +3,7 @@ import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
+import { Logo } from '../components/Logo';
 import {
   Dumbbell,
   ShieldAlert,
@@ -30,6 +31,7 @@ interface PricingPlan {
   durationMonths: number;
   price: number;
   description: string;
+  features?: string[];
 }
 
 export const LandingPage: React.FC = () => {
@@ -77,7 +79,8 @@ export const LandingPage: React.FC = () => {
     async function fetchPlans() {
       try {
         const data = await api.get('/public/plans');
-        setPlans(data);
+        const mapped = data.map((p: any) => ({ ...p, id: p._id }));
+        setPlans(mapped);
       } catch (err) {
         showToast('Error loading subscription pricing details.', 'error');
       } finally {
@@ -201,22 +204,7 @@ export const LandingPage: React.FC = () => {
     }
   };
 
-  const handleDemoDashboard = async () => {
-    try {
-      showToast('Logging in to Demo Dashboard...', 'info');
-      const res = await api.post('/auth/login', {
-        email: 'owner@gymledger.com',
-        password: 'owner123'
-      });
-      if (res.token && res.user) {
-        loginWithToken(res.token, res.user);
-        showToast('Logged in successfully!', 'success');
-        navigate('/app');
-      }
-    } catch (err: any) {
-      showToast(err.message || 'Failed to login to demo dashboard.', 'error');
-    }
-  };
+
 
   const handleBuyPlan = (plan: PricingPlan) => {
     setSelectedCheckoutPlan(plan);
@@ -280,20 +268,16 @@ export const LandingPage: React.FC = () => {
       <header className="border-b border-muted/50 bg-background/80 backdrop-blur-md sticky top-0 z-50 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-gradient-to-tr from-primary to-secondary rounded-xl text-white">
-              <Dumbbell className="w-5 h-5" />
-            </div>
+            <Logo size={36} />
             <span className="font-extrabold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-gray-400">
-              GymLedger SaaS
+              GymLedger
             </span>
           </div>
 
           {/* Navigation Links */}
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
             <a href="#features" className="hover:text-primary transition-all">Features</a>
-            <a href="#comparison" className="hover:text-primary transition-all">Comparison</a>
             <a href="#pricing" className="hover:text-primary transition-all">Pricing</a>
-            <a href="#faq" className="hover:text-primary transition-all">FAQ</a>
             <a href="#demo" className="hover:text-primary transition-all">Contact</a>
           </nav>
 
@@ -337,17 +321,11 @@ export const LandingPage: React.FC = () => {
             >
               Start 7 Days Free Trial <ArrowRight className="w-4 h-4" />
             </button>
-            <button
-              onClick={handleDemoDashboard}
-              className="px-6 py-3 rounded-xl font-bold bg-card border border-muted/80 hover:bg-muted text-foreground transition-all flex items-center gap-2"
-            >
-              Try Demo Dashboard <ExternalLink className="w-4 h-4" />
-            </button>
             <a
               href="#demo"
-              className="px-6 py-3 rounded-xl font-semibold text-muted-foreground hover:text-white transition-all flex items-center justify-center"
+              className="px-6 py-3 rounded-xl font-bold bg-card border border-muted/80 hover:bg-muted text-foreground transition-all flex items-center gap-2 hover:scale-[1.02] shadow-sm justify-center"
             >
-              Book a Demo
+              Book Demo
             </a>
           </div>
 
@@ -633,18 +611,25 @@ export const LandingPage: React.FC = () => {
                   <p className="mt-3 text-xs text-muted-foreground flex-grow">{plan.description}</p>
                   
                   <ul className="mt-6 space-y-3 text-xs text-foreground/80 flex-grow border-t border-muted/30 pt-4">
-                    <li className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-emerald-400" />
-                      <span>Full Multi-Tenant Console</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-emerald-400" />
-                      <span>Unlimited Members &amp; Trainers</span>
-                    </li>
-                    <li className="flex items-center gap-2">
-                      <Check className="w-4 h-4 text-emerald-400" />
-                      <span>Excel &amp; PDF Exports</span>
-                    </li>
+                    {plan.features && plan.features.length > 0 ? (
+                      plan.features.map((f, i) => (
+                        <li key={i} className="flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          <span>{f}</span>
+                        </li>
+                      ))
+                    ) : (
+                      <>
+                        <li className="flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          <span>Full Multi-Tenant Console</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <Check className="w-4 h-4 text-emerald-400" />
+                          <span>Unlimited Members &amp; Trainers</span>
+                        </li>
+                      </>
+                    )}
                   </ul>
 
                   <div className="mt-8 space-y-2">
