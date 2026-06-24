@@ -41,17 +41,20 @@ export const updateGymOwnerSchema = createGymOwnerSchema.partial().extend({
 // 2. Member Registration/Update Schema
 export const createMemberSchema = z.object({
   name: z.string().min(2, 'Member name must be at least 2 characters.'),
-  phone: z.string().min(10, 'Contact number must be at least 10 digits.'),
-  email: z.string().email('Invalid email format.').optional().or(z.literal('')),
+  phone: z.string().regex(/^\d{10}$/, 'Phone number must be exactly 10 digits.'),
+  email: z.string().email('Invalid email format.'),
   gender: z.enum(['male', 'female', 'other']),
-  dob: z.string().min(8, 'DOB must be valid Date format.'),
+  dob: z.string().refine((val) => {
+    const date = new Date(val);
+    return !isNaN(date.getTime()) && date <= new Date();
+  }, 'Date of Birth cannot be in the future.'),
   height: z.number().positive('Height must be positive.'),
   weight: z.number().positive('Weight must be positive.'),
   address: z.string().optional().or(z.literal('')),
   planId: z.string().min(10, 'Invalid membership plan ID referenced.'),
   membershipStart: z.string().min(8, 'Start date must be valid.'),
   amountPaid: z.number().nonnegative('Amount paid cannot be negative.'),
-  emergencyContact: z.string().optional().or(z.literal('')),
+  emergencyContact: z.string().regex(/^\d{10}$/, 'Emergency contact must be exactly 10 digits.'),
   notes: z.string().optional().or(z.literal(''))
 });
 
@@ -152,7 +155,12 @@ export const checkInSchema = z.object({
 export const freeTrialSchema = z.object({
   gymName: z.string().min(2, 'Gym name must be at least 2 characters.'),
   ownerName: z.string().min(2, 'Owner name must be at least 2 characters.'),
-  phone: z.string().min(10, 'Contact number must be at least 10 digits.'),
+  phone: z.string().regex(/^\d{10}$/, 'Phone number must be exactly 10 digits.'),
   email: z.string().email('Invalid email address.'),
-  city: z.string().min(2, 'City is required.')
+  city: z.string().min(2, 'City is required.'),
+  password: z.string().min(6, 'Password must be at least 6 characters.'),
+  confirmPassword: z.string().min(6, 'Confirm password must be at least 6 characters.')
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
 });

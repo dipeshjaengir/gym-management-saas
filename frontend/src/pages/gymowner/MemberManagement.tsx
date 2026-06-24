@@ -60,6 +60,8 @@ interface ProgressLog {
 export const MemberManagement: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([]);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [plansLoading, setPlansLoading] = useState(false);
+  const [plansLoaded, setPlansLoaded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -117,6 +119,8 @@ export const MemberManagement: React.FC = () => {
 
   const loadMembersData = async () => {
     setLoading(true);
+    setPlansLoading(true);
+    setPlansLoaded(false);
     try {
       const [membersData, plansData] = await Promise.all([
         api.get('/members'),
@@ -124,23 +128,70 @@ export const MemberManagement: React.FC = () => {
       ]);
       setMembers(membersData);
       setPlans(plansData);
+      setPlansLoaded(true);
       if (plansData.length > 0) {
         setPlanId(plansData[0]._id);
         setInitialPayment(plansData[0].price);
+      } else {
+        setPlanId('');
+        setInitialPayment(0);
       }
     } catch (err: any) {
       showToast(err.message || 'Error retrieving member roster.', 'error');
     } finally {
       setLoading(false);
+      setPlansLoading(false);
     }
   };
 
   const handleRegisterMember = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (plansLoading) {
+      showToast('Membership plans are still loading...', 'error');
+      return;
+    }
+    if (!plansLoaded) {
+      showToast('Membership plans have not loaded yet.', 'error');
+      return;
+    }
+    if (plans.length === 0) {
+      showToast('No Membership Plans Available. Please create a plan first.', 'error');
+      return;
+    }
     if (!name || !phone || !email || !planId) {
       showToast('Name, Phone, Email and Membership plan are required.', 'error');
       return;
     }
+
+    // Strict validations
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(phone)) {
+      showToast('Phone number must be exactly 10 digits.', 'error');
+      return;
+    }
+    if (!phoneRegex.test(emergencyContact)) {
+      showToast('Emergency contact number must be exactly 10 digits.', 'error');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      showToast('Please enter a valid email address.', 'error');
+      return;
+    }
+    const dobDate = new Date(dob);
+    if (isNaN(dobDate.getTime()) || dobDate > new Date()) {
+      showToast('Date of Birth cannot be in the future.', 'error');
+      return;
+    }
+    if (height <= 0) {
+      showToast('Height must be a positive number.', 'error');
+      return;
+    }
+    if (weight <= 0) {
+      showToast('Weight must be a positive number.', 'error');
+      return;
+    }
+
     setAdding(true);
     try {
       await api.post('/members', {
@@ -172,6 +223,52 @@ export const MemberManagement: React.FC = () => {
   const handleUpdateMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMember) return;
+    if (plansLoading) {
+      showToast('Membership plans are still loading...', 'error');
+      return;
+    }
+    if (!plansLoaded) {
+      showToast('Membership plans have not loaded.', 'error');
+      return;
+    }
+    if (plans.length === 0) {
+      showToast('No membership plans available.', 'error');
+      return;
+    }
+    if (!editName || !editPhone || !editEmail || !editPlanId) {
+      showToast('Name, Phone, Email and Membership plan are required.', 'error');
+      return;
+    }
+
+    // Strict validations
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(editPhone)) {
+      showToast('Phone number must be exactly 10 digits.', 'error');
+      return;
+    }
+    if (!phoneRegex.test(editEmergency)) {
+      showToast('Emergency contact number must be exactly 10 digits.', 'error');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editEmail)) {
+      showToast('Please enter a valid email address.', 'error');
+      return;
+    }
+    const dobDate = new Date(editDob);
+    if (isNaN(dobDate.getTime()) || dobDate > new Date()) {
+      showToast('Date of Birth cannot be in the future.', 'error');
+      return;
+    }
+    if (editHeight <= 0) {
+      showToast('Height must be a positive number.', 'error');
+      return;
+    }
+    if (editWeight <= 0) {
+      showToast('Weight must be a positive number.', 'error');
+      return;
+    }
+
     setUpdating(true);
     try {
       await api.put(`/members/${selectedMember._id}`, {
@@ -645,21 +742,35 @@ export const MemberManagement: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Membership Plan</label>
-                  <select
-                    value={planId}
-                    onChange={(e) => {
-                      setPlanId(e.target.value);
-                      const planObj = plans.find((p) => p._id === e.target.value);
-                      if (planObj) setInitialPayment(planObj.price);
-                    }}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  >
-                    {plans.map((p) => (
-                      <option key={p._id} value={p._id}>
-                        {p.name} (₹{p.price})
-                      </option>
-                    ))}
-                  </select>
+                  {plansLoading ? (
+                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                      <option className="bg-card text-foreground">Loading Plans...</option>
+                    </select>
+                  ) : !plansLoaded ? (
+                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                      <option className="bg-card text-foreground">Plans Not Loaded</option>
+                    </select>
+                  ) : plans.length === 0 ? (
+                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                      <option className="bg-card text-foreground">No Membership Plans Available</option>
+                    </select>
+                  ) : (
+                    <select
+                      value={planId}
+                      onChange={(e) => {
+                        setPlanId(e.target.value);
+                        const planObj = plans.find((p) => p._id === e.target.value);
+                        if (planObj) setInitialPayment(planObj.price);
+                      }}
+                      className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none z-10"
+                    >
+                      {plans.map((p) => (
+                        <option key={p._id} value={p._id} className="bg-card text-foreground">
+                          {p.name} (₹{p.price})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -842,17 +953,31 @@ export const MemberManagement: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Active Plan</label>
-                  <select
-                    value={editPlanId}
-                    onChange={(e) => setEditPlanId(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  >
-                    {plans.map((p) => (
-                      <option key={p._id} value={p._id}>
-                        {p.name} (₹{p.price})
-                      </option>
-                    ))}
-                  </select>
+                  {plansLoading ? (
+                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                      <option className="bg-card text-foreground">Loading Plans...</option>
+                    </select>
+                  ) : !plansLoaded ? (
+                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                      <option className="bg-card text-foreground">Plans Not Loaded</option>
+                    </select>
+                  ) : plans.length === 0 ? (
+                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                      <option className="bg-card text-foreground">No Membership Plans Available</option>
+                    </select>
+                  ) : (
+                    <select
+                      value={editPlanId}
+                      onChange={(e) => setEditPlanId(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none z-10"
+                    >
+                      {plans.map((p) => (
+                        <option key={p._id} value={p._id} className="bg-card text-foreground">
+                          {p.name} (₹{p.price})
+                        </option>
+                      ))}
+                    </select>
+                  )}
                 </div>
 
                 <div>
@@ -861,8 +986,8 @@ export const MemberManagement: React.FC = () => {
                     type="date"
                     required
                     value={editMembershipStart}
-                    onChange={(e) => setMembershipStart(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                    onChange={(e) => setEditMembershipStart(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
                   />
                 </div>
               </div>

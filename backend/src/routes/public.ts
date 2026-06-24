@@ -48,7 +48,7 @@ router.post('/leads', async (req, res) => {
 
 // 3. POST Free Trial Onboarding (generates trial account)
 router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
-  const { gymName, ownerName, email, phone, city } = req.body;
+  const { gymName, ownerName, email, phone, city, password } = req.body;
 
   try {
     // A. Check for existing owner
@@ -57,9 +57,8 @@ router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
       return res.status(400).json({ message: 'An account with this email is already registered.' });
     }
 
-    // B. Generate secure readable password
-    const generatedPassword = `trial_${Math.random().toString(36).slice(2, 8)}`;
-    const passwordHash = await bcrypt.hash(generatedPassword, 10);
+    // B. Hash user's password using bcrypt
+    const passwordHash = await bcrypt.hash(password, 10);
 
     // C. Calculate Expiry Date (7 days from now)
     const startDate = new Date();
@@ -92,9 +91,9 @@ router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
       }
     });
 
-    // E. Log credentials in database AuditLogs for recovery if SMTP is missing
+    // E. Log trial creation in database AuditLogs without password for security
     await AuditLog.create({
-      action: `Trial Registered: ${gymName} (${email}) - Password: ${generatedPassword}`,
+      action: `Trial Registered: ${gymName} (${email})`,
       user: `SYSTEM (Free Trial Sign Up)`,
       ipAddress: req.ip || '127.0.0.1',
       timestamp: new Date()
@@ -111,7 +110,6 @@ router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
       message: '7-Day Free Trial portal created successfully!',
       token,
       email: owner.email,
-      password: generatedPassword,
       user: {
         id: owner._id,
         name: owner.ownerName,

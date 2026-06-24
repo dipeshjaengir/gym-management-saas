@@ -87,3 +87,15 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.15);
 }
+
+/* Ensure select option dropdowns match the theme background and text color to prevent white strips */
+select option {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+}
+
+.light select option {
+  background-color: hsl(var(--card));
+  color: hsl(var(--card-foreground));
+}
+

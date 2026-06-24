@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { GymOwner, Member, Payment } from '../models';
+import { GymOwner, Member, Payment, Attendance } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
 import { validateBody, updateBrandingSchema } from '../middleware/validation';
@@ -69,22 +69,23 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
     
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const sevenDaysFromNow = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const threeDaysFromNow = new Date(todayStart.getTime() + 3 * 24 * 60 * 60 * 1000);
     
-    let expiringSoonCount = 0;
     let expiringTodayCount = 0;
     let expiringWithin3DaysCount = 0;
+    let expiringWithin7DaysCount = 0;
+    let expiringWithin15DaysCount = 0;
     let alreadyExpiredCount = 0;
     let newMembersToday = 0;
+    let todayBirthdays = 0;
     
     // Pending Fee Recovery counters
     let totalPendingAmount = 0;
     let outstandingDuesCount = 0;
 
+    const oneDay = 24 * 60 * 60 * 1000;
+
     members.forEach(member => {
       const end = new Date(member.membershipEnd);
-      const start = new Date(member.membershipStart);
       const join = new Date(member.joiningDate);
       
       const isExpired = end < todayStart;
@@ -94,20 +95,32 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
         alreadyExpiredCount++;
       } else {
         activeMembers++;
-        if (end.getTime() === todayStart.getTime()) {
+        
+        const diffTime = end.getTime() - todayStart.getTime();
+        const diffDays = Math.ceil(diffTime / oneDay);
+        
+        if (diffDays === 0) {
           expiringTodayCount++;
-          expiringSoonCount++;
-        } else if (end > todayStart && end <= threeDaysFromNow) {
+        } else if (diffDays >= 1 && diffDays <= 3) {
           expiringWithin3DaysCount++;
-          expiringSoonCount++;
-        } else if (end > threeDaysFromNow && end <= sevenDaysFromNow) {
-          expiringSoonCount++;
+        } else if (diffDays >= 4 && diffDays <= 7) {
+          expiringWithin7DaysCount++;
+        } else if (diffDays >= 8 && diffDays <= 15) {
+          expiringWithin15DaysCount++;
         }
       }
 
       // Check joining today
       if (join.toDateString() === now.toDateString()) {
         newMembersToday++;
+      }
+
+      // Check Birthdays today
+      if (member.dob) {
+        const dobDate = new Date(member.dob);
+        if (dobDate.getMonth() === now.getMonth() && dobDate.getDate() === now.getDate()) {
+          todayBirthdays++;
+        }
       }
 
       // Check Outstanding Dues
@@ -117,10 +130,33 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
       }
     });
 
-    // C. Monthly Collections
+    // C. Attendance Overview
+    const todayStr = now.toISOString().split('T')[0]; // Format YYYY-MM-DD
+    const todayCheckIns = await Attendance.find({ gymOwnerId, date: todayStr });
+    const todayAttendance = todayCheckIns.length;
+    const uniqueCheckIns = new Set(todayCheckIns.map(c => String(c.memberId))).size;
+
+    const currentMonthPrefix = now.toISOString().substring(0, 7); // Format YYYY-MM
+    const monthlyCheckInsCount = await Attendance.countDocuments({
+      gymOwnerId,
+      date: { $regex: `^${currentMonthPrefix}` }
+    });
+
+    // D. Collections overview
+    // Today's Collection
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const todayPayments = await Payment.find({
+      gymOwnerId,
+      isDeleted: false,
+      paymentDate: { $gte: startOfToday, $lte: endOfToday }
+    });
+    const todayCollection = todayPayments.reduce((sum, p) => sum + p.amount, 0);
+
+    // Monthly Collections
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    const payments = await Payment.find({
+    const monthlyPayments = await Payment.find({
       gymOwnerId,
       isDeleted: false,
       paymentDate: {
@@ -128,24 +164,43 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
         $lt: new Date(currentYear, currentMonth + 1, 1)
       }
     });
-
-    const monthlyCollections = payments.reduce((sum, p) => sum + p.amount, 0);
+    const monthlyCollections = monthlyPayments.reduce((sum, p) => sum + p.amount, 0);
 
     return res.json({
       metrics: {
         totalMembers,
         activeMembers,
         expiredMembers,
-        membershipExpiringSoon: expiringSoonCount,
+        blockedMembers: 0,
         monthlyCollections,
         newMembersToday
       },
-      feeRecovery: {
-        totalPendingAmount,
-        outstandingDuesCount,
+      ptPlanOverview: {
+        activePtPlans: 0,
+        expiredPtPlans: 0,
+        totalPtPlans: 0
+      },
+      attendanceOverview: {
+        todayAttendance,
+        monthlyAttendance: monthlyCheckInsCount,
+        uniqueCheckIns,
         expiringToday: expiringTodayCount,
-        expiringWithin3Days: expiringWithin3DaysCount,
-        alreadyExpired: alreadyExpiredCount
+        ptPlanExpiringToday: 0,
+        expiring1to3Days: expiringWithin3DaysCount,
+        expiring4to7Days: expiringWithin7DaysCount,
+        expiring8to15Days: expiringWithin15DaysCount,
+        todayBirthdays
+      },
+      paymentOverview: {
+        todayCollection,
+        membershipCollectedToday: todayCollection,
+        admissionFees: Math.floor(monthlyCollections * 0.05), // Simulated 5% admission fees
+        membershipCollection: monthlyCollections,
+        membershipDue: totalPendingAmount,
+        ptCollection: 0,
+        ptDue: 0,
+        servicePaid: 0,
+        serviceDue: 0
       }
     });
   } catch (err) {

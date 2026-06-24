@@ -164,12 +164,8 @@ export interface IMember extends Document {
   remainingAmount: number;
   paymentStatus: 'paid' | 'partial' | 'unpaid';
   qrCode: string;
-  emergencyContact: {
-    name: string;
-    phone: string;
-    relation: string;
-  };
-  notes: string[];
+  emergencyContact: string;
+  notes: string;
   isDeleted: boolean;
 }
 
@@ -191,12 +187,8 @@ const MemberSchema = new Schema<IMember>({
   remainingAmount: { type: Number, default: 0, index: true },
   paymentStatus: { type: String, enum: ['paid', 'partial', 'unpaid'], default: 'unpaid' },
   qrCode: { type: String, required: true, unique: true, index: true },
-  emergencyContact: {
-    name: { type: String, default: '' },
-    phone: { type: String, default: '' },
-    relation: { type: String, default: '' }
-  },
-  notes: { type: [String], default: [] },
+  emergencyContact: { type: String, default: '' },
+  notes: { type: String, default: '' },
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 

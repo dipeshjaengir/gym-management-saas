@@ -11,7 +11,7 @@ async function seed() {
     await connectDatabase();
 
     // Check if Super Admin already exists
-    const existingAdmin = await SuperAdmin.findOne({ role: 'super_admin' });
+    const existingAdmin = await SuperAdmin.findOne({ email: 'dipeshjangir12@gmail.com' });
     let admin;
     if (existingAdmin) {
       console.log(`[SEEDER] Super Admin already exists: ${existingAdmin.email}. Retaining existing credentials.`);
@@ -19,10 +19,10 @@ async function seed() {
     } else {
       // Clear existing Super Admin collections only if none exists
       await SuperAdmin.deleteMany({});
-      const hashedAdminPassword = await bcrypt.hash('admin123', 10);
+      const hashedAdminPassword = await bcrypt.hash('As12qw34.@', 10);
       admin = await SuperAdmin.create({
-        name: 'Alex Mercer (SaaS Admin)',
-        email: 'admin@fitsaas.com',
+        name: 'Dipesh Jangir (SaaS Admin)',
+        email: 'dipeshjangir12@gmail.com',
         passwordHash: hashedAdminPassword,
         role: 'super_admin'
       });
@@ -186,12 +186,8 @@ async function seed() {
       remainingAmount: 0,
       paymentStatus: 'paid',
       qrCode: `GYM-${owner1._id.toString().slice(-4).toUpperCase()}-ROHANS1`,
-      emergencyContact: {
-        name: 'Suresh Sharma',
-        phone: '9888888801',
-        relation: 'father'
-      },
-      notes: ['Prefers early morning workout sessions.']
+      emergencyContact: '9888888801',
+      notes: 'Prefers early morning workout sessions.'
     });
 
     // Member 2: Active with Outstanding Dues (Partial Payment)
@@ -213,12 +209,8 @@ async function seed() {
       remainingAmount: 2500, // Due ₹2,500
       paymentStatus: 'partial',
       qrCode: `GYM-${owner1._id.toString().slice(-4).toUpperCase()}-ANJALID2`,
-      emergencyContact: {
-        name: 'Neela Desai',
-        phone: '9888888802',
-        relation: 'mother'
-      },
-      notes: ['Goal is cardio and core strength.']
+      emergencyContact: '9888888802',
+      notes: 'Goal is cardio and core strength.'
     });
 
     // Member 3: Expiring in 3 Days with Outstanding Dues (Unpaid)
@@ -240,12 +232,8 @@ async function seed() {
       remainingAmount: 1500, // Due ₹1,500
       paymentStatus: 'unpaid',
       qrCode: `GYM-${owner1._id.toString().slice(-4).toUpperCase()}-KARANM3`,
-      emergencyContact: {
-        name: 'Rita Malhotra',
-        phone: '9888888803',
-        relation: 'spouse'
-      },
-      notes: ['Wants weight training routines.']
+      emergencyContact: '9888888803',
+      notes: 'Wants weight training routines.'
     });
 
     // Member 4: Already Expired
@@ -267,12 +255,8 @@ async function seed() {
       remainingAmount: 0,
       paymentStatus: 'paid',
       qrCode: `GYM-${owner1._id.toString().slice(-4).toUpperCase()}-SIDN44`,
-      emergencyContact: {
-        name: 'Gopal Nair',
-        phone: '9888888804',
-        relation: 'father'
-      },
-      notes: ['Locker #15 assigned.']
+      emergencyContact: '9888888804',
+      notes: 'Locker #15 assigned.'
     });
 
     console.log('[SEEDER] Created 4 gym members (with active, partial-dues, soon-expiring, and expired states).');

@@ -140,11 +140,6 @@ export const LoginPage: React.FC = () => {
           </form>
         )}
       </div>
-
-      <div className="mt-8 text-center text-xs text-muted-foreground">
-        Demo Credentials:<br />
-        Super Admin: <code className="text-primary">superadmin@ironforge.com</code> / <code className="text-primary">admin123</code>
-      </div>
     </div>
   );
 };

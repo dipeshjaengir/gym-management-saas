@@ -47,15 +47,9 @@ export const LandingPage: React.FC = () => {
   const [trialPhone, setTrialPhone] = useState('');
   const [trialEmail, setTrialEmail] = useState('');
   const [trialCity, setTrialCity] = useState('');
+  const [trialPassword, setTrialPassword] = useState('');
+  const [trialConfirmPassword, setTrialConfirmPassword] = useState('');
   const [submittingTrial, setSubmittingTrial] = useState(false);
-  
-  // Trial Success State
-  const [trialSuccessData, setTrialSuccessData] = useState<{
-    email: string;
-    password: string;
-    token: string;
-    user: any;
-  } | null>(null);
 
   // Demo Request Form State
   const [demoName, setDemoName] = useState('');
@@ -145,10 +139,31 @@ export const LandingPage: React.FC = () => {
 
   const handleTrialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!trialGymName || !trialOwnerName || !trialPhone || !trialEmail || !trialCity) {
+    if (!trialGymName || !trialOwnerName || !trialPhone || !trialEmail || !trialCity || !trialPassword || !trialConfirmPassword) {
       showToast('Please fill out all required fields.', 'error');
       return;
     }
+
+    // Strict validations
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(trialPhone)) {
+      showToast('Phone number must be exactly 10 digits.', 'error');
+      return;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trialEmail)) {
+      showToast('Please enter a valid email address.', 'error');
+      return;
+    }
+    if (trialPassword.length < 6) {
+      showToast('Password must be at least 6 characters long.', 'error');
+      return;
+    }
+    if (trialPassword !== trialConfirmPassword) {
+      showToast('Passwords do not match.', 'error');
+      return;
+    }
+
     setSubmittingTrial(true);
     try {
       const res = await api.post('/public/free-trial', {
@@ -156,27 +171,28 @@ export const LandingPage: React.FC = () => {
         ownerName: trialOwnerName,
         phone: trialPhone,
         email: trialEmail,
-        city: trialCity
+        city: trialCity,
+        password: trialPassword,
+        confirmPassword: trialConfirmPassword
       });
       
-      showToast('Account setup complete! Save your credentials.', 'success');
-      setTrialSuccessData({
-        email: res.email,
-        password: res.password,
-        token: res.token,
-        user: res.user
-      });
+      showToast('Account setup complete! Logging you in...', 'success');
+      loginWithToken(res.token, res.user);
+      navigate('/app');
+      setShowTrialModal(false);
+
+      // Reset form fields
+      setTrialGymName('');
+      setTrialOwnerName('');
+      setTrialPhone('');
+      setTrialEmail('');
+      setTrialCity('');
+      setTrialPassword('');
+      setTrialConfirmPassword('');
     } catch (err: any) {
       showToast(err.message || 'Failed to sign up for free trial.', 'error');
     } finally {
       setSubmittingTrial(false);
-    }
-  };
-
-  const handleAutoLogin = () => {
-    if (trialSuccessData) {
-      loginWithToken(trialSuccessData.token, trialSuccessData.user);
-      navigate('/gymowner');
     }
   };
 
@@ -190,7 +206,7 @@ export const LandingPage: React.FC = () => {
       if (res.token && res.user) {
         loginWithToken(res.token, res.user);
         showToast('Logged in successfully!', 'success');
-        navigate('/gymowner');
+        navigate('/app');
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to login to demo dashboard.', 'error');
@@ -886,139 +902,121 @@ export const LandingPage: React.FC = () => {
         </div>
       )}
 
-      {/* D. Free Trial Signup & Success Modal */}
+      {/* D. Free Trial Signup Modal */}
       {showTrialModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-md w-full relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => {
                 setShowTrialModal(false);
-                setTrialSuccessData(null);
               }}
               className="absolute top-4 right-4 text-muted-foreground hover:text-white transition-all"
             >
               <X className="w-5 h-5" />
             </button>
 
-            {!trialSuccessData ? (
-              // Trial Sign Up Form
-              <div className="space-y-6">
-                <div className="text-center space-y-1">
-                  <h3 className="text-2xl font-bold text-white">Start 7-Day Free Trial</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Get instant access to your gym console. No credit card required.
-                  </p>
-                </div>
-
-                <form onSubmit={handleTrialSubmit} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym / Studio Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={trialGymName}
-                      onChange={(e) => setTrialGymName(e.target.value)}
-                      placeholder="e.g. Iron Muscle Gym"
-                      className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Name</label>
-                    <input
-                      type="text"
-                      required
-                      value={trialOwnerName}
-                      onChange={(e) => setTrialOwnerName(e.target.value)}
-                      placeholder="e.g. Rahul Sharma"
-                      className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Number (WhatsApp)</label>
-                    <input
-                      type="tel"
-                      required
-                      value={trialPhone}
-                      onChange={(e) => setTrialPhone(e.target.value)}
-                      placeholder="e.g. 9876543210"
-                      className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
-                    <input
-                      type="email"
-                      required
-                      value={trialEmail}
-                      onChange={(e) => setTrialEmail(e.target.value)}
-                      placeholder="e.g. contact@irongym.com"
-                      className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">City / Location</label>
-                    <input
-                      type="text"
-                      required
-                      value={trialCity}
-                      onChange={(e) => setTrialCity(e.target.value)}
-                      placeholder="e.g. Pune"
-                      className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={submittingTrial}
-                    className="w-full mt-4 py-3 rounded-xl font-bold bg-gradient-to-r from-primary to-indigo-500 text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
-                  >
-                    {submittingTrial ? 'Configuring Portal...' : 'Start Trial Now'} <ArrowRight className="w-4 h-4" />
-                  </button>
-                </form>
+            <div className="space-y-6">
+              <div className="text-center space-y-1">
+                <h3 className="text-2xl font-bold text-white">Start 7-Day Free Trial</h3>
+                <p className="text-xs text-muted-foreground">
+                  Get instant access to your gym console. No credit card required.
+                </p>
               </div>
-            ) : (
-              // Trial Success & Credentials Display
-              <div className="space-y-6">
-                <div className="text-center space-y-2">
-                  <div className="w-12 h-12 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto text-emerald-400">
-                    <ShieldCheck className="w-6 h-6" />
-                  </div>
-                  <h3 className="text-2xl font-bold text-white">Your Trial is Active!</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Copy and save your generated temporary credentials to access your console in the future.
-                  </p>
+
+              <form onSubmit={handleTrialSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym / Studio Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={trialGymName}
+                    onChange={(e) => setTrialGymName(e.target.value)}
+                    placeholder="e.g. Iron Muscle Gym"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
                 </div>
 
-                <div className="p-4 rounded-xl bg-background border border-muted/50 space-y-3 font-mono text-xs">
-                  <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase font-sans font-semibold mb-0.5">Login Email</span>
-                    <span className="text-white select-all font-bold">{trialSuccessData.email}</span>
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground block text-[10px] uppercase font-sans font-semibold mb-0.5">Temporary Password</span>
-                    <span className="text-primary select-all font-bold">{trialSuccessData.password}</span>
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={trialOwnerName}
+                    onChange={(e) => setTrialOwnerName(e.target.value)}
+                    placeholder="e.g. Rahul Sharma"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
                 </div>
 
-                <div className="p-3.5 rounded-xl bg-amber-500/5 border border-amber-500/20 text-amber-300 flex gap-2.5 text-[11px] leading-relaxed">
-                  <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <span className="font-bold">Important:</span> These credentials have been logged in the platform database AuditLogs. You can change your password at any time inside your branding profiles dashboard settings.
-                  </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Number (WhatsApp)</label>
+                  <input
+                    type="tel"
+                    required
+                    value={trialPhone}
+                    onChange={(e) => setTrialPhone(e.target.value)}
+                    placeholder="e.g. 9876543210"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    required
+                    value={trialEmail}
+                    onChange={(e) => setTrialEmail(e.target.value)}
+                    placeholder="e.g. contact@irongym.com"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">City / Location</label>
+                  <input
+                    type="text"
+                    required
+                    value={trialCity}
+                    onChange={(e) => setTrialCity(e.target.value)}
+                    placeholder="e.g. Pune"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={trialPassword}
+                    onChange={(e) => setTrialPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Confirm Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={trialConfirmPassword}
+                    onChange={(e) => setTrialConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
                 </div>
 
                 <button
-                  onClick={handleAutoLogin}
-                  className="w-full py-3.5 rounded-xl font-bold bg-primary hover:bg-primary/95 text-primary-foreground text-sm transition-all shadow-md flex items-center justify-center gap-2"
+                  type="submit"
+                  disabled={submittingTrial}
+                  className="w-full mt-4 py-3 rounded-xl font-bold bg-gradient-to-r from-primary to-indigo-500 text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
                 >
-                  Access Dashboard Now <ArrowRight className="w-4 h-4" />
+                  {submittingTrial ? 'Configuring Portal...' : 'Start Trial Now'} <ArrowRight className="w-4 h-4" />
                 </button>
-              </div>
-            )}
+              </form>
+            </div>
           </div>
         </div>
       )}
