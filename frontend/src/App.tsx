@@ -8,12 +8,15 @@ import { Layout } from './components/Layout';
 // Pages
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
+import { ActivateAccountPage } from './pages/ActivateAccountPage';
 
 // Super Admin Pages
 import { SuperAdminDashboard } from './pages/superadmin/SuperAdminDashboard';
 import { GymOwnersDirectory } from './pages/superadmin/GymOwnersDirectory';
 import { LeadManagement } from './pages/superadmin/LeadManagement';
 import { AuditLogs } from './pages/superadmin/AuditLogs';
+import { SubscriptionManagement } from './pages/superadmin/SubscriptionManagement';
+import { CouponManagement } from './pages/superadmin/CouponManagement';
 
 // Gym Owner Pages
 import { GymOwnerDashboard } from './pages/gymowner/GymOwnerDashboard';
@@ -54,6 +57,7 @@ export const App: React.FC = () => {
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/activate-account" element={<ActivateAccountPage />} />
 
               {/* Authenticated Dashboard Routes */}
               <Route path="/app" element={<Layout />}>
@@ -82,6 +86,22 @@ export const App: React.FC = () => {
                   element={
                     <RoleGuard allowed="super_admin">
                       <AuditLogs />
+                    </RoleGuard>
+                  }
+                />
+                <Route
+                  path="subscription"
+                  element={
+                    <RoleGuard allowed="super_admin">
+                      <SubscriptionManagement />
+                    </RoleGuard>
+                  }
+                />
+                <Route
+                  path="coupons"
+                  element={
+                    <RoleGuard allowed="super_admin">
+                      <CouponManagement />
                     </RoleGuard>
                   }
                 />

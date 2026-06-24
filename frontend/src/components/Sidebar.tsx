@@ -14,7 +14,9 @@ import {
   ClipboardList,
   QrCode,
   Settings2,
-  X
+  X,
+  Tag,
+  CreditCard
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -29,6 +31,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: '/app', label: 'Platform Stats', icon: LayoutDashboard },
     { to: '/app/owners', label: 'Gym Owners CRM', icon: Building2 },
     { to: '/app/leads', label: 'WhatsApp Leads', icon: PhoneCall },
+    { to: '/app/subscription', label: 'Plan Subscription', icon: CreditCard },
+    { to: '/app/coupons', label: 'Promo Coupons', icon: Tag },
     { to: '/app/audits', label: 'Global Audit Logs', icon: History }
   ];
 

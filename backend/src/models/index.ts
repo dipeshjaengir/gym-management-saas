@@ -55,6 +55,9 @@ export interface IGymOwner extends Document {
   phone: string;
   address: string;
   role: 'gym_owner';
+  status: 'pending_activation' | 'active' | 'suspended';
+  activationToken?: string | null;
+  activationTokenExpiry?: Date | null;
   branding: {
     logo?: string;
     gymName?: string;
@@ -63,7 +66,7 @@ export interface IGymOwner extends Document {
     whatsAppNumber?: string;
   };
   subscription: {
-    planType: '1_month' | '3_month' | '6_month' | '12_month';
+    planType: string;
     startDate: Date;
     expiryDate: Date;
     status: 'active' | 'expired' | 'suspended';
@@ -77,10 +80,13 @@ const GymOwnerSchema = new Schema<IGymOwner>({
   gymName: { type: String, required: true },
   ownerName: { type: String, required: true },
   email: { type: String, required: true, unique: true, index: true },
-  passwordHash: { type: String, required: true },
+  passwordHash: { type: String, default: '' },
   phone: { type: String, required: true },
-  address: { type: String, required: true },
+  address: { type: String, default: '' },
   role: { type: String, default: 'gym_owner' },
+  status: { type: String, enum: ['pending_activation', 'active', 'suspended'], default: 'pending_activation', index: true },
+  activationToken: { type: String, default: null },
+  activationTokenExpiry: { type: Date, default: null },
   branding: {
     logo: { type: String, default: '' },
     gymName: { type: String, default: '' },
@@ -89,7 +95,7 @@ const GymOwnerSchema = new Schema<IGymOwner>({
     whatsAppNumber: { type: String, default: '' }
   },
   subscription: {
-    planType: { type: String, enum: ['1_month', '3_month', '6_month', '12_month'], required: true },
+    planType: { type: String, default: '1_month' },
     startDate: { type: Date, required: true },
     expiryDate: { type: Date, required: true, index: true },
     status: { type: String, enum: ['active', 'expired', 'suspended'], default: 'active', index: true },
@@ -342,3 +348,55 @@ const ProgressMetricSchema = new Schema<IProgressMetric>({
 }, { timestamps: true });
 
 export const ProgressMetric = mongoose.model<IProgressMetric>('ProgressMetric', ProgressMetricSchema);
+
+// ----------------------------------------------------
+// 13. PLATFORM PLAN SCHEMA
+// ----------------------------------------------------
+export interface IPlatformPlan extends Document {
+  name: string;
+  price: number;
+  durationMonths: number;
+  description: string;
+  features: string[];
+  status: 'active' | 'inactive';
+  isDeleted: boolean;
+}
+
+const PlatformPlanSchema = new Schema<IPlatformPlan>({
+  name: { type: String, required: true },
+  price: { type: Number, required: true },
+  durationMonths: { type: Number, required: true },
+  description: { type: String, default: '' },
+  features: { type: [String], default: [] },
+  status: { type: String, enum: ['active', 'inactive'], default: 'active', index: true },
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const PlatformPlan = mongoose.model<IPlatformPlan>('PlatformPlan', PlatformPlanSchema);
+
+// ----------------------------------------------------
+// 14. COUPON SCHEMA
+// ----------------------------------------------------
+export interface ICoupon extends Document {
+  code: string;
+  discountType: 'percentage' | 'flat';
+  discountValue: number;
+  expiryDate: Date;
+  usageLimit: number;
+  timesUsed: number;
+  isActive: boolean;
+  isDeleted: boolean;
+}
+
+const CouponSchema = new Schema<ICoupon>({
+  code: { type: String, required: true, unique: true, index: true },
+  discountType: { type: String, enum: ['percentage', 'flat'], required: true },
+  discountValue: { type: Number, required: true },
+  expiryDate: { type: Date, required: true },
+  usageLimit: { type: Number, default: 0 }, // 0 = unlimited
+  timesUsed: { type: Number, default: 0 },
+  isActive: { type: Boolean, default: true, index: true },
+  isDeleted: { type: Boolean, default: false }
+}, { timestamps: true });
+
+export const Coupon = mongoose.model<ICoupon>('Coupon', CouponSchema);

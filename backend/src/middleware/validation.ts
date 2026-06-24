@@ -169,3 +169,38 @@ export const freeTrialSchema = z.object({
   message: "Passwords don't match",
   path: ["confirmPassword"],
 });
+
+// 14. Super Admin Gym Owner Creation Schema (No password, no planType, no amountPaid input initially)
+export const createGymOwnerByAdminSchema = z.object({
+  gymName: z.string().min(2, 'Gym name must be at least 2 characters.'),
+  ownerName: z.string().min(2, 'Owner name must be at least 2 characters.'),
+  email: z.string().email('Invalid email address format.'),
+  phone: z.string().regex(/^\d{10}$/, 'Phone number must be exactly 10 digits.')
+});
+
+// 15. Platform Plan validation schema
+export const createPlatformPlanSchema = z.object({
+  name: z.string().min(2, 'Plan name must be at least 2 characters.'),
+  price: z.number().nonnegative('Price cannot be negative.'),
+  durationMonths: z.number().positive('Duration must be positive.'),
+  description: z.string().optional().or(z.literal('')),
+  features: z.array(z.string()).default([]),
+  status: z.enum(['active', 'inactive']).optional()
+});
+
+export const updatePlatformPlanSchema = createPlatformPlanSchema.partial();
+
+// 16. Coupon validation schema
+export const createCouponSchema = z.object({
+  code: z.string().min(2, 'Coupon code must be at least 2 characters.').toUpperCase(),
+  discountType: z.enum(['percentage', 'flat']),
+  discountValue: z.number().positive('Discount value must be positive.'),
+  expiryDate: z.string().refine((val) => {
+    const d = new Date(val);
+    return !isNaN(d.getTime());
+  }, 'Expiry date must be valid.'),
+  usageLimit: z.number().nonnegative('Usage limit cannot be negative.'),
+  isActive: z.boolean().optional()
+});
+
+export const updateCouponSchema = createCouponSchema.partial();

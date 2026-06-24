@@ -12,7 +12,8 @@ import {
   Play,
   Pause,
   X,
-  Edit2
+  Edit2,
+  Copy
 } from 'lucide-react';
 
 interface GymOwner {
@@ -22,8 +23,9 @@ interface GymOwner {
   email: string;
   phone: string;
   address: string;
+  status: 'pending_activation' | 'active' | 'suspended';
   subscription: {
-    planType: '1_month' | '3_month' | '6_month' | '12_month';
+    planType: string;
     startDate: string;
     expiryDate: string;
     status: 'active' | 'expired' | 'suspended';
@@ -42,12 +44,11 @@ export const GymOwnersDirectory: React.FC = () => {
   const [gymName, setGymName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [planType, setPlanType] = useState<'1_month' | '3_month' | '6_month' | '12_month'>('3_month');
-  const [amountPaid, setAmountPaid] = useState<number>(2499);
   const [adding, setAdding] = useState(false);
+
+  // Activation Link Modal
+  const [activationLinkModal, setActivationLinkModal] = useState<string | null>(null);
 
   // Edit Modal
   const [selectedOwner, setSelectedOwner] = useState<GymOwner | null>(null);
@@ -62,12 +63,14 @@ export const GymOwnersDirectory: React.FC = () => {
   // Renew Modal
   const [renewOwner, setRenewOwner] = useState<GymOwner | null>(null);
   const [showRenewModal, setShowRenewModal] = useState(false);
-  const [renewPlanType, setRenewPlanType] = useState<'1_month' | '3_month' | '6_month' | '12_month'>('3_month');
-  const [renewAmountPaid, setRenewAmountPaid] = useState<number>(2499);
+  const [renewPlanType, setRenewPlanType] = useState<string>('Monthly');
+  const [renewAmountPaid, setRenewAmountPaid] = useState<number>(179);
   const [renewing, setRenewing] = useState(false);
+  const [platformPlans, setPlatformPlans] = useState<any[]>([]);
 
   useEffect(() => {
     loadOwners();
+    loadPlans();
   }, []);
 
   const loadOwners = async () => {
@@ -82,28 +85,43 @@ export const GymOwnersDirectory: React.FC = () => {
     }
   };
 
+  const loadPlans = async () => {
+    try {
+      const data = await api.get('/superadmin/plans');
+      setPlatformPlans(data);
+      if (data.length > 0) {
+        setRenewPlanType(data[0].name);
+        setRenewAmountPaid(data[0].price);
+      }
+    } catch (err: any) {
+      console.error('Error fetching platform plans:', err);
+    }
+  };
+
   const handleCreateOwner = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gymName || !ownerName || !email || !password || !phone || !address) {
-      showToast('All owner fields are required.', 'error');
+    if (!gymName || !ownerName || !email || !phone) {
+      showToast('Gym Name, Owner Name, Email, and Phone are required.', 'error');
       return;
     }
     setAdding(true);
     try {
-      await api.post('/superadmin/owners', {
+      const res = await api.post('/superadmin/owners', {
         gymName,
         ownerName,
         email,
-        password,
-        phone,
-        address,
-        planType,
-        amountPaid
+        phone
       });
-      showToast('Gym owner tenant profile created.', 'success');
+      showToast('Gym owner account created successfully.', 'success');
       setShowAddModal(false);
       resetAddForm();
       loadOwners();
+
+      // Show activation token link
+      if (res.owner && res.owner.activationToken) {
+        const link = window.location.origin + '/activate-account?token=' + res.owner.activationToken;
+        setActivationLinkModal(link);
+      }
     } catch (err: any) {
       showToast(err.message || 'Error registering tenant.', 'error');
     } finally {
@@ -157,7 +175,7 @@ export const GymOwnersDirectory: React.FC = () => {
     try {
       await api.put(`/superadmin/owners/${id}/status`, { status: nextStatus });
       showToast(`Tenant status updated to: ${nextStatus.toUpperCase()}`, 'success');
-      setOwners(prev => prev.map(o => o._id === id ? { ...o, subscription: { ...o.subscription, status: nextStatus } } : o));
+      setOwners(prev => prev.map(o => o._id === id ? { ...o, status: nextStatus, subscription: { ...o.subscription, status: nextStatus } } : o));
     } catch (err: any) {
       showToast(err.message || 'Error setting tenant status.', 'error');
     }
@@ -178,11 +196,7 @@ export const GymOwnersDirectory: React.FC = () => {
     setGymName('');
     setOwnerName('');
     setEmail('');
-    setPassword('');
     setPhone('');
-    setAddress('');
-    setPlanType('3_month');
-    setAmountPaid(2499);
   };
 
   const openEditModal = (owner: GymOwner) => {
@@ -191,7 +205,7 @@ export const GymOwnersDirectory: React.FC = () => {
     setEditOwnerName(owner.ownerName);
     setEditEmail(owner.email);
     setEditPhone(owner.phone);
-    setEditAddress(owner.address);
+    setEditAddress(owner.address || '');
     setShowEditModal(true);
   };
 
@@ -202,12 +216,21 @@ export const GymOwnersDirectory: React.FC = () => {
     setShowRenewModal(true);
   };
 
-  // Adjust amount paid when plan changes in modals
-  const getPlanPrice = (plan: string) => {
-    if (plan === '1_month') return 999;
-    if (plan === '3_month') return 2499;
-    if (plan === '6_month') return 4499;
-    return 7999; // 12 month
+  const getStatusBadgeStyle = (status: string) => {
+    if (status === 'active') {
+      return 'bg-emerald-950/40 text-emerald-400 border-emerald-500/20';
+    }
+    if (status === 'suspended') {
+      return 'bg-rose-950/40 text-rose-400 border-rose-500/20';
+    }
+    return 'bg-amber-950/40 text-amber-400 border-amber-500/20'; // pending activation
+  };
+
+  const getStatusLabel = (status: string) => {
+    if (status === 'pending_activation') return 'Pending Activation';
+    if (status === 'active') return 'Active';
+    if (status === 'suspended') return 'Suspended';
+    return status;
   };
 
   return (
@@ -216,7 +239,7 @@ export const GymOwnersDirectory: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Gym Owners Directory</h1>
-          <p className="text-xs text-muted-foreground">Register tenants and manage platform billing subscriptions.</p>
+          <p className="text-xs text-muted-foreground">Register gym owners and monitor platform statuses.</p>
         </div>
         <button
           onClick={() => setShowAddModal(true)}
@@ -242,16 +265,8 @@ export const GymOwnersDirectory: React.FC = () => {
               <div key={owner._id} className="p-4 rounded-2xl bg-card border space-y-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="font-bold text-base">{owner.gymName}</div>
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                      owner.subscription.status === 'active'
-                        ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/20'
-                        : owner.subscription.status === 'suspended'
-                        ? 'bg-rose-950/40 text-rose-400 border-rose-500/20'
-                        : 'bg-amber-950/40 text-amber-400 border-amber-500/20'
-                    }`}
-                  >
-                    {owner.subscription.status}
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${getStatusBadgeStyle(owner.status)}`}>
+                    {getStatusLabel(owner.status)}
                   </span>
                 </div>
 
@@ -277,15 +292,15 @@ export const GymOwnersDirectory: React.FC = () => {
                     <Calendar className="w-3.5 h-3.5" /> Renew Plan
                   </button>
                   <button
-                    onClick={() => toggleStatus(owner._id, owner.subscription.status)}
+                    onClick={() => toggleStatus(owner._id, owner.status)}
                     className={`p-2 rounded-lg border transition-colors ${
-                      owner.subscription.status === 'suspended'
+                      owner.status === 'suspended'
                         ? 'text-emerald-400 hover:bg-emerald-500/10 border-emerald-500/30'
                         : 'text-amber-400 hover:bg-amber-500/10 border-amber-500/30'
                     }`}
-                    title={owner.subscription.status === 'suspended' ? 'Activate Tenant' : 'Suspend Tenant'}
+                    title={owner.status === 'suspended' ? 'Activate Tenant' : 'Suspend Tenant'}
                   >
-                    {owner.subscription.status === 'suspended' ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                    {owner.status === 'suspended' ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
                   </button>
                   <button
                     onClick={() => handleDeleteOwner(owner._id)}
@@ -328,16 +343,8 @@ export const GymOwnersDirectory: React.FC = () => {
                       {new Date(owner.subscription.expiryDate).toLocaleDateString('en-IN')}
                     </td>
                     <td className="p-4">
-                      <span
-                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase border ${
-                          owner.subscription.status === 'active'
-                            ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/20'
-                            : owner.subscription.status === 'suspended'
-                            ? 'bg-rose-950/40 text-rose-400 border-rose-500/20'
-                            : 'bg-amber-950/40 text-amber-400 border-amber-500/20'
-                        }`}
-                      >
-                        {owner.subscription.status}
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase border ${getStatusBadgeStyle(owner.status)}`}>
+                        {getStatusLabel(owner.status)}
                       </span>
                     </td>
                     <td className="p-4 text-right flex items-center justify-end gap-2">
@@ -355,15 +362,15 @@ export const GymOwnersDirectory: React.FC = () => {
                         <Calendar className="w-3.5 h-3.5" /> Renew
                       </button>
                       <button
-                        onClick={() => toggleStatus(owner._id, owner.subscription.status)}
+                        onClick={() => toggleStatus(owner._id, owner.status)}
                         className={`p-1.5 rounded-lg border transition-colors ${
-                          owner.subscription.status === 'suspended'
+                          owner.status === 'suspended'
                             ? 'text-emerald-400 hover:bg-emerald-500/10 border-emerald-500/30'
                             : 'text-amber-400 hover:bg-amber-500/10 border-amber-500/30'
                         }`}
-                        title={owner.subscription.status === 'suspended' ? 'Activate' : 'Suspend'}
+                        title={owner.status === 'suspended' ? 'Activate' : 'Suspend'}
                       >
-                        {owner.subscription.status === 'suspended' ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
+                        {owner.status === 'suspended' ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
                       </button>
                       <button
                         onClick={() => handleDeleteOwner(owner._id)}
@@ -381,10 +388,10 @@ export const GymOwnersDirectory: React.FC = () => {
         </>
       )}
 
-      {/* Add Gym Owner Modal */}
+      {/* Add Gym Owner Modal (Simplified) */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-lg bg-card border rounded-3xl p-6 shadow-2xl relative my-8">
+          <div className="w-full max-w-md bg-card border rounded-3xl p-6 shadow-2xl relative my-8">
             <button
               onClick={() => setShowAddModal(false)}
               className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
@@ -392,135 +399,112 @@ export const GymOwnersDirectory: React.FC = () => {
               <X className="w-5 h-5" />
             </button>
 
-            <h2 className="text-xl font-bold mb-4">Register Gym Owner Account</h2>
+            <h2 className="text-xl font-bold mb-1">Register Gym Owner</h2>
+            <p className="text-xs text-muted-foreground mb-4">Creates account in Pending Activation state.</p>
 
             <form onSubmit={handleCreateOwner} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={gymName}
-                    onChange={(e) => setGymName(e.target.value)}
-                    placeholder="e.g. Iron Forge Hub"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={ownerName}
-                    onChange={(e) => setOwnerName(e.target.value)}
-                    placeholder="e.g. Amit Patel"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Name</label>
+                <input
+                  type="text"
+                  required
+                  value={gymName}
+                  onChange={(e) => setGymName(e.target.value)}
+                  placeholder="e.g. GymLedger Hub"
+                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="owner@gmail.com"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Password</label>
-                  <input
-                    type="password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  placeholder="e.g. Rajesh Kumar"
+                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. +91 99000 99000"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Address</label>
-                  <input
-                    type="text"
-                    required
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    placeholder="e.g. 5th Main Rd, Sector 6, HSR Layout"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Email</label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="owner@example.com"
+                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Initial Subscription Plan</label>
-                  <select
-                    value={planType}
-                    onChange={(e) => {
-                      const type = e.target.value as any;
-                      setPlanType(type);
-                      setAmountPaid(getPlanPrice(type));
-                    }}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  >
-                    <option value="1_month">1 Month (₹999)</option>
-                    <option value="3_month">3 Month (₹2499)</option>
-                    <option value="6_month">6 Month (₹4499)</option>
-                    <option value="12_month">12 Month (₹7999)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Amount Collected (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    value={amountPaid}
-                    onChange={(e) => setAmountPaid(Number(e.target.value))}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Phone Number (10 Digits)</label>
+                <input
+                  type="tel"
+                  required
+                  pattern="\d{10}"
+                  maxLength={10}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="e.g. 7742111581"
+                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                />
               </div>
 
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2 border hover:bg-muted rounded-xl text-sm font-semibold"
+                  className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-sm font-semibold"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={adding}
-                  className="flex-1 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-semibold"
+                  className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-semibold"
                 >
-                  {adding ? 'Creating...' : 'Register Tenant'}
+                  {adding ? 'Creating...' : 'Create Account'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Activation Link Modal */}
+      {activationLinkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-card border rounded-3xl p-6 shadow-2xl relative text-center">
+            <h3 className="text-lg font-bold mb-2 text-foreground">Gym Owner Registered Successfully!</h3>
+            <p className="text-xs text-muted-foreground mb-4">
+              Copy the activation link below and send it to the gym owner. They will set their password to activate the account.
+            </p>
+            <div className="flex gap-2 mb-6">
+              <input
+                type="text"
+                readOnly
+                value={activationLinkModal}
+                className="flex-grow px-3 py-2.5 rounded-xl border bg-muted text-xs focus:outline-none select-all"
+              />
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(activationLinkModal);
+                  showToast('Link copied to clipboard!', 'success');
+                }}
+                className="px-4 py-2 bg-primary text-primary-foreground font-semibold rounded-xl text-xs hover:bg-primary/90 transition-colors flex items-center gap-1"
+              >
+                <Copy className="w-3.5 h-3.5" /> Copy
+              </button>
+            </div>
+            <button
+              onClick={() => setActivationLinkModal(null)}
+              className="px-6 py-2.5 bg-muted hover:bg-muted/80 border rounded-xl font-semibold text-xs transition-colors w-full"
+            >
+              Close Window
+            </button>
           </div>
         </div>
       )}
@@ -587,7 +571,6 @@ export const GymOwnersDirectory: React.FC = () => {
                 <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Address</label>
                 <input
                   type="text"
-                  required
                   value={editAddress}
                   onChange={(e) => setEditAddress(e.target.value)}
                   className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
@@ -637,16 +620,25 @@ export const GymOwnersDirectory: React.FC = () => {
                 <select
                   value={renewPlanType}
                   onChange={(e) => {
-                    const type = e.target.value as any;
-                    setRenewPlanType(type);
-                    setRenewAmountPaid(getPlanPrice(type));
+                    const planName = e.target.value;
+                    setRenewPlanType(planName);
+                    const selected = platformPlans.find(p => p.name === planName);
+                    if (selected) setRenewAmountPaid(selected.price);
                   }}
                   className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
                 >
-                  <option value="1_month">1 Month (₹999)</option>
-                  <option value="3_month">3 Month (₹2499)</option>
-                  <option value="6_month">6 Month (₹4499)</option>
-                  <option value="12_month">12 Month (₹7999)</option>
+                  {platformPlans.length > 0 ? (
+                    platformPlans.map((p) => (
+                      <option key={p._id} value={p.name}>{p.name} (₹{p.price})</option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Monthly">Monthly (₹179)</option>
+                      <option value="Quarterly">Quarterly (₹449)</option>
+                      <option value="Half-Yearly">Half-Yearly (₹699)</option>
+                      <option value="Yearly">Yearly (₹1299)</option>
+                    </>
+                  )}
                 </select>
               </div>
 

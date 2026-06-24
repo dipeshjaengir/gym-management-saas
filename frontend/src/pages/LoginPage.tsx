@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
-import { Dumbbell, Eye, EyeOff, Lock, Mail, PhoneCall } from 'lucide-react';
+import { Eye, EyeOff, Lock, Mail, PhoneCall } from 'lucide-react';
+import { Logo } from '../components/Logo';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -48,7 +49,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col justify-center items-center p-4 relative overflow-hidden bg-[radial-gradient(ellipse_at_bottom,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent">
+    <div className="min-h-screen bg-[#0B1220] flex flex-col justify-center items-center p-4 relative overflow-hidden">
       {/* Back to Home Link */}
       <div className="absolute top-6 left-6">
         <button
@@ -59,12 +60,10 @@ export const LoginPage: React.FC = () => {
         </button>
       </div>
 
-      <div className="w-full max-w-md glass p-8 rounded-3xl shadow-2xl relative border border-border">
+      <div className="w-full max-w-md bg-[#111827] p-8 rounded-3xl shadow-2xl relative border border-slate-800">
         <div className="flex flex-col items-center mb-8">
-          <div className="p-3 bg-gradient-to-tr from-primary to-secondary rounded-2xl text-white mb-3 shadow-md">
-            <Dumbbell className="w-6 h-6" />
-          </div>
-          <h2 className="font-extrabold text-2xl tracking-tight">Access Your Console</h2>
+          <Logo size={56} className="mb-3" />
+          <h2 className="font-extrabold text-2xl tracking-tight text-white">Access Your Console</h2>
           <p className="text-xs text-muted-foreground mt-1">India's leading Gym SaaS Platform</p>
         </div>
 
@@ -90,9 +89,9 @@ export const LoginPage: React.FC = () => {
         ) : (
           <form onSubmit={handleLogin} className="space-y-5">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
+              <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Email Address</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
                   <Mail className="w-4 h-4" />
                 </div>
                 <input
@@ -101,15 +100,15 @@ export const LoginPage: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@gym.com"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border bg-background/50 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-800 bg-[#0B1220] text-white text-sm focus:border-primary focus:outline-none transition-colors"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Password</label>
+              <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Password</label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -118,12 +117,12 @@ export const LoginPage: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border bg-background/50 text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-slate-800 bg-[#0B1220] text-white text-sm focus:border-primary focus:outline-none transition-colors"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -133,7 +132,7 @@ export const LoginPage: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full mt-2 py-3 rounded-xl font-semibold bg-gradient-to-r from-primary to-secondary text-white hover:opacity-95 transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-primary/20"
+              className="w-full mt-2 py-3 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-all flex items-center justify-center gap-2 text-sm shadow-md shadow-primary/20"
             >
               {loading ? 'Authenticating...' : 'Sign In'}
             </button>

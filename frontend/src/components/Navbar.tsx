@@ -1,7 +1,8 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { Sun, Moon, LogOut, User as UserIcon, Dumbbell } from 'lucide-react';
+import { Sun, Moon, LogOut, User as UserIcon } from 'lucide-react';
+import { Logo } from './Logo';
 
 interface NavbarProps {
   onMenuToggle: () => void;
@@ -48,9 +49,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuToggle }) => {
           {logoUrl ? (
             <img src={logoUrl} alt="Gym Logo" className="w-9 h-9 rounded-full object-cover border border-primary/20" />
           ) : (
-            <div className="p-2 bg-gradient-to-tr from-primary to-secondary rounded-xl text-white">
-              <Dumbbell className="w-5 h-5" />
-            </div>
+            <Logo size={36} />
           )}
           <span className="font-bold text-lg tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-foreground via-foreground to-muted-foreground">
             {displayName}

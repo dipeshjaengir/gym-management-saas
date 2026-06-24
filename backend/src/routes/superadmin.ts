@@ -1,9 +1,23 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import { GymOwner, PlatformLead, AuditLog, Member } from '../models';
+import crypto from 'crypto';
+import { GymOwner, PlatformLead, AuditLog, Member, PlatformPlan, Coupon } from '../models';
 import { authenticateToken, authorizeRoles, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
-import { validateBody, createLeadSchema, createGymOwnerSchema, updateLeadSchema, updateGymOwnerSchema, updateGymOwnerStatusSchema, renewGymOwnerSubscriptionSchema } from '../middleware/validation';
+import {
+  validateBody,
+  createLeadSchema,
+  createGymOwnerSchema,
+  updateLeadSchema,
+  updateGymOwnerSchema,
+  updateGymOwnerStatusSchema,
+  renewGymOwnerSubscriptionSchema,
+  createGymOwnerByAdminSchema,
+  createPlatformPlanSchema,
+  updatePlatformPlanSchema,
+  createCouponSchema,
+  updateCouponSchema
+} from '../middleware/validation';
 
 const router = Router();
 
@@ -151,13 +165,9 @@ router.get('/owners', async (req, res) => {
   }
 });
 
-// POST Create Gym Owner
-router.post('/owners', validateBody(createGymOwnerSchema), async (req: AuthenticatedRequest, res) => {
-  const { gymName, ownerName, email, password, phone, address, planType, amountPaid } = req.body;
-
-  if (!gymName || !ownerName || !email || !password || !phone || !address || !planType || amountPaid === undefined) {
-    return res.status(400).json({ message: 'All registration parameters are required.' });
-  }
+// POST Create Gym Owner (Activation Token Flow)
+router.post('/owners', validateBody(createGymOwnerByAdminSchema), async (req: AuthenticatedRequest, res) => {
+  const { gymName, ownerName, email, phone } = req.body;
 
   try {
     const existing = await GymOwner.findOne({ email, isDeleted: false });
@@ -165,48 +175,49 @@ router.post('/owners', validateBody(createGymOwnerSchema), async (req: Authentic
       return res.status(400).json({ message: 'A gym owner with this email is already registered.' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    // Calculate Expiry Date
-    const startDate = new Date();
-    const expiryDate = new Date();
-    let months = 1;
-    if (planType === '3_month') months = 3;
-    if (planType === '6_month') months = 6;
-    if (planType === '12_month') months = 12;
-    expiryDate.setMonth(expiryDate.getMonth() + months);
+    const activationToken = crypto.randomBytes(32).toString('hex');
+    const activationTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
     const owner = await GymOwner.create({
       gymName,
       ownerName,
       email,
-      passwordHash,
       phone,
-      address,
+      passwordHash: '', // pending activation
+      status: 'pending_activation',
+      activationToken,
+      activationTokenExpiry,
+      address: '',
       branding: {
         gymName,
-        address,
+        address: '',
         contactNumber: phone,
         whatsAppNumber: phone
       },
       subscription: {
-        planType,
-        startDate,
-        expiryDate,
+        planType: 'Monthly',
+        startDate: new Date(),
+        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         status: 'active',
-        amountPaid
+        amountPaid: 0
       }
     });
 
-    await logAudit(`Gym Owner Created: ${gymName} (${email})`, req.user!.email, req);
+    await logAudit(`Gym Owner Pending Activation Created: ${gymName} (${email})`, req.user!.email, req);
 
     return res.status(201).json({
-      message: 'Gym Owner account manually registered successfully.',
-      owner: { id: owner._id, gymName: owner.gymName, email: owner.email }
+      message: 'Gym Owner account created in Pending Activation state.',
+      owner: {
+        id: owner._id,
+        gymName: owner.gymName,
+        email: owner.email,
+        status: owner.status,
+        activationToken
+      }
     });
   } catch (err) {
     console.error('Error creating owner:', err);
-    return res.status(500).json({ message: 'Internal server error during registration.' });
+    return res.status(500).json({ message: 'Internal server error during owner creation.' });
   }
 });
 
@@ -236,7 +247,7 @@ router.put('/owners/:id', validateBody(updateGymOwnerSchema), async (req: Authen
 // PUT Suspend / Activate Gym Owner
 router.put('/owners/:id/status', validateBody(updateGymOwnerStatusSchema), async (req: AuthenticatedRequest, res) => {
   const { status } = req.body;
-  if (!['active', 'suspended'].includes(status)) {
+  if (!['active', 'suspended', 'pending_activation'].includes(status)) {
     return res.status(400).json({ message: 'Invalid target status.' });
   }
 
@@ -244,14 +255,19 @@ router.put('/owners/:id/status', validateBody(updateGymOwnerStatusSchema), async
     const owner = await GymOwner.findOne({ _id: req.params.id, isDeleted: false });
     if (!owner) return res.status(404).json({ message: 'Gym Owner not found.' });
 
-    owner.subscription.status = status;
+    owner.status = status as any;
+    if (status === 'suspended') {
+      owner.subscription.status = 'suspended';
+    } else if (status === 'active') {
+      owner.subscription.status = 'active';
+    }
     await owner.save();
 
-    await logAudit(`Subscription status of ${owner.gymName} updated to: ${status.toUpperCase()}`, req.user!.email, req);
+    await logAudit(`Account status of ${owner.gymName} updated to: ${status.toUpperCase()}`, req.user!.email, req);
 
     return res.json({ message: `Gym Owner status successfully updated to ${status}.`, owner });
   } catch (err) {
-    return res.status(500).json({ message: 'Error updating owner subscription status.' });
+    return res.status(500).json({ message: 'Error updating owner status.' });
   }
 });
 
@@ -267,15 +283,21 @@ router.put('/owners/:id/renew', validateBody(renewGymOwnerSubscriptionSchema), a
     if (!owner) return res.status(404).json({ message: 'Gym Owner not found.' });
 
     const now = new Date();
-    // If subscription is still active, extend from current expiry date; otherwise extend from today
     const currentExpiry = new Date(owner.subscription.expiryDate);
     const startDate = currentExpiry > now ? currentExpiry : now;
     const expiryDate = new Date(startDate.getTime());
 
     let months = 1;
-    if (planType === '3_month') months = 3;
-    if (planType === '6_month') months = 6;
-    if (planType === '12_month') months = 12;
+    // Map custom plan duration if possible, otherwise default monthly/quarterly/half-yearly/yearly mapping
+    const plan = await PlatformPlan.findOne({ name: planType, isDeleted: false });
+    if (plan) {
+      months = plan.durationMonths;
+    } else {
+      if (planType.toLowerCase().includes('quarter') || planType === '3_month') months = 3;
+      else if (planType.toLowerCase().includes('half') || planType === '6_month') months = 6;
+      else if (planType.toLowerCase().includes('year') || planType === '12_month') months = 12;
+      else months = 1;
+    }
     expiryDate.setMonth(expiryDate.getMonth() + months);
 
     owner.subscription.planType = planType;
@@ -318,5 +340,148 @@ router.get('/audits', async (req, res) => {
     return res.status(500).json({ message: 'Error fetching global audit logs.' });
   }
 });
+
+// ----------------------------------------------------
+// 5. PLATFORM PLANS CRUD
+// ----------------------------------------------------
+router.get('/plans', async (req, res) => {
+  try {
+    const plans = await PlatformPlan.find({ isDeleted: false }).sort({ price: 1 });
+    return res.json(plans);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error fetching platform plans.' });
+  }
+});
+
+router.post('/plans', validateBody(createPlatformPlanSchema), async (req: AuthenticatedRequest, res) => {
+  try {
+    const plan = await PlatformPlan.create(req.body);
+    await logAudit(`Platform Plan Created: ${plan.name}`, req.user!.email, req);
+    return res.status(201).json(plan);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error creating platform plan.' });
+  }
+});
+
+router.put('/plans/:id', validateBody(updatePlatformPlanSchema), async (req: AuthenticatedRequest, res) => {
+  try {
+    const plan = await PlatformPlan.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!plan) return res.status(404).json({ message: 'Plan not found.' });
+    await logAudit(`Platform Plan Updated: ${plan.name}`, req.user!.email, req);
+    return res.json(plan);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error updating platform plan.' });
+  }
+});
+
+router.delete('/plans/:id', async (req: AuthenticatedRequest, res) => {
+  try {
+    const plan = await PlatformPlan.findByIdAndUpdate(req.params.id, { isDeleted: true });
+    if (!plan) return res.status(404).json({ message: 'Plan not found.' });
+    await logAudit(`Platform Plan Deleted: ${plan.name}`, req.user!.email, req);
+    return res.json({ message: 'Platform plan deleted successfully.' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error deleting platform plan.' });
+  }
+});
+
+// ----------------------------------------------------
+// 6. COUPON CRUD
+// ----------------------------------------------------
+router.get('/coupons', async (req, res) => {
+  try {
+    const coupons = await Coupon.find({ isDeleted: false }).sort({ createdAt: -1 });
+    return res.json(coupons);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error fetching coupons.' });
+  }
+});
+
+router.post('/coupons', validateBody(createCouponSchema), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { code } = req.body;
+    const existing = await Coupon.findOne({ code: code.toUpperCase(), isDeleted: false });
+    if (existing) {
+      return res.status(400).json({ message: 'Coupon code already exists.' });
+    }
+    const coupon = await Coupon.create({
+      ...req.body,
+      code: code.toUpperCase()
+    });
+    await logAudit(`Coupon Created: ${coupon.code}`, req.user!.email, req);
+    return res.status(201).json(coupon);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error creating coupon.' });
+  }
+});
+
+router.put('/coupons/:id', validateBody(updateCouponSchema), async (req: AuthenticatedRequest, res) => {
+  try {
+    if (req.body.code) {
+      req.body.code = req.body.code.toUpperCase();
+    }
+    const coupon = await Coupon.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!coupon) return res.status(404).json({ message: 'Coupon not found.' });
+    await logAudit(`Coupon Updated: ${coupon.code}`, req.user!.email, req);
+    return res.json(coupon);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error updating coupon.' });
+  }
+});
+
+router.delete('/coupons/:id', async (req: AuthenticatedRequest, res) => {
+  try {
+    const coupon = await Coupon.findByIdAndUpdate(req.params.id, { isDeleted: true });
+    if (!coupon) return res.status(404).json({ message: 'Coupon not found.' });
+    await logAudit(`Coupon Deleted: ${coupon.code}`, req.user!.email, req);
+    return res.json({ message: 'Coupon deleted successfully.' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error deleting coupon.' });
+  }
+});
+
+// Seed default platform plans if none exist
+async function seedDefaultPlans() {
+  try {
+    const count = await PlatformPlan.countDocuments({ isDeleted: false });
+    if (count === 0) {
+      const defaults = [
+        { name: 'Monthly', price: 179, durationMonths: 1, description: 'Monthly GymLedger Plan', features: ['Member Management', 'QR Check-ins', 'WhatsApp Reminders'], status: 'active' },
+        { name: 'Quarterly', price: 449, durationMonths: 3, description: 'Quarterly GymLedger Plan', features: ['Member Management', 'QR Check-ins', 'WhatsApp Reminders', 'Revenue Analytics'], status: 'active' },
+        { name: 'Half-Yearly', price: 699, durationMonths: 6, description: 'Half-Yearly GymLedger Plan', features: ['All Quarterly features', 'Multi-Gym Management', 'Premium Support'], status: 'active' },
+        { name: 'Yearly', price: 1299, durationMonths: 12, description: 'Yearly GymLedger Plan', features: ['All features included', 'Priority WhatsApp Support', 'Custom Branding'], status: 'active' }
+      ];
+      await PlatformPlan.insertMany(defaults);
+      console.log('[SEED] Default Platform Plans seeded successfully.');
+    }
+  } catch (err) {
+    console.error('[SEED] Error seeding default plans:', err);
+  }
+}
+
+// Seed default coupons if none exist
+async function seedDefaultCoupons() {
+  try {
+    const count = await Coupon.countDocuments({ isDeleted: false });
+    if (count === 0) {
+      const tomorrow = new Date();
+      tomorrow.setFullYear(tomorrow.getFullYear() + 1); // 1 year expiry
+      const defaults = [
+        { code: 'WELCOME10', discountType: 'percentage', discountValue: 10, expiryDate: tomorrow, usageLimit: 100, isActive: true },
+        { code: 'NEWGYM20', discountType: 'percentage', discountValue: 20, expiryDate: tomorrow, usageLimit: 100, isActive: true },
+        { code: 'SUMMER25', discountType: 'percentage', discountValue: 25, expiryDate: tomorrow, usageLimit: 100, isActive: true },
+        { code: 'FLAT100', discountType: 'flat', discountValue: 100, expiryDate: tomorrow, usageLimit: 100, isActive: true }
+      ];
+      await Coupon.insertMany(defaults);
+      console.log('[SEED] Default Coupons seeded successfully.');
+    }
+  } catch (err) {
+    console.error('[SEED] Error seeding default coupons:', err);
+  }
+}
+
+// Execute seeders on startup
+seedDefaultPlans();
+seedDefaultCoupons();
 
 export default router;

@@ -20,7 +20,9 @@ import {
   ClipboardList,
   UserCheck,
   PlusCircle,
-  FolderPlus
+  FolderPlus,
+  X,
+  PhoneCall
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -70,6 +72,14 @@ export const GymOwnerDashboard: React.FC = () => {
   const { showToast } = useNotification();
   const navigate = useNavigate();
 
+  // Upgrade Modal & Coupons State
+  const [platformPlans, setPlatformPlans] = useState<any[]>([]);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [selectedUpgradePlan, setSelectedUpgradePlan] = useState<any>(null);
+  const [upgradeCoupon, setUpgradeCoupon] = useState('');
+  const [upgradeDiscount, setUpgradeDiscount] = useState<any>(null);
+  const [validatingUpgradeCoupon, setValidatingUpgradeCoupon] = useState(false);
+
   // Trial calculations
   const isTrial = user?.isTrial || false;
   let remainingTrialDays = 0;
@@ -92,6 +102,69 @@ export const GymOwnerDashboard: React.FC = () => {
     }
     loadDashboardData();
   }, [showToast]);
+
+  useEffect(() => {
+    async function fetchPlans() {
+      try {
+        const data = await api.get('/public/plans');
+        setPlatformPlans(data);
+        if (data.length > 0) {
+          setSelectedUpgradePlan(data[0]);
+        }
+      } catch (err) {
+        console.error('Error fetching plans', err);
+      }
+    }
+    if (isTrial) {
+      fetchPlans();
+    }
+  }, [isTrial]);
+
+  const handleUpgradeCouponValidate = async () => {
+    if (!upgradeCoupon.trim()) return;
+    setValidatingUpgradeCoupon(true);
+    try {
+      const res = await api.post('/public/validate-coupon', { code: upgradeCoupon });
+      if (res.valid) {
+        setUpgradeDiscount(res.coupon);
+        showToast(`Coupon applied! ${res.coupon.discountType === 'percentage' ? `${res.coupon.discountValue}% OFF` : `₹${res.coupon.discountValue} OFF`}`, 'success');
+      } else {
+        setUpgradeDiscount(null);
+        showToast(res.message || 'Invalid coupon.', 'error');
+      }
+    } catch (err: any) {
+      setUpgradeDiscount(null);
+      showToast(err.message || 'Invalid coupon.', 'error');
+    } finally {
+      setValidatingUpgradeCoupon(false);
+    }
+  };
+
+  const handleWhatsAppUpgrade = () => {
+    if (!selectedUpgradePlan) return;
+    const gymNameVal = user?.branding?.gymName || user?.gymName || 'My Gym';
+    const ownerNameVal = user?.ownerName || user?.name || 'Gym Owner';
+
+    const finalPrice = upgradeDiscount
+      ? (upgradeDiscount.discountType === 'percentage'
+          ? Math.round(selectedUpgradePlan.price * (1 - upgradeDiscount.discountValue / 100))
+          : Math.max(0, selectedUpgradePlan.price - upgradeDiscount.discountValue))
+      : selectedUpgradePlan.price;
+
+    const couponPart = upgradeDiscount ? `Applied Coupon: ${upgradeCoupon.toUpperCase()} (${upgradeDiscount.discountType === 'percentage' ? `${upgradeDiscount.discountValue}% OFF` : `₹${upgradeDiscount.discountValue} OFF`})` : 'Applied Coupon: None';
+
+    const text = encodeURIComponent(
+      `Hello GymLedger Team, I want to upgrade my trial workspace to premium.
+- Gym Name: ${gymNameVal}
+- Owner Name: ${ownerNameVal}
+- Selected Plan: ${selectedUpgradePlan.name} (₹${selectedUpgradePlan.price})
+- ${couponPart}
+- Total Price: ₹${finalPrice}`
+    );
+
+    window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
+    setShowUpgradeModal(false);
+  };
 
   if (loading) {
     return (
@@ -133,10 +206,7 @@ export const GymOwnerDashboard: React.FC = () => {
             </div>
           </div>
           <button
-            onClick={() => {
-              const text = encodeURIComponent(`Hello GymLedger Team, I want to upgrade my GymLedger Trial Workspace "${user?.gymName || ''}" (${user?.email || ''}) to a Premium Subscription.`);
-              window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
-            }}
+            onClick={() => setShowUpgradeModal(true)}
             className="px-4 py-2.5 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-all whitespace-nowrap active:scale-[0.98]"
           >
             Upgrade Plan Now
@@ -499,6 +569,128 @@ export const GymOwnerDashboard: React.FC = () => {
         <UserCheck className="w-4 h-4 flex-shrink-0" />
         <span>Record Attendance</span>
       </button>
+
+      {/* Upgrade Subscription Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-md w-full relative">
+            <button
+              onClick={() => {
+                setShowUpgradeModal(false);
+                setUpgradeCoupon('');
+                setUpgradeDiscount(null);
+              }}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-white transition-all hover:bg-muted p-1 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-6">
+              <div className="text-center space-y-1">
+                <h3 className="text-xl font-bold text-white">Upgrade to Premium Plan</h3>
+                <p className="text-xs text-muted-foreground">
+                  Upgrade your gym workspace and unlock full management tools.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Select Subscription Plan</label>
+                  <select
+                    value={selectedUpgradePlan?.name || ''}
+                    onChange={(e) => {
+                      const selected = platformPlans.find(p => p.name === e.target.value);
+                      if (selected) setSelectedUpgradePlan(selected);
+                    }}
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-white text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  >
+                    {platformPlans.length > 0 ? (
+                      platformPlans.map((p) => (
+                        <option key={p._id} value={p.name}>{p.name} (₹{p.price})</option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="Monthly">Monthly (₹179)</option>
+                        <option value="Quarterly">Quarterly (₹449)</option>
+                        <option value="Half-Yearly">Half-Yearly (₹699)</option>
+                        <option value="Yearly">Yearly (₹1299)</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 uppercase mb-1">Coupon Code</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={upgradeCoupon}
+                      onChange={(e) => setUpgradeCoupon(e.target.value.toUpperCase())}
+                      placeholder="e.g. SUMMER25"
+                      className="flex-grow px-4 py-2.5 rounded-xl border border-muted bg-background text-white text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleUpgradeCouponValidate}
+                      disabled={validatingUpgradeCoupon}
+                      className="px-4 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:bg-primary/90"
+                    >
+                      {validatingUpgradeCoupon ? '...' : 'Apply'}
+                    </button>
+                  </div>
+                  {upgradeDiscount && (
+                    <p className="text-xs text-emerald-400 font-bold mt-1.5">
+                      ✓ Coupon Applied! Discount: {upgradeDiscount.discountType === 'percentage' ? `${upgradeDiscount.discountValue}% OFF` : `₹${upgradeDiscount.discountValue} OFF`}
+                    </p>
+                  )}
+                </div>
+
+                {selectedUpgradePlan && (
+                  <div className="border-t border-muted/30 pt-4 space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Plan Price</span>
+                      <span>₹{selectedUpgradePlan.price}</span>
+                    </div>
+                    {upgradeDiscount && (
+                      <div className="flex justify-between text-xs text-emerald-400">
+                        <span>Discount</span>
+                        <span>
+                          -₹
+                          {upgradeDiscount.discountType === 'percentage'
+                            ? Math.round(selectedUpgradePlan.price * (upgradeDiscount.discountValue / 100))
+                            : upgradeDiscount.discountValue}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between font-bold text-sm text-white border-t border-muted/20 pt-2">
+                      <span>Total Amount</span>
+                      <span>
+                        ₹
+                        {upgradeDiscount
+                          ? Math.max(
+                              0,
+                              selectedUpgradePlan.price -
+                                (upgradeDiscount.discountType === 'percentage'
+                                  ? Math.round(selectedUpgradePlan.price * (upgradeDiscount.discountValue / 100))
+                                  : upgradeDiscount.discountValue)
+                            )
+                          : selectedUpgradePlan.price}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={handleWhatsAppUpgrade}
+                  className="w-full mt-2 py-3 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/95 text-xs text-center transition-all flex items-center justify-center gap-2"
+                >
+                  Confirm & Buy via WhatsApp <PhoneCall className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

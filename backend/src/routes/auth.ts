@@ -49,14 +49,21 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
         return res.status(400).json({ message: 'Invalid credentials.' });
       }
 
-      // Check subscription blockers
+      // Check status & subscription blockers
+      if (gymOwner.status === 'pending_activation') {
+        return res.status(403).json({
+          message: 'Your account is pending activation. Please use the activation link to set a password and activate your account.',
+          status: 'pending_activation'
+        });
+      }
+
       const now = new Date();
       if (new Date(gymOwner.subscription.expiryDate) < now && gymOwner.subscription.status === 'active') {
         gymOwner.subscription.status = 'expired';
         await gymOwner.save();
       }
 
-      if (gymOwner.subscription.status === 'suspended') {
+      if (gymOwner.status === 'suspended' || gymOwner.subscription.status === 'suspended') {
         return res.status(403).json({
           message: 'Your account is suspended. Please contact the platform Super Admin on WhatsApp.',
           status: 'suspended',

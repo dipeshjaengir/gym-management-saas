@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { PlatformLead, GymOwner, AuditLog } from '../models';
+import { PlatformLead, GymOwner, AuditLog, Coupon } from '../models';
 import { validateBody, freeTrialSchema } from '../middleware/validation';
 
 const router = Router();
@@ -65,7 +65,7 @@ router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
     const expiryDate = new Date();
     expiryDate.setDate(expiryDate.getDate() + 7);
 
-    // D. Create Gym Owner
+    // D. Create Gym Owner (Active status immediately for trial signup)
     const owner = await GymOwner.create({
       gymName,
       ownerName,
@@ -74,6 +74,7 @@ router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
       phone,
       address: '',
       role: 'gym_owner',
+      status: 'active',
       isTrial: true,
       branding: {
         gymName,
@@ -101,7 +102,7 @@ router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
 
     // F. Generate JWT Token for Auto-Login
     const token = jwt.sign(
-      { id: owner._id, email: owner.email, role: 'gym_owner' },
+      { id: owner._id, email: owner.email, role: 'gym_owner', gymName: owner.gymName },
       JWT_SECRET,
       { expiresIn: '24h' }
     );
@@ -125,6 +126,146 @@ router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
   } catch (err) {
     console.error('Free trial setup error:', err);
     return res.status(500).json({ message: 'Error setting up free trial account.' });
+  }
+});
+
+// 4. GET Retrieve Gym Owner for Activation Check
+router.get('/activate-account/:token', async (req, res) => {
+  const { token } = req.params;
+
+  try {
+    const owner = await GymOwner.findOne({
+      activationToken: token,
+      activationTokenExpiry: { $gt: new Date() },
+      isDeleted: false
+    });
+
+    if (!owner) {
+      return res.status(400).json({ valid: false, message: 'Invalid or expired activation link.' });
+    }
+
+    return res.json({
+      valid: true,
+      owner: {
+        id: owner._id,
+        gymName: owner.gymName,
+        ownerName: owner.ownerName,
+        email: owner.email
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error validating activation token.' });
+  }
+});
+
+// 5. POST Activate Gym Owner (sets password and changes status to active)
+router.post('/activate-account/:token', async (req, res) => {
+  const { token } = req.params;
+  const { password, confirmPassword } = req.body;
+
+  if (!password || !confirmPassword) {
+    return res.status(400).json({ message: 'Password and password confirmation are required.' });
+  }
+
+  if (password !== confirmPassword) {
+    return res.status(400).json({ message: 'Passwords do not match.' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+  }
+
+  try {
+    const owner = await GymOwner.findOne({
+      activationToken: token,
+      activationTokenExpiry: { $gt: new Date() },
+      isDeleted: false
+    });
+
+    if (!owner) {
+      return res.status(400).json({ message: 'Invalid or expired activation link.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    owner.passwordHash = passwordHash;
+    owner.status = 'active';
+    owner.activationToken = null;
+    owner.activationTokenExpiry = null;
+    await owner.save();
+
+    await AuditLog.create({
+      action: `Account Activated: ${owner.gymName} (${owner.email})`,
+      user: `${owner.email} (Self Activation)`,
+      ipAddress: req.ip || '127.0.0.1',
+      timestamp: new Date()
+    });
+
+    // Generate JWT Token for Auto-Login
+    const loginToken = jwt.sign(
+      { id: owner._id, email: owner.email, role: 'gym_owner', gymName: owner.gymName },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    return res.json({
+      message: 'Account activated successfully!',
+      token: loginToken,
+      email: owner.email,
+      user: {
+        id: owner._id,
+        name: owner.ownerName,
+        ownerName: owner.ownerName,
+        gymName: owner.gymName,
+        email: owner.email,
+        role: owner.role,
+        subscription: owner.subscription,
+        branding: owner.branding
+      }
+    });
+  } catch (err) {
+    console.error('Account activation error:', err);
+    return res.status(500).json({ message: 'Error during account activation.' });
+  }
+});
+
+// 6. POST Validate Discount Coupon
+router.post('/validate-coupon', async (req, res) => {
+  const { code } = req.body;
+
+  if (!code) {
+    return res.status(400).json({ valid: false, message: 'Coupon code is required.' });
+  }
+
+  try {
+    const coupon = await Coupon.findOne({
+      code: code.toUpperCase(),
+      isDeleted: false,
+      isActive: true
+    });
+
+    if (!coupon) {
+      return res.status(404).json({ valid: false, message: 'Invalid coupon code.' });
+    }
+
+    const now = new Date();
+    if (new Date(coupon.expiryDate) < now) {
+      return res.status(400).json({ valid: false, message: 'Coupon has expired.' });
+    }
+
+    if (coupon.usageLimit > 0 && coupon.timesUsed >= coupon.usageLimit) {
+      return res.status(400).json({ valid: false, message: 'Coupon usage limit reached.' });
+    }
+
+    return res.json({
+      valid: true,
+      coupon: {
+        code: coupon.code,
+        discountType: coupon.discountType,
+        discountValue: coupon.discountValue
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error validating coupon.' });
   }
 });
 

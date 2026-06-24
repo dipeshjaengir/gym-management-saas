@@ -64,6 +64,14 @@ export const LandingPage: React.FC = () => {
   // Sticky CTA State
   const [showStickyCta, setShowStickyCta] = useState(false);
 
+  // Checkout Modal State
+  const [selectedCheckoutPlan, setSelectedCheckoutPlan] = useState<PricingPlan | null>(null);
+  const [checkoutGymName, setCheckoutGymName] = useState('');
+  const [checkoutOwnerName, setCheckoutOwnerName] = useState('');
+  const [checkoutCoupon, setCheckoutCoupon] = useState('');
+  const [discountApplied, setDiscountApplied] = useState<any>(null);
+  const [validatingCoupon, setValidatingCoupon] = useState(false);
+
   useEffect(() => {
     // 1. Fetch pricing plans
     async function fetchPlans() {
@@ -211,9 +219,59 @@ export const LandingPage: React.FC = () => {
   };
 
   const handleBuyPlan = (plan: PricingPlan) => {
-    const planLabel = `${plan.durationMonths} Month Plan`;
-    const text = encodeURIComponent(`Hello GymLedger Team, I want to purchase the ${planLabel}.`);
+    setSelectedCheckoutPlan(plan);
+  };
+
+  const handleValidateCoupon = async () => {
+    if (!checkoutCoupon.trim()) return;
+    setValidatingCoupon(true);
+    try {
+      const res = await api.post('/public/validate-coupon', { code: checkoutCoupon });
+      if (res.valid) {
+        setDiscountApplied(res.coupon);
+        showToast(`Coupon applied! ${res.coupon.discountType === 'percentage' ? `${res.coupon.discountValue}% OFF` : `₹${res.coupon.discountValue} OFF`}`, 'success');
+      } else {
+        setDiscountApplied(null);
+        showToast(res.message || 'Invalid coupon.', 'error');
+      }
+    } catch (err: any) {
+      setDiscountApplied(null);
+      showToast(err.message || 'Invalid coupon.', 'error');
+    } finally {
+      setValidatingCoupon(false);
+    }
+  };
+
+  const handleWhatsAppCheckout = () => {
+    if (!checkoutGymName.trim() || !checkoutOwnerName.trim()) {
+      showToast('Gym Name and Owner Name are required.', 'error');
+      return;
+    }
+    if (!selectedCheckoutPlan) return;
+
+    const finalPrice = discountApplied 
+      ? (discountApplied.discountType === 'percentage' 
+          ? Math.round(selectedCheckoutPlan.price * (1 - discountApplied.discountValue / 100))
+          : Math.max(0, selectedCheckoutPlan.price - discountApplied.discountValue))
+      : selectedCheckoutPlan.price;
+
+    const couponPart = discountApplied ? `Applied Coupon: ${checkoutCoupon.toUpperCase()} (${discountApplied.discountType === 'percentage' ? `${discountApplied.discountValue}% OFF` : `₹${discountApplied.discountValue} OFF`})` : 'Applied Coupon: None';
+
+    const text = encodeURIComponent(
+      `Hello GymLedger Team, I want to purchase a platform subscription plan.
+- Gym Name: ${checkoutGymName}
+- Owner Name: ${checkoutOwnerName}
+- Selected Plan: ${selectedCheckoutPlan.name} (₹${selectedCheckoutPlan.price})
+- ${couponPart}
+- Total Price: ₹${finalPrice}`
+    );
+
     window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
+    setSelectedCheckoutPlan(null);
+    setCheckoutGymName('');
+    setCheckoutOwnerName('');
+    setCheckoutCoupon('');
+    setDiscountApplied(null);
   };
 
   return (
@@ -1004,6 +1062,127 @@ export const LandingPage: React.FC = () => {
                   {submittingTrial ? 'Configuring Portal...' : 'Start Trial Now'} <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* E. Checkout Modal */}
+      {selectedCheckoutPlan && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-md w-full relative">
+            <button
+              onClick={() => {
+                setSelectedCheckoutPlan(null);
+                setCheckoutGymName('');
+                setCheckoutOwnerName('');
+                setCheckoutCoupon('');
+                setDiscountApplied(null);
+              }}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-white transition-all hover:bg-muted p-1 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-6">
+              <div className="text-center space-y-1">
+                <h3 className="text-xl font-bold text-white">Purchase Plan via WhatsApp</h3>
+                <p className="text-xs text-muted-foreground">
+                  Complete setup details to generate your purchase link.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={checkoutGymName}
+                    onChange={(e) => setCheckoutGymName(e.target.value)}
+                    placeholder="e.g. Iron Forge Gym"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-white text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={checkoutOwnerName}
+                    onChange={(e) => setCheckoutOwnerName(e.target.value)}
+                    placeholder="e.g. Rahul Sharma"
+                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-white text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Applied Coupon</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={checkoutCoupon}
+                      onChange={(e) => setCheckoutCoupon(e.target.value.toUpperCase())}
+                      placeholder="e.g. WELCOME10"
+                      className="flex-grow px-4 py-2.5 rounded-xl border border-muted bg-background text-white text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleValidateCoupon}
+                      disabled={validatingCoupon}
+                      className="px-4 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:bg-primary/90"
+                    >
+                      {validatingCoupon ? '...' : 'Apply'}
+                    </button>
+                  </div>
+                  {discountApplied && (
+                    <p className="text-xs text-emerald-400 font-bold mt-1.5">
+                      ✓ Coupon Applied! Discount: {discountApplied.discountType === 'percentage' ? `${discountApplied.discountValue}% OFF` : `₹${discountApplied.discountValue} OFF`}
+                    </p>
+                  )}
+                </div>
+
+                <div className="border-t border-muted/30 pt-4 space-y-2">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Plan Price</span>
+                    <span>₹{selectedCheckoutPlan.price}</span>
+                  </div>
+                  {discountApplied && (
+                    <div className="flex justify-between text-xs text-emerald-400">
+                      <span>Discount</span>
+                      <span>
+                        -₹
+                        {discountApplied.discountType === 'percentage'
+                          ? Math.round(selectedCheckoutPlan.price * (discountApplied.discountValue / 100))
+                          : discountApplied.discountValue}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between font-bold text-sm text-white border-t border-muted/20 pt-2">
+                    <span>Total Amount</span>
+                    <span>
+                      ₹
+                      {discountApplied
+                        ? Math.max(
+                            0,
+                            selectedCheckoutPlan.price -
+                              (discountApplied.discountType === 'percentage'
+                                ? Math.round(selectedCheckoutPlan.price * (discountApplied.discountValue / 100))
+                                : discountApplied.discountValue)
+                          )
+                        : selectedCheckoutPlan.price}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleWhatsAppCheckout}
+                  className="w-full mt-2 py-3 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/95 text-xs text-center transition-all flex items-center justify-center gap-2"
+                >
+                  Confirm & Buy via WhatsApp <PhoneCall className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>
