@@ -107,7 +107,7 @@ export const LeadManagement: React.FC = () => {
 
   const handleWhatsAppContact = (lead: Lead) => {
     const formattedPhone = lead.phone.replace(/[^0-9]/g, '');
-    const text = encodeURIComponent(`Hello ${lead.name}, this is IronForge SaaS Admin. Let's discuss your interest in the ${lead.interestedPlan} plan for your gym!`);
+    const text = encodeURIComponent(`Hello ${lead.name}, this is GymLedger SaaS Admin. Let's discuss your interest in the ${lead.interestedPlan} plan for your gym!`);
     window.open(`https://wa.me/${formattedPhone}?text=${text}`, '_blank');
   };
 

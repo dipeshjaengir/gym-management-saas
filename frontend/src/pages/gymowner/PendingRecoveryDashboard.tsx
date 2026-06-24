@@ -69,7 +69,7 @@ export const PendingRecoveryDashboard: React.FC = () => {
 
   const handleSendReminder = (member: Member) => {
     const formattedPhone = member.phone.replace(/[^0-9]/g, '');
-    const gymName = user?.branding?.gymName || user?.gymName || 'Iron Forge';
+    const gymName = user?.branding?.gymName || user?.gymName || 'GymLedger';
     const planName = member.planId?.name || 'Gym Membership';
     
     // Construct prefilled message for recovery

@@ -44,7 +44,7 @@ export const LoginPage: React.FC = () => {
 
   const handleContactSuperAdmin = () => {
     const text = encodeURIComponent(`Hello Super Admin, my gym owner account (${email}) is suspended. I would like to resolve the renewal details.`);
-    window.open(`https://wa.me/919999999999?text=${text}`, '_blank');
+    window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
   };
 
   return (

@@ -402,7 +402,7 @@ export const MemberManagement: React.FC = () => {
 
   const handlePrintCard = () => {
     if (detailMember) {
-      const gymName = user?.branding?.gymName || user?.gymName || 'Iron Forge';
+      const gymName = user?.branding?.gymName || user?.gymName || 'GymLedger';
       generateMemberCardPDF(detailMember, gymName);
     }
   };
@@ -752,7 +752,7 @@ export const MemberManagement: React.FC = () => {
                     </select>
                   ) : plans.length === 0 ? (
                     <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
-                      <option className="bg-card text-foreground">No Membership Plans Available</option>
+                      <option className="bg-card text-foreground">No Plans Available</option>
                     </select>
                   ) : (
                     <select
@@ -963,7 +963,7 @@ export const MemberManagement: React.FC = () => {
                     </select>
                   ) : plans.length === 0 ? (
                     <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
-                      <option className="bg-card text-foreground">No Membership Plans Available</option>
+                      <option className="bg-card text-foreground">No Plans Available</option>
                     </select>
                   ) : (
                     <select
@@ -1085,7 +1085,7 @@ export const MemberManagement: React.FC = () => {
                 </div>
 
                 <div className="w-full border-t border-dashed pt-2.5 text-[10px] text-muted-foreground">
-                  Gym Studio: <span className="font-bold text-foreground">{user?.branding?.gymName || user?.gymName || 'Iron Forge'}</span>
+                  Gym Studio: <span className="font-bold text-foreground">{user?.branding?.gymName || user?.gymName || 'GymLedger'}</span>
                 </div>
               </div>
 

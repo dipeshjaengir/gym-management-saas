@@ -115,7 +115,7 @@ export const GymOwnerDashboard: React.FC = () => {
           <p className="text-xs text-muted-foreground">Monitor member attendance and studio operations.</p>
         </div>
         <div className="hidden sm:block text-xs font-semibold bg-muted px-3 py-1.5 rounded-xl border">
-          🏢 {user?.branding?.gymName || user?.gymName || 'Iron Forge'}
+          🏢 {user?.branding?.gymName || user?.gymName || 'GymLedger'}
         </div>
       </div>
 
@@ -134,8 +134,8 @@ export const GymOwnerDashboard: React.FC = () => {
           </div>
           <button
             onClick={() => {
-              const text = encodeURIComponent(`Hello, I want to upgrade my Gym Management Trial Workspace "${user?.gymName || ''}" (${user?.email || ''}) to a Premium Subscription.`);
-              window.open(`https://wa.me/919999999999?text=${text}`, '_blank');
+              const text = encodeURIComponent(`Hello GymLedger Team, I want to upgrade my GymLedger Trial Workspace "${user?.gymName || ''}" (${user?.email || ''}) to a Premium Subscription.`);
+              window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
             }}
             className="px-4 py-2.5 rounded-xl text-xs font-bold bg-primary hover:bg-primary/90 text-primary-foreground shadow-md transition-all whitespace-nowrap active:scale-[0.98]"
           >
@@ -153,6 +153,34 @@ export const GymOwnerDashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Core KPI Metrics Overview */}
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase block">Total Members</span>
+          <div className="text-xl font-extrabold text-foreground">{stats.metrics.totalMembers}</div>
+        </div>
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-emerald-500/10">
+          <span className="text-[10px] font-bold text-emerald-400 uppercase block">Active Members</span>
+          <div className="text-xl font-extrabold text-emerald-400">{stats.metrics.activeMembers}</div>
+        </div>
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-rose-500/10">
+          <span className="text-[10px] font-bold text-rose-400 uppercase block">Expired Members</span>
+          <div className="text-xl font-extrabold text-rose-400">{stats.metrics.expiredMembers}</div>
+        </div>
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-blue-500/10">
+          <span className="text-[10px] font-bold text-secondary uppercase block">Today's Attendance</span>
+          <div className="text-xl font-extrabold text-secondary">{stats.attendanceOverview.todayAttendance}</div>
+        </div>
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-emerald-500/10">
+          <span className="text-[10px] font-bold text-emerald-400 uppercase block">Today's Revenue</span>
+          <div className="text-xl font-extrabold text-emerald-400">₹{stats.paymentOverview.todayCollection}</div>
+        </div>
+        <div className="p-4 rounded-2xl bg-card border space-y-1 shadow-sm border-amber-500/10">
+          <span className="text-[10px] font-bold text-amber-400 uppercase block">Pending Dues</span>
+          <div className="text-xl font-extrabold text-amber-400">₹{stats.paymentOverview.membershipDue}</div>
+        </div>
+      </div>
 
       {/* Quick Action shortcuts */}
       <div className="p-5 rounded-2xl bg-card border space-y-3.5 shadow-sm">

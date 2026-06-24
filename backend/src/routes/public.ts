@@ -48,7 +48,7 @@ router.post('/leads', async (req, res) => {
 
 // 3. POST Free Trial Onboarding (generates trial account)
 router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
-  const { gymName, ownerName, email, phone, city, password } = req.body;
+  const { gymName, ownerName, email, phone, password } = req.body;
 
   try {
     // A. Check for existing owner
@@ -72,12 +72,12 @@ router.post('/free-trial', validateBody(freeTrialSchema), async (req, res) => {
       email,
       passwordHash,
       phone,
-      address: city,
+      address: '',
       role: 'gym_owner',
       isTrial: true,
       branding: {
         gymName,
-        address: city,
+        address: '',
         contactNumber: phone,
         whatsAppNumber: phone,
         logo: ''

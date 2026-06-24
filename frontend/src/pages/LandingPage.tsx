@@ -46,7 +46,6 @@ export const LandingPage: React.FC = () => {
   const [trialOwnerName, setTrialOwnerName] = useState('');
   const [trialPhone, setTrialPhone] = useState('');
   const [trialEmail, setTrialEmail] = useState('');
-  const [trialCity, setTrialCity] = useState('');
   const [trialPassword, setTrialPassword] = useState('');
   const [trialConfirmPassword, setTrialConfirmPassword] = useState('');
   const [submittingTrial, setSubmittingTrial] = useState(false);
@@ -124,8 +123,8 @@ export const LandingPage: React.FC = () => {
       // Open WhatsApp chat
       const planObj = plans.find(p => p.id === demoPlan);
       const planName = planObj ? planObj.name : 'Gym Management SaaS';
-      const text = encodeURIComponent(`Hello, I want to book a live demo for IronForge Gym SaaS. My Gym is located in ${demoCity}.`);
-      window.open(`https://wa.me/919999999999?text=${text}`, '_blank');
+      const text = encodeURIComponent(`Hello, I want to book a live demo for GymLedger Gym SaaS. My Gym is located in ${demoCity}.`);
+      window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
       
       setDemoName('');
       setDemoPhone('');
@@ -139,7 +138,7 @@ export const LandingPage: React.FC = () => {
 
   const handleTrialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!trialGymName || !trialOwnerName || !trialPhone || !trialEmail || !trialCity || !trialPassword || !trialConfirmPassword) {
+    if (!trialGymName || !trialOwnerName || !trialPhone || !trialEmail || !trialPassword || !trialConfirmPassword) {
       showToast('Please fill out all required fields.', 'error');
       return;
     }
@@ -171,7 +170,6 @@ export const LandingPage: React.FC = () => {
         ownerName: trialOwnerName,
         phone: trialPhone,
         email: trialEmail,
-        city: trialCity,
         password: trialPassword,
         confirmPassword: trialConfirmPassword
       });
@@ -186,7 +184,6 @@ export const LandingPage: React.FC = () => {
       setTrialOwnerName('');
       setTrialPhone('');
       setTrialEmail('');
-      setTrialCity('');
       setTrialPassword('');
       setTrialConfirmPassword('');
     } catch (err: any) {
@@ -200,7 +197,7 @@ export const LandingPage: React.FC = () => {
     try {
       showToast('Logging in to Demo Dashboard...', 'info');
       const res = await api.post('/auth/login', {
-        email: 'owner@ironforge.com',
+        email: 'owner@gymledger.com',
         password: 'owner123'
       });
       if (res.token && res.user) {
@@ -214,8 +211,9 @@ export const LandingPage: React.FC = () => {
   };
 
   const handleBuyPlan = (plan: PricingPlan) => {
-    const text = encodeURIComponent(`Hello, I want to purchase the ${plan.name} (${plan.durationMonths} Months) subscription plan for IronForge Gym SaaS.`);
-    window.open(`https://wa.me/919999999999?text=${text}`, '_blank');
+    const planLabel = `${plan.durationMonths} Month Plan`;
+    const text = encodeURIComponent(`Hello GymLedger Team, I want to purchase the ${planLabel}.`);
+    window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
   };
 
   return (
@@ -224,11 +222,11 @@ export const LandingPage: React.FC = () => {
       <header className="border-b border-muted/50 bg-background/80 backdrop-blur-md sticky top-0 z-50 transition-all">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="p-2 bg-gradient-to-tr from-primary to-indigo-500 rounded-xl text-white">
+            <div className="p-2 bg-gradient-to-tr from-primary to-secondary rounded-xl text-white">
               <Dumbbell className="w-5 h-5" />
             </div>
             <span className="font-extrabold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-gray-200 to-gray-400">
-              IronForge SaaS
+              GymLedger SaaS
             </span>
           </div>
 
@@ -266,7 +264,7 @@ export const LandingPage: React.FC = () => {
           </div>
           <h1 className="text-4xl sm:text-7xl font-extrabold tracking-tight leading-[1.1] text-white">
             India's Smart Gym <br />
-            <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary via-indigo-400 to-purple-500">
+            <span className="bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
               Management Software
             </span>
           </h1>
@@ -452,7 +450,7 @@ export const LandingPage: React.FC = () => {
           {/* SaaS Management */}
           <div className="p-6 rounded-2xl bg-card border border-primary/20 shadow-sm relative overflow-hidden space-y-4">
             <h3 className="text-lg font-bold text-primary flex items-center gap-2">
-              💪 IronForge Gym SaaS
+              💪 GymLedger Gym SaaS
             </h3>
             <ul className="space-y-3 text-xs text-foreground/90">
               <li className="flex items-start gap-2.5">
@@ -481,7 +479,7 @@ export const LandingPage: React.FC = () => {
         <div className="text-center max-w-3xl mx-auto mb-16">
           <h2 className="text-3xl font-bold tracking-tight text-white">Full-Featured Management Console</h2>
           <p className="mt-4 text-muted-foreground text-sm">
-            IronForge comes equipped with all tools required to streamline collections and satisfy customers.
+            GymLedger comes equipped with all tools required to streamline collections and satisfy customers.
           </p>
         </div>
 
@@ -497,7 +495,7 @@ export const LandingPage: React.FC = () => {
           </div>
 
           <div className="p-6 rounded-2xl bg-card border hover:border-primary/30 transition-all duration-300 space-y-3">
-            <div className="p-3 w-fit bg-indigo-500/10 rounded-xl text-indigo-400">
+            <div className="p-3 w-fit bg-secondary/10 rounded-xl text-secondary">
               <QrCode className="w-6 h-6" />
             </div>
             <h3 className="font-bold text-lg text-white">QR Attendance Scanner</h3>
@@ -527,7 +525,7 @@ export const LandingPage: React.FC = () => {
           </div>
 
           <div className="p-6 rounded-2xl bg-card border hover:border-primary/30 transition-all duration-300 space-y-3">
-            <div className="p-3 w-fit bg-purple-500/10 rounded-xl text-purple-400">
+            <div className="p-3 w-fit bg-accent/10 rounded-xl text-accent">
               <Calendar className="w-6 h-6" />
             </div>
             <h3 className="font-bold text-lg text-white">Workout &amp; Diet Charts</h3>
@@ -688,7 +686,7 @@ export const LandingPage: React.FC = () => {
 
           <div className="p-6 rounded-2xl bg-card border border-muted/50 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center font-bold text-indigo-400">
+              <div className="w-10 h-10 rounded-full bg-secondary/20 flex items-center justify-center font-bold text-secondary">
                 SD
               </div>
               <div>
@@ -817,7 +815,7 @@ export const LandingPage: React.FC = () => {
             <button
               type="submit"
               disabled={submittingDemo}
-              className="w-full mt-4 py-3 rounded-xl font-semibold bg-gradient-to-r from-primary to-indigo-500 text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
+              className="w-full mt-4 py-3 rounded-xl font-semibold bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
             >
               {submittingDemo ? 'Submitting...' : 'Register & Book Demo'} <ArrowRight className="w-4 h-4" />
             </button>
@@ -828,7 +826,7 @@ export const LandingPage: React.FC = () => {
       {/* Footer */}
       <footer className="py-8 border-t border-muted/50 bg-card">
         <div className="max-w-7xl mx-auto px-4 text-center text-xs text-muted-foreground">
-          &copy; {new Date().getFullYear()} IronForge SaaS Gym Management. Built for gym studios across India.
+          &copy; {new Date().getFullYear()} GymLedger SaaS Gym Management. Built for gym studios across India.
         </div>
       </footer>
 
@@ -851,7 +849,7 @@ export const LandingPage: React.FC = () => {
 
       {/* B. Floating WhatsApp Contact Bubble */}
       <a
-        href="https://wa.me/919999999999?text=Hello!+I+am+interested+in+a+live+demo+of+IronForge+Gym+Management+SaaS."
+        href="https://wa.me/917742111581?text=Hello!+I+am+interested+in+a+live+demo+of+GymLedger+Gym+Management+SaaS."
         target="_blank"
         rel="noopener noreferrer"
         className="fixed bottom-6 right-6 p-4 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 z-45 transition-all hover:scale-110 flex items-center justify-center group"
@@ -972,17 +970,7 @@ export const LandingPage: React.FC = () => {
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">City / Location</label>
-                  <input
-                    type="text"
-                    required
-                    value={trialCity}
-                    onChange={(e) => setTrialCity(e.target.value)}
-                    placeholder="e.g. Pune"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
+
 
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Password</label>
@@ -1011,7 +999,7 @@ export const LandingPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={submittingTrial}
-                  className="w-full mt-4 py-3 rounded-xl font-bold bg-gradient-to-r from-primary to-indigo-500 text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
+                  className="w-full mt-4 py-3 rounded-xl font-bold bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
                 >
                   {submittingTrial ? 'Configuring Portal...' : 'Start Trial Now'} <ArrowRight className="w-4 h-4" />
                 </button>

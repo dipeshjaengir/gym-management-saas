@@ -115,10 +115,10 @@ The database includes a seeding script that clears collections and populates the
 ### 2. Default Seeded Credentials
 After seeding completes, you can log in immediately using the following accounts:
 * **Super Admin (Platform Owner)**:
-  * **Email**: `admin@fitsaas.com`
+  * **Email**: `admin@gymledger.com`
   * **Password**: `admin123`
 * **Gym Owner 1 (Marcus Vance - Active Tenant)**:
-  * **Email**: `owner@ironforge.com`
+  * **Email**: `owner@gymledger.com`
   * **Password**: `owner123`
 * **Gym Owner 2 (Diana Prince - Expired/Suspended Tenant)**:
   * **Email**: `owner@titan.com`
@@ -151,12 +151,12 @@ Once the services are deployed, perform the following validation tests:
 - [ ] Navigate to `https://your-backend-url.onrender.com/api/docs` and verify the Swagger UI loads successfully and reads the local API specification.
 
 ### 2. Super Admin Portal Verification
-- [ ] Access the frontend URL and log in using the Super Admin credentials (`admin@fitsaas.com` / `admin123`).
+- [ ] Access the frontend URL and log in using the Super Admin credentials (`admin@gymledger.com` / `admin123`).
 - [ ] Verify that the dashboard metrics (Revenues, Active Subscriptions, CRM leads pipeline) display correctly.
 - [ ] Verify that the Audit Logs page loads chronologically and displays the "Initial Platform Seed Completed" action.
 
 ### 3. Gym Owner Portal & Tenant Isolation Verification
-- [ ] Log out of Super Admin and log in as Gym Owner 1 (`owner@ironforge.com` / `owner123`).
+- [ ] Log out of Super Admin and log in as Gym Owner 1 (`owner@gymledger.com` / `owner123`).
 - [ ] Navigate to Gym Owner dashboard and verify you can view members, active trainers, and outstanding dues.
 - [ ] Log out and log in as Gym Owner 2 (`owner@titan.com` / `owner123`).
 - [ ] Confirm you are blocked from accessing the console by the subscription suspension screen and prompted to contact the Super Admin on WhatsApp.
