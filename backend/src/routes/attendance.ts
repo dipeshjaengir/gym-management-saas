@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { Attendance, Member } from '../models';
+import { Attendance, Member, GymOwner } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { validateBody, checkInSchema } from '../middleware/validation';
 
@@ -35,7 +35,7 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
     // Find member by QR code
     const member = await Member.findOne({ qrCode, gymOwnerId, isDeleted: false });
     if (!member) {
-      return res.status(404).json({ message: 'Access Denied: Invalid member entry pass.' });
+      return res.status(404).json({ message: 'Invalid QR' });
     }
 
     // Verify subscription/membership expiration date
@@ -60,12 +60,12 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
     // Check if attendance already recorded today
     const existing = await Attendance.findOne({ gymOwnerId, memberId: member._id, date: todayStr });
     if (existing) {
-      return res.json({
-        message: `Welcome back, ${member.name}. Check-in already logged today at ${existing.checkInTime}. ${paymentWarning}`,
-        member: { name: member.name, status: 'checked_in' },
-        attendance: existing
-      });
+      return res.status(400).json({ message: 'Already Checked In' });
     }
+
+    const owner = await GymOwner.findById(gymOwnerId);
+    const receptionistName = owner ? owner.ownerName : 'Admin';
+    const deviceInfo = req.headers['user-agent'] || 'Unknown Device';
 
     // Create daily attendance check-in record
     const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
@@ -74,7 +74,11 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
       memberId: member._id,
       date: todayStr,
       checkInTime: timeStr,
-      status: 'present'
+      checkOutTime: '',
+      status: 'present',
+      receptionist: receptionistName,
+      qrScanTime: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      deviceInfo: deviceInfo
     });
 
     return res.status(201).json({
@@ -97,6 +101,34 @@ router.get('/member/:memberId', async (req: AuthenticatedRequest, res: Response)
     return res.json(list);
   } catch (err) {
     return res.status(500).json({ message: 'Error retrieving member check-in history.' });
+  }
+});
+
+// 4. GET all gym attendance history with optional filters (startDate, endDate)
+router.get('/history', async (req: AuthenticatedRequest, res: Response) => {
+  const gymOwnerId = req.user!.id;
+  const { startDate, endDate } = req.query;
+
+  try {
+    let query: any = { gymOwnerId };
+
+    if (startDate || endDate) {
+      query.date = {};
+      if (startDate) {
+        query.date.$gte = String(startDate);
+      }
+      if (endDate) {
+        query.date.$lte = String(endDate);
+      }
+    }
+
+    const list = await Attendance.find(query)
+      .populate({ path: 'memberId', select: 'name phone qrCode gender' })
+      .sort({ createdAt: -1 });
+
+    return res.json(list);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error retrieving attendance history.' });
   }
 });
 

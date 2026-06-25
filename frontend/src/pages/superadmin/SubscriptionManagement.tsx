@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
-import { Plus, Trash2, Edit2, X, Shield, DollarSign, Calendar, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Shield, DollarSign, Calendar, Eye, EyeOff, Copy } from 'lucide-react';
 
 interface PlatformPlan {
   _id: string;
@@ -11,6 +11,11 @@ interface PlatformPlan {
   description: string;
   features: string[];
   status: 'active' | 'inactive';
+  isMostPopular?: boolean;
+  displayOrder?: number;
+  colorBadge?: string;
+  couponCompatible?: boolean;
+  trialDuration?: 'none' | '7' | '14' | '30' | 'lifetime';
 }
 
 export const SubscriptionManagement: React.FC = () => {
@@ -21,24 +26,34 @@ export const SubscriptionManagement: React.FC = () => {
   // Create Modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');
-  const [price, setPrice] = useState<number>(179);
-  const [durationMonths, setDurationMonths] = useState<number>(1);
+  const [price, setPrice] = useState<number | ''>('');
+  const [durationMonths, setDurationMonths] = useState<number | ''>('');
   const [description, setDescription] = useState('');
   const [features, setFeatures] = useState<string[]>([]);
   const [featureInput, setFeatureInput] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [isMostPopular, setIsMostPopular] = useState(false);
+  const [displayOrder, setDisplayOrder] = useState<number | ''>('');
+  const [colorBadge, setColorBadge] = useState('amber');
+  const [couponCompatible, setCouponCompatible] = useState(true);
+  const [trialDuration, setTrialDuration] = useState<'none' | '7' | '14' | '30' | 'lifetime'>('none');
   const [adding, setAdding] = useState(false);
 
   // Edit Modal
   const [selectedPlan, setSelectedPlan] = useState<PlatformPlan | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editName, setEditName] = useState('');
-  const [editPrice, setEditPrice] = useState<number>(179);
-  const [editDurationMonths, setEditDurationMonths] = useState<number>(1);
+  const [editPrice, setEditPrice] = useState<number | ''>('');
+  const [editDurationMonths, setEditDurationMonths] = useState<number | ''>('');
   const [editDescription, setEditDescription] = useState('');
   const [editFeatures, setEditFeatures] = useState<string[]>([]);
   const [editFeatureInput, setEditFeatureInput] = useState('');
   const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
+  const [editIsMostPopular, setEditIsMostPopular] = useState(false);
+  const [editDisplayOrder, setEditDisplayOrder] = useState<number | ''>('');
+  const [editColorBadge, setEditColorBadge] = useState('amber');
+  const [editCouponCompatible, setEditCouponCompatible] = useState(true);
+  const [editTrialDuration, setEditTrialDuration] = useState<'none' | '7' | '14' | '30' | 'lifetime'>('none');
   const [updating, setUpdating] = useState(false);
 
   useEffect(() => {
@@ -96,7 +111,12 @@ export const SubscriptionManagement: React.FC = () => {
         durationMonths,
         description,
         features,
-        status
+        status,
+        isMostPopular,
+        displayOrder: displayOrder === '' ? 0 : Number(displayOrder),
+        colorBadge,
+        couponCompatible,
+        trialDuration
       });
       showToast('Platform plan created successfully.', 'success');
       setShowAddModal(false);
@@ -121,7 +141,12 @@ export const SubscriptionManagement: React.FC = () => {
         durationMonths: editDurationMonths,
         description: editDescription,
         features: editFeatures,
-        status: editStatus
+        status: editStatus,
+        isMostPopular: editIsMostPopular,
+        displayOrder: editDisplayOrder === '' ? 0 : Number(editDisplayOrder),
+        colorBadge: editColorBadge,
+        couponCompatible: editCouponCompatible,
+        trialDuration: editTrialDuration
       });
       showToast('Platform plan updated successfully.', 'success');
       setShowEditModal(false);
@@ -158,12 +183,17 @@ export const SubscriptionManagement: React.FC = () => {
 
   const resetForm = () => {
     setName('');
-    setPrice(179);
-    setDurationMonths(1);
+    setPrice('');
+    setDurationMonths('');
     setDescription('');
     setFeatures([]);
     setFeatureInput('');
     setStatus('active');
+    setIsMostPopular(false);
+    setDisplayOrder('');
+    setColorBadge('amber');
+    setCouponCompatible(true);
+    setTrialDuration('none');
   };
 
   const openEditModal = (plan: PlatformPlan) => {
@@ -175,7 +205,29 @@ export const SubscriptionManagement: React.FC = () => {
     setEditFeatures(plan.features || []);
     setEditFeatureInput('');
     setEditStatus(plan.status);
+    setEditIsMostPopular(plan.isMostPopular || false);
+    setEditDisplayOrder(plan.displayOrder !== undefined ? plan.displayOrder : '');
+    setEditColorBadge(plan.colorBadge || 'amber');
+    setEditCouponCompatible(plan.couponCompatible !== undefined ? plan.couponCompatible : true);
+    setEditTrialDuration(plan.trialDuration || 'none');
     setShowEditModal(true);
+  };
+
+  const handleClonePlan = (plan: PlatformPlan) => {
+    setName(`${plan.name} (Clone)`);
+    setPrice(plan.price);
+    setDurationMonths(plan.durationMonths);
+    setDescription(plan.description || '');
+    setFeatures(plan.features || []);
+    setFeatureInput('');
+    setStatus(plan.status);
+    setIsMostPopular(plan.isMostPopular || false);
+    setDisplayOrder(plan.displayOrder !== undefined ? plan.displayOrder : '');
+    setColorBadge(plan.colorBadge || 'amber');
+    setCouponCompatible(plan.couponCompatible !== undefined ? plan.couponCompatible : true);
+    setTrialDuration(plan.trialDuration || 'none');
+    setShowAddModal(true);
+    showToast(`Pre-filled copy of ${plan.name} successfully.`, 'info');
   };
 
   return (
@@ -223,6 +275,13 @@ export const SubscriptionManagement: React.FC = () => {
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
+                    onClick={() => handleClonePlan(plan)}
+                    className="p-1.5 border bg-background/50 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                    title="Clone Plan"
+                  >
+                    <Copy className="w-3.5 h-3.5" />
+                  </button>
+                  <button
                     onClick={() => togglePlanStatus(plan)}
                     className="p-1.5 border bg-background/50 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
                     title={plan.status === 'active' ? 'Deactivate Plan' : 'Activate Plan'}
@@ -239,10 +298,37 @@ export const SubscriptionManagement: React.FC = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary">
-                      {plan.durationMonths} {plan.durationMonths === 1 ? 'Month' : 'Months'}
+                  {plan.isMostPopular && (
+                    <span className="absolute -top-3 left-4 px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-amber-500 text-black border border-amber-400/30">
+                      Popular
                     </span>
+                  )}
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                        plan.colorBadge === 'blue' ? 'text-blue-400' :
+                        plan.colorBadge === 'indigo' ? 'text-indigo-400' :
+                        plan.colorBadge === 'emerald' ? 'text-emerald-400' :
+                        plan.colorBadge === 'rose' ? 'text-rose-400' :
+                        plan.colorBadge === 'slate' ? 'text-slate-400' :
+                        'text-amber-400'
+                      }`}>
+                        {plan.durationMonths} {plan.durationMonths === 1 ? 'Month' : 'Months'}
+                      </span>
+                      {plan.trialDuration && plan.trialDuration !== 'none' && (
+                        <span className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 font-extrabold uppercase text-[8px] border border-blue-500/20">
+                          Trial: {plan.trialDuration === 'lifetime' ? 'Lft' : `${plan.trialDuration}d`}
+                        </span>
+                      )}
+                      {plan.couponCompatible === false && (
+                        <span className="px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 font-extrabold uppercase text-[8px] border border-rose-500/20">
+                          No Coupon
+                        </span>
+                      )}
+                      <span className="text-[8px] font-semibold text-muted-foreground bg-muted/40 px-1 py-0.5 rounded">
+                        Order: {plan.displayOrder || 0}
+                      </span>
+                    </div>
                     <h3 className="text-xl font-bold tracking-tight text-foreground pr-16">{plan.name}</h3>
                     <p className="text-xs text-muted-foreground line-clamp-2">{plan.description || 'No description provided.'}</p>
                   </div>
@@ -346,6 +432,75 @@ export const SubscriptionManagement: React.FC = () => {
                   placeholder="Plan description, value propositions..."
                   className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none h-20 resize-none"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Display Order</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={displayOrder}
+                    onChange={(e) => setDisplayOrder(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="e.g. 0, 1, 2"
+                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Trial Duration</label>
+                  <select
+                    value={trialDuration}
+                    onChange={(e) => setTrialDuration(e.target.value as any)}
+                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                  >
+                    <option value="none">No Trial</option>
+                    <option value="7">7 Days Trial</option>
+                    <option value="14">14 Days Trial</option>
+                    <option value="30">30 Days Trial</option>
+                    <option value="lifetime">Lifetime Free</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Plan Theme Color</label>
+                  <select
+                    value={colorBadge}
+                    onChange={(e) => setColorBadge(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                  >
+                    <option value="amber">Amber / Yellow</option>
+                    <option value="blue">Blue</option>
+                    <option value="indigo">Indigo / Purple</option>
+                    <option value="emerald">Emerald / Green</option>
+                    <option value="rose">Rose / Red</option>
+                    <option value="slate">Slate / Gray</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2 justify-center pt-2">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isMostPopular}
+                      onChange={(e) => setIsMostPopular(e.target.checked)}
+                      className="rounded border bg-background text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                    />
+                    <span>Popular Plan Badge</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={couponCompatible}
+                      onChange={(e) => setCouponCompatible(e.target.checked)}
+                      className="rounded border bg-background text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                    />
+                    <span>Coupon Compatible</span>
+                  </label>
+                </div>
               </div>
 
               {/* Features Input List */}
@@ -467,6 +622,75 @@ export const SubscriptionManagement: React.FC = () => {
                   onChange={(e) => setEditDescription(e.target.value)}
                   className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none h-20 resize-none"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Display Order</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={editDisplayOrder}
+                    onChange={(e) => setEditDisplayOrder(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="e.g. 0, 1, 2"
+                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Trial Duration</label>
+                  <select
+                    value={editTrialDuration}
+                    onChange={(e) => setEditTrialDuration(e.target.value as any)}
+                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                  >
+                    <option value="none">No Trial</option>
+                    <option value="7">7 Days Trial</option>
+                    <option value="14">14 Days Trial</option>
+                    <option value="30">30 Days Trial</option>
+                    <option value="lifetime">Lifetime Free</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Plan Theme Color</label>
+                  <select
+                    value={editColorBadge}
+                    onChange={(e) => setEditColorBadge(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                  >
+                    <option value="amber">Amber / Yellow</option>
+                    <option value="blue">Blue</option>
+                    <option value="indigo">Indigo / Purple</option>
+                    <option value="emerald">Emerald / Green</option>
+                    <option value="rose">Rose / Red</option>
+                    <option value="slate">Slate / Gray</option>
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2 justify-center pt-2">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editIsMostPopular}
+                      onChange={(e) => setEditIsMostPopular(e.target.checked)}
+                      className="rounded border bg-background text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                    />
+                    <span>Popular Plan Badge</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-semibold text-foreground cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={editCouponCompatible}
+                      onChange={(e) => setEditCouponCompatible(e.target.checked)}
+                      className="rounded border bg-background text-primary focus:ring-primary w-4 h-4 cursor-pointer"
+                    />
+                    <span>Coupon Compatible</span>
+                  </label>
+                </div>
               </div>
 
               {/* Features Input List */}

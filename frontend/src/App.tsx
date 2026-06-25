@@ -29,6 +29,7 @@ import { TrainerManagement } from './pages/gymowner/TrainerManagement';
 import { WorkoutDietPlanner } from './pages/gymowner/WorkoutDietPlanner';
 import { QRAttendanceSimulator } from './pages/gymowner/QRAttendanceSimulator';
 import { GymBrandingSettings } from './pages/gymowner/GymBrandingSettings';
+import { AttendanceHistory } from './pages/gymowner/AttendanceHistory';
 
 // Helper Dashboard Dispatcher
 const DashboardDispatcher: React.FC = () => {
@@ -169,6 +170,14 @@ export const App: React.FC = () => {
                   element={
                     <RoleGuard allowed="gym_owner">
                       <QRAttendanceSimulator />
+                    </RoleGuard>
+                  }
+                />
+                <Route
+                  path="attendance-history"
+                  element={
+                    <RoleGuard allowed="gym_owner">
+                      <AttendanceHistory />
                     </RoleGuard>
                   }
                 />

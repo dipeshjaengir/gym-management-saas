@@ -79,12 +79,12 @@ export const MemberManagement: React.FC = () => {
   const [email, setEmail] = useState('');
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('male');
   const [dob, setDob] = useState('');
-  const [height, setHeight] = useState<number>(175);
-  const [weight, setWeight] = useState<number>(70);
+  const [height, setHeight] = useState<number | ''>('');
+  const [weight, setWeight] = useState<number | ''>('');
   const [address, setAddress] = useState('');
   const [planId, setPlanId] = useState('');
   const [membershipStart, setMembershipStart] = useState(new Date().toISOString().split('T')[0]);
-  const [initialPayment, setInitialPayment] = useState<number>(0);
+  const [initialPayment, setInitialPayment] = useState<number | ''>('');
   const [emergencyContact, setEmergencyContact] = useState('');
   const [notes, setNotes] = useState('');
   const [adding, setAdding] = useState(false);
@@ -97,12 +97,12 @@ export const MemberManagement: React.FC = () => {
   const [editEmail, setEditEmail] = useState('');
   const [editGender, setEditGender] = useState<'male' | 'female' | 'other'>('male');
   const [editDob, setEditDob] = useState('');
-  const [editHeight, setEditHeight] = useState<number>(175);
-  const [editWeight, setEditWeight] = useState<number>(70);
+  const [editHeight, setEditHeight] = useState<number | ''>('');
+  const [editWeight, setEditWeight] = useState<number | ''>('');
   const [editAddress, setEditAddress] = useState('');
   const [editPlanId, setEditPlanId] = useState('');
   const [editMembershipStart, setEditMembershipStart] = useState('');
-  const [editAmountPaid, setEditAmountPaid] = useState<number>(0);
+  const [editAmountPaid, setEditAmountPaid] = useState<number | ''>('');
   const [editEmergency, setEditEmergency] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [updating, setUpdating] = useState(false);
@@ -111,10 +111,10 @@ export const MemberManagement: React.FC = () => {
   const [detailMember, setDetailMember] = useState<Member | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
   const [progressLogs, setProgressLogs] = useState<ProgressLog[]>([]);
-  const [logWeight, setLogWeight] = useState<number>(70);
-  const [logChest, setLogChest] = useState<number>(0);
-  const [logWaist, setLogWaist] = useState<number>(0);
-  const [logBiceps, setLogBiceps] = useState<number>(0);
+  const [logWeight, setLogWeight] = useState<number | ''>('');
+  const [logChest, setLogChest] = useState<number | ''>('');
+  const [logWaist, setLogWaist] = useState<number | ''>('');
+  const [logBiceps, setLogBiceps] = useState<number | ''>('');
   const [savingProgress, setSavingProgress] = useState(false);
 
   useEffect(() => {
@@ -135,10 +135,10 @@ export const MemberManagement: React.FC = () => {
       setPlansLoaded(true);
       if (plansData.length > 0) {
         setPlanId(plansData[0]._id);
-        setInitialPayment(plansData[0].price);
+        setInitialPayment('');
       } else {
         setPlanId('');
-        setInitialPayment(0);
+        setInitialPayment('');
       }
     } catch (err: any) {
       showToast(err.message || 'Error retrieving member roster.', 'error');
@@ -187,11 +187,11 @@ export const MemberManagement: React.FC = () => {
       showToast('Date of Birth cannot be in the future.', 'error');
       return;
     }
-    if (height <= 0) {
+    if (Number(height) <= 0) {
       showToast('Height must be a positive number.', 'error');
       return;
     }
-    if (weight <= 0) {
+    if (Number(weight) <= 0) {
       showToast('Weight must be a positive number.', 'error');
       return;
     }
@@ -269,11 +269,11 @@ export const MemberManagement: React.FC = () => {
       showToast('Date of Birth cannot be in the future.', 'error');
       return;
     }
-    if (editHeight <= 0) {
+    if (Number(editHeight) <= 0) {
       showToast('Height must be a positive number.', 'error');
       return;
     }
-    if (editWeight <= 0) {
+    if (Number(editWeight) <= 0) {
       showToast('Weight must be a positive number.', 'error');
       return;
     }
@@ -373,14 +373,14 @@ export const MemberManagement: React.FC = () => {
     setEmail('');
     setGender('male');
     setDob('');
-    setHeight(175);
-    setWeight(70);
+    setHeight('');
+    setWeight('');
     setAddress('');
     setEmergencyContact('');
     setNotes('');
     if (plans.length > 0) {
       setPlanId(plans[0]._id);
-      setInitialPayment(plans[0].price);
+      setInitialPayment('');
     }
   };
 

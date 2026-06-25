@@ -114,10 +114,11 @@ export const MemberProfile: React.FC = () => {
 
   // Collect Due Modal
   const [showCollectModal, setShowCollectModal] = useState(false);
-  const [collectAmount, setCollectAmount] = useState<number>(0);
+  const [collectAmount, setCollectAmount] = useState<number | ''>('');
   const [collectMethod, setCollectMethod] = useState<'upi' | 'cash' | 'card' | 'bank_transfer'>('cash');
   const [collectNotes, setCollectNotes] = useState('');
   const [collecting, setCollecting] = useState(false);
+  const [collectStep, setCollectStep] = useState(1);
 
   // WhatsApp Status Modal
   const [whatsAppModal, setWhatsAppModal] = useState<{
@@ -163,7 +164,6 @@ export const MemberProfile: React.FC = () => {
       setAttendance(attRes);
       setWorkout(wkRes);
       setDiet(dtRes);
-      setCollectAmount(mRes.remainingAmount);
     } catch (err: any) {
       showToast(err.message || 'Error loading member profile details.', 'error');
     } finally {
@@ -171,17 +171,17 @@ export const MemberProfile: React.FC = () => {
     }
   };
 
-  const handleCollectDues = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCollectDues = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (isSuspended) {
       showToast('Write operational changes blocked for suspended accounts.', 'error');
       return;
     }
-    if (collectAmount <= 0) {
+    if (Number(collectAmount) <= 0) {
       showToast('Please enter a valid payment amount.', 'error');
       return;
     }
-    if (member && collectAmount > member.remainingAmount) {
+    if (member && Number(collectAmount) > member.remainingAmount) {
       showToast('Payment amount exceeds outstanding dues balance.', 'error');
       return;
     }
@@ -543,7 +543,7 @@ export const MemberProfile: React.FC = () => {
 
             {member.remainingAmount > 0 && !isSuspended && (
               <button
-                onClick={() => setShowCollectModal(true)}
+                onClick={() => { setShowCollectModal(true); setCollectStep(1); }}
                 className="w-full mt-2 py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1"
               >
                 <IndianRupee className="w-4 h-4" /> Collect Remaining ₹{member.remainingAmount}
@@ -868,7 +868,7 @@ export const MemberProfile: React.FC = () => {
       {/* Collect Due Payment Modal */}
       {showCollectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-card border rounded-3xl p-6 shadow-2xl relative">
+          <div className="w-full max-w-md bg-card border rounded-3xl p-6 shadow-2xl relative animate-fade-in">
             <button
               onClick={() => setShowCollectModal(false)}
               className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
@@ -879,63 +879,167 @@ export const MemberProfile: React.FC = () => {
             <h2 className="text-xl font-bold mb-1">Log Outstanding Payment</h2>
             <p className="text-xs text-muted-foreground mb-4">Settle dues for member: <span className="font-semibold text-foreground">{member.name}</span></p>
 
-            <form onSubmit={handleCollectDues} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Amount to Collect (₹)</label>
-                <input
-                  type="number"
-                  required
-                  min={1}
-                  max={member.remainingAmount}
-                  value={collectAmount}
-                  onChange={(e) => setCollectAmount(Number(e.target.value))}
-                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-                <span className="text-[10px] text-muted-foreground mt-1 block">Maximum remaining due balance is ₹{member.remainingAmount}</span>
-              </div>
+            {/* Step Indicators */}
+            <div className="flex items-center justify-between mb-6 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              <span className={collectStep === 1 ? "text-primary" : ""}>1. Balance Review</span>
+              <span className="h-px bg-muted flex-grow mx-2" />
+              <span className={collectStep === 2 ? "text-primary" : ""}>2. Payment Method</span>
+              <span className="h-px bg-muted flex-grow mx-2" />
+              <span className={collectStep === 3 ? "text-primary" : ""}>3. Confirm Receipt</span>
+            </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Payment Method</label>
-                <select
-                  value={collectMethod}
-                  onChange={(e) => setCollectMethod(e.target.value as any)}
-                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
-                >
-                  <option value="cash">Cash Payment</option>
-                  <option value="upi">UPI / QR Code Scan</option>
-                  <option value="card">Credit/Debit Card</option>
-                  <option value="bank_transfer">Bank Wire Transfer</option>
-                </select>
-              </div>
+            {collectStep === 1 && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-muted/20 border text-xs space-y-2">
+                  <div className="flex justify-between">
+                    <span>Plan Price:</span>
+                    <span className="font-bold text-foreground">₹{member.planId?.price || (member.amountPaid + member.remainingAmount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Amount Already Paid:</span>
+                    <span className="font-bold text-emerald-400">₹{member.amountPaid}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-muted/20 pt-2 text-sm">
+                    <span className="font-semibold">Current Remaining Due:</span>
+                    <span className="font-black text-rose-400">₹{member.remainingAmount}</span>
+                  </div>
+                </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Payment Notes / Remarks</label>
-                <input
-                  type="text"
-                  value={collectNotes}
-                  onChange={(e) => setCollectNotes(e.target.value)}
-                  placeholder="e.g. Settle remaining installment"
-                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Amount to Collect (₹)</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={member.remainingAmount}
+                    placeholder="Enter amount to collect..."
+                    value={collectAmount}
+                    onChange={(e) => setCollectAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                  {collectAmount !== '' && Number(collectAmount) > 0 && (
+                    <div className="flex justify-between text-[10px] font-bold text-amber-400 mt-2">
+                      <span>Remaining After Collection:</span>
+                      <span>₹{Math.max(0, member.remainingAmount - Number(collectAmount))}</span>
+                    </div>
+                  )}
+                </div>
 
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCollectModal(false)}
-                  className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={collecting}
-                  className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold shadow-md cursor-pointer"
-                >
-                  {collecting ? 'Processing...' : 'Settle Payment'}
-                </button>
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowCollectModal(false)}
+                    className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCollectStep(2)}
+                    disabled={collectAmount === '' || collectAmount <= 0 || collectAmount > member.remainingAmount}
+                    className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next: Payment Method
+                  </button>
+                </div>
               </div>
-            </form>
+            )}
+
+            {collectStep === 2 && (
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Select Payment Method</label>
+                  <select
+                    value={collectMethod}
+                    onChange={(e) => setCollectMethod(e.target.value as any)}
+                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                  >
+                    <option value="cash">Cash Payment</option>
+                    <option value="upi">UPI / QR Code Scan</option>
+                    <option value="card">Credit/Debit Card</option>
+                    <option value="bank_transfer">Bank Wire Transfer</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Payment Notes / Remarks</label>
+                  <input
+                    type="text"
+                    value={collectNotes}
+                    onChange={(e) => setCollectNotes(e.target.value)}
+                    placeholder="e.g. Settle remaining installment"
+                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCollectStep(1)}
+                    className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCollectStep(3)}
+                    className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                  >
+                    Next: Preview
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {collectStep === 3 && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-2xl bg-muted/20 border text-xs space-y-3">
+                  <div className="text-center font-bold text-sm border-b pb-2 mb-2">Receipt Preview Details</div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Member:</span>
+                    <span className="font-bold text-foreground">{member.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Membership Plan:</span>
+                    <span className="font-bold text-foreground">{member.planId?.name || 'Custom Plan'}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-muted/10 pt-2">
+                    <span className="text-muted-foreground">Amount to Collect:</span>
+                    <span className="font-bold text-primary">₹{collectAmount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Payment Method:</span>
+                    <span className="font-bold text-foreground uppercase">{collectMethod}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Notes:</span>
+                    <span className="font-medium text-foreground italic">{collectNotes || 'N/A'}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-muted/20 pt-2 text-xs font-bold">
+                    <span className="text-muted-foreground">Remaining Dues After:</span>
+                    <span className="text-rose-400">₹{Math.max(0, member.remainingAmount - Number(collectAmount))}</span>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setCollectStep(2)}
+                    className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleCollectDues()}
+                    disabled={collecting}
+                    className="flex-grow py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                  >
+                    {collecting ? 'Processing...' : 'Confirm & Save'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

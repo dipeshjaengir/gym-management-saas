@@ -78,6 +78,24 @@ export const QRAttendanceSimulator: React.FC = () => {
     }
   };
 
+  const handleToggleCamera = async () => {
+    if (!useCamera) {
+      try {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          stream.getTracks().forEach(track => track.stop());
+          setUseCamera(true);
+        } else {
+          showToast('Media devices not supported on this browser/device.', 'error');
+        }
+      } catch (err: any) {
+        showToast('Camera Permission Denied: Please enable camera access in your browser settings to scan QR.', 'error');
+      }
+    } else {
+      setUseCamera(false);
+    }
+  };
+
   const handleSimulateScan = async (code: string) => {
     if (!code) {
       showToast('Please specify a QR pass code.', 'info');
@@ -101,10 +119,19 @@ export const QRAttendanceSimulator: React.FC = () => {
       setRecentLogs(logsData);
       setQrCodeInput('');
     } catch (err: any) {
+      let detailsMsg = 'Network or connection failure.';
+      if (err.status === 404) {
+        detailsMsg = 'Invalid QR: Member QR Code not found.';
+      } else if (err.status === 400) {
+        detailsMsg = 'Already Checked In: Attendance recorded today.';
+      } else if (err.status === 403) {
+        detailsMsg = err.message || 'Access Denied: Membership expired.';
+      }
+      
       setScanResult({
         success: false,
         message: err.message || 'Access Denied.',
-        details: err.data?.member?.status === 'expired' ? 'Membership plan is expired.' : 'No matching member found.'
+        details: detailsMsg
       });
       showToast(err.message || 'Access Denied.', 'error');
     } finally {
@@ -143,7 +170,7 @@ export const QRAttendanceSimulator: React.FC = () => {
                 <QrCode className="w-4 h-4 text-primary" /> Scan Console
               </h2>
               <button
-                onClick={() => setUseCamera((prev) => !prev)}
+                onClick={handleToggleCamera}
                 className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                   useCamera
                     ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'

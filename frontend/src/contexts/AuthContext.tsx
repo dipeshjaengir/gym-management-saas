@@ -24,6 +24,7 @@ export interface User {
     whatsAppNumber: string;
   };
   isTrial?: boolean;
+  subscriptionHistory?: any[];
 }
 
 interface AuthContextType {
@@ -63,7 +64,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               subscription: res.user.subscription,
               branding: res.user.branding,
               isTrial: res.user.isTrial,
-              status: res.user.status
+              status: res.user.status,
+              subscriptionHistory: res.user.subscriptionHistory
             };
             setUser(mappedUser);
             localStorage.setItem('user', JSON.stringify(mappedUser));
@@ -94,7 +96,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         subscription: res.user.subscription,
         branding: res.user.branding,
         isTrial: res.user.isTrial,
-        status: res.user.status
+        status: res.user.status,
+        subscriptionHistory: res.user.subscriptionHistory
       };
       setUser(mappedUser);
       localStorage.setItem('user', JSON.stringify(mappedUser));
@@ -113,7 +116,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       subscription: rawUser.subscription,
       branding: rawUser.branding,
       isTrial: rawUser.isTrial,
-      status: rawUser.status
+      status: rawUser.status,
+      subscriptionHistory: rawUser.subscriptionHistory
     };
     setUser(mappedUser);
     localStorage.setItem('user', JSON.stringify(mappedUser));

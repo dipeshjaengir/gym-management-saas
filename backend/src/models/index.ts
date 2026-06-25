@@ -54,6 +54,9 @@ export interface ISubscriptionHistory {
   expiryDate: Date;
   renewedBy: string;
   transactionDate: Date;
+  transactionId?: string;
+  paymentMethod?: string;
+  status?: string;
 }
 
 export interface IGymOwner extends Document {
@@ -117,7 +120,10 @@ const GymOwnerSchema = new Schema<IGymOwner>({
     startDate: { type: Date, required: true },
     expiryDate: { type: Date, required: true },
     renewedBy: { type: String, required: true },
-    transactionDate: { type: Date, default: Date.now }
+    transactionDate: { type: Date, default: Date.now },
+    transactionId: { type: String, default: '' },
+    paymentMethod: { type: String, default: 'cash' },
+    status: { type: String, default: 'Completed' }
   }],
   isTrial: { type: Boolean, default: false },
   isDeleted: { type: Boolean, default: false }
@@ -269,7 +275,11 @@ export interface IAttendance extends Document {
   memberId: any;
   date: string;
   checkInTime: string;
+  checkOutTime?: string;
   status: 'present' | 'absent';
+  receptionist?: string;
+  qrScanTime?: string;
+  deviceInfo?: string;
 }
 
 const AttendanceSchema = new Schema<IAttendance>({
@@ -277,7 +287,11 @@ const AttendanceSchema = new Schema<IAttendance>({
   memberId: { type: Schema.Types.ObjectId, ref: 'Member', required: true, index: true },
   date: { type: String, required: true, index: true }, // Format YYYY-MM-DD
   checkInTime: { type: String, required: true },
-  status: { type: String, enum: ['present', 'absent'], default: 'present' }
+  checkOutTime: { type: String, default: '' },
+  status: { type: String, enum: ['present', 'absent'], default: 'present' },
+  receptionist: { type: String, default: 'Admin' },
+  qrScanTime: { type: String, default: '' },
+  deviceInfo: { type: String, default: '' }
 }, { timestamps: true });
 
 export const Attendance = mongoose.model<IAttendance>('Attendance', AttendanceSchema);
@@ -391,6 +405,11 @@ export interface IPlatformPlan extends Document {
   description: string;
   features: string[];
   status: 'active' | 'inactive';
+  isMostPopular?: boolean;
+  displayOrder?: number;
+  colorBadge?: string;
+  couponCompatible?: boolean;
+  trialDuration?: 'none' | '7' | '14' | '30' | 'lifetime';
   isDeleted: boolean;
 }
 
@@ -401,6 +420,11 @@ const PlatformPlanSchema = new Schema<IPlatformPlan>({
   description: { type: String, default: '' },
   features: { type: [String], default: [] },
   status: { type: String, enum: ['active', 'inactive'], default: 'active', index: true },
+  isMostPopular: { type: Boolean, default: false },
+  displayOrder: { type: Number, default: 0 },
+  colorBadge: { type: String, default: 'amber' },
+  couponCompatible: { type: Boolean, default: true },
+  trialDuration: { type: String, enum: ['none', '7', '14', '30', 'lifetime'], default: 'none' },
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 

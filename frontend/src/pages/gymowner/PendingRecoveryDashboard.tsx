@@ -67,14 +67,42 @@ export const PendingRecoveryDashboard: React.FC = () => {
   const loadDuesData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch dashboard metrics for counters
-      const dashboard = await api.get('/gymowner/dashboard');
-      setDashboardMetrics(dashboard.feeRecovery);
-
-      // 2. Fetch all members and filter client-side to find outstanding dues
+      // 1. Fetch all members and filter client-side to find outstanding dues
       const allMembers = await api.get('/members');
       const duesOnly = allMembers.filter((m: Member) => m.remainingAmount > 0);
       setMembers(duesOnly);
+
+      // 2. Calculate metrics client-side from duesOnly to prevent backend mismatches
+      const totalPendingAmount = duesOnly.reduce((sum: number, m: Member) => sum + m.remainingAmount, 0);
+      const outstandingDuesCount = duesOnly.length;
+
+      const today = new Date();
+      const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      const todayEnd = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59);
+      const threeDaysFromNow = new Date(todayStart.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+      let expiringToday = 0;
+      let expiringWithin3Days = 0;
+      let alreadyExpired = 0;
+
+      duesOnly.forEach((m: Member) => {
+        const expiry = new Date(m.membershipEnd);
+        if (expiry < todayStart) {
+          alreadyExpired++;
+        } else if (expiry >= todayStart && expiry <= todayEnd) {
+          expiringToday++;
+        } else if (expiry > todayEnd && expiry <= threeDaysFromNow) {
+          expiringWithin3Days++;
+        }
+      });
+
+      setDashboardMetrics({
+        totalPendingAmount,
+        outstandingDuesCount,
+        expiringToday,
+        expiringWithin3Days,
+        alreadyExpired
+      });
     } catch (err: any) {
       showToast(err.message || 'Error loading dues telemetry.', 'error');
     } finally {
@@ -268,7 +296,8 @@ export const PendingRecoveryDashboard: React.FC = () => {
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <div>Phone: <span className="text-foreground">{member.phone}</span></div>
                   <div>Plan: <span className="text-foreground">{member.planId?.name || 'General Membership'}</span></div>
-                  <div>Paid: <span className="text-foreground">₹{member.amountPaid} / ₹{member.planId?.price}</span></div>
+                  <div>Price: <span className="text-foreground">₹{member.planId?.price || (member.amountPaid + member.remainingAmount)}</span></div>
+                  <div>Paid: <span className="text-foreground">₹{member.amountPaid}</span></div>
                   <div>Last Paid: <span className="text-foreground">{member.lastPaymentDate ? new Date(member.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A'}</span></div>
                   <div>Ends: <span className="text-foreground">{new Date(member.membershipEnd).toLocaleDateString('en-IN')}</span></div>
                   <div>Days Overdue: <span className="text-rose-400 font-bold">{getDaysOverdue(member.membershipEnd)} Days</span></div>
@@ -292,13 +321,14 @@ export const PendingRecoveryDashboard: React.FC = () => {
               <thead>
                 <tr className="border-b bg-muted/30">
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Member Name</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Phone</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Phone Number</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Membership Plan</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Dues (Balance)</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Last Paid Date</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Expiry Date</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Total Plan Price</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Amount Paid</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Remaining Due</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Last Payment Date</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Days Overdue</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase text-right">Reminder Action</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y text-sm">
@@ -313,16 +343,12 @@ export const PendingRecoveryDashboard: React.FC = () => {
                       </button>
                     </td>
                     <td className="p-4">{member.phone}</td>
-                    <td className="p-4">
-                      <div className="font-semibold">{member.planId?.name || 'Custom Plan'}</div>
-                      <div className="text-xs text-muted-foreground">Paid ₹{member.amountPaid} / ₹{member.planId?.price}</div>
-                    </td>
+                    <td className="p-4 font-semibold">{member.planId?.name || 'Custom Plan'}</td>
+                    <td className="p-4">₹{member.planId?.price || (member.amountPaid + member.remainingAmount)}</td>
+                    <td className="p-4">₹{member.amountPaid}</td>
                     <td className="p-4 font-bold text-rose-400">₹{member.remainingAmount}</td>
                     <td className="p-4 text-xs text-muted-foreground">
                       {member.lastPaymentDate ? new Date(member.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A'}
-                    </td>
-                    <td className="p-4 text-xs text-muted-foreground">
-                      {new Date(member.membershipEnd).toLocaleDateString('en-IN')}
                     </td>
                     <td className="p-4 text-xs font-bold text-rose-400">
                       {getDaysOverdue(member.membershipEnd)} Days
@@ -330,7 +356,7 @@ export const PendingRecoveryDashboard: React.FC = () => {
                     <td className="p-4 text-right">
                       <button
                         onClick={() => handleSendReminder(member)}
-                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors"
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition-colors cursor-pointer"
                       >
                         <MessageCircle className="w-4 h-4" /> Send Reminder
                       </button>

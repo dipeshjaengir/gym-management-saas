@@ -187,7 +187,9 @@ router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequ
       gymName: owner!.branding?.gymName || owner!.gymName,
       memberName: member.name,
       planName: plan.name,
+      totalAmount: plan.price,
       amountPaid,
+      remainingDue: remainingAmount,
       startDate: member.membershipStart.toISOString().split('T')[0],
       expiryDate: member.membershipEnd.toISOString().split('T')[0]
     });

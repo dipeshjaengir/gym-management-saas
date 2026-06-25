@@ -327,6 +327,8 @@ router.put('/owners/:id/renew', validateBody(renewGymOwnerSubscriptionSchema), a
     
     const expiryDate = new Date(startDate.getTime() + days * 24 * 60 * 60 * 1000);
 
+    const { transactionId, paymentMethod } = req.body;
+
     owner.subscription.planType = planType;
     owner.subscription.startDate = startDate;
     owner.subscription.expiryDate = expiryDate;
@@ -341,7 +343,10 @@ router.put('/owners/:id/renew', validateBody(renewGymOwnerSubscriptionSchema), a
       startDate,
       expiryDate,
       renewedBy: req.user!.email,
-      transactionDate: new Date()
+      transactionDate: new Date(),
+      transactionId: transactionId || `TXN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`,
+      paymentMethod: paymentMethod || 'cash',
+      status: 'Completed'
     });
 
     await owner.save();

@@ -45,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: '/app/trainers', label: 'Trainer Schedules', icon: UserCheck },
     { to: '/app/workouts', label: 'Workout & Diets', icon: ClipboardList },
     { to: '/app/attendance', label: 'QR Scan check-in', icon: QrCode },
+    { to: '/app/attendance-history', label: 'Attendance History', icon: History },
     { to: '/app/branding', label: 'Branding Settings', icon: Settings2 }
   ];
 

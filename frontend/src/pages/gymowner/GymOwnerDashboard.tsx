@@ -24,7 +24,8 @@ import {
   FolderPlus,
   X,
   PhoneCall,
-  Download
+  Download,
+  MessageCircle
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -83,13 +84,33 @@ export const GymOwnerDashboard: React.FC = () => {
   const [upgradeDiscount, setUpgradeDiscount] = useState<any>(null);
   const [validatingUpgradeCoupon, setValidatingUpgradeCoupon] = useState(false);
 
-  // Trial calculations
+  // Reminders & Subscription History Modals
+  const [reminders, setReminders] = useState<any[]>([]);
+  const [loadingReminders, setLoadingReminders] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showPlanDetailsModal, setShowPlanDetailsModal] = useState(false);
+  const [recentMembers, setRecentMembers] = useState<any[]>([]);
+  const [recentPayments, setRecentPayments] = useState<any[]>([]);
+  const [topPlans, setTopPlans] = useState<any[]>([]);
+
+  // Expiry / Trial calculations
   const isTrial = user?.isTrial || false;
-  let remainingTrialDays = 0;
-  if (isTrial && user?.subscription?.expiryDate) {
-    const expiry = new Date(user.subscription.expiryDate);
-    const diffTime = expiry.getTime() - new Date().getTime();
-    remainingTrialDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  const expiryDate = user?.subscription?.expiryDate ? new Date(user.subscription.expiryDate) : null;
+  const startDate = user?.subscription?.startDate ? new Date(user.subscription.startDate) : null;
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  let daysRemaining = 0;
+  if (expiryDate) {
+    const diffTime = expiryDate.getTime() - todayStart.getTime();
+    daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  }
+
+  let progressPercent = 0;
+  if (startDate && expiryDate) {
+    const totalDuration = expiryDate.getTime() - startDate.getTime();
+    const elapsed = now.getTime() - startDate.getTime();
+    progressPercent = Math.min(100, Math.max(0, Math.round((elapsed / totalDuration) * 100)));
   }
 
   useEffect(() => {
@@ -118,10 +139,65 @@ export const GymOwnerDashboard: React.FC = () => {
         console.error('Error fetching plans', err);
       }
     }
-    if (isTrial) {
-      fetchPlans();
+    fetchPlans();
+  }, []);
+
+  useEffect(() => {
+    async function fetchReminders() {
+      setLoadingReminders(true);
+      try {
+        const data = await api.get('/notifications/reminders');
+        setReminders(data);
+      } catch (err) {
+        console.error('Error fetching reminders', err);
+      } finally {
+        setLoadingReminders(false);
+      }
     }
-  }, [isTrial]);
+    fetchReminders();
+  }, []);
+
+  useEffect(() => {
+    async function loadExtraDashboardData() {
+      try {
+        const [membersData, paymentsData] = await Promise.all([
+          api.get('/members?includeArchived=true'),
+          api.get('/payments')
+        ]);
+        
+        // Recent members
+        const sortedMembers = [...membersData]
+          .sort((a, b) => new Date(b.createdAt || b.joiningDate).getTime() - new Date(a.createdAt || a.joiningDate).getTime());
+        setRecentMembers(sortedMembers);
+        
+        // Recent payments
+        const activePayments = paymentsData.filter((p: any) => !p.isVoided);
+        setRecentPayments(activePayments);
+
+        // Top plans aggregation
+        const planCounts: { [key: string]: { count: number; price: number; name: string } } = {};
+        membersData.forEach((m: any) => {
+          if (m.planId) {
+            const planKey = m.planId._id;
+            if (!planCounts[planKey]) {
+              planCounts[planKey] = {
+                count: 0,
+                price: m.planId.price || 0,
+                name: m.planId.name || 'General'
+              };
+            }
+            planCounts[planKey].count++;
+          }
+        });
+        
+        const sortedPlans = Object.values(planCounts).sort((a, b) => b.count - a.count);
+        setTopPlans(sortedPlans);
+      } catch (err) {
+        console.error('Error loading dashboard roster data', err);
+      }
+    }
+    loadExtraDashboardData();
+  }, []);
 
   const handleUpgradeCouponValidate = async () => {
     if (!upgradeCoupon.trim()) return;
@@ -167,6 +243,32 @@ export const GymOwnerDashboard: React.FC = () => {
 
     window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
     setShowUpgradeModal(false);
+  };
+
+  const handleWhatsAppRenew = () => {
+    const text = encodeURIComponent(
+      `Hello GymLedger Team, I want to renew my gym subscription.\n` +
+      `- Gym Name: ${user?.branding?.gymName || user?.gymName || 'My Gym'}\n` +
+      `- Current Plan: ${user?.subscription?.planType || 'None'}\n` +
+      `- Expiry Date: ${user?.subscription?.expiryDate ? new Date(user.subscription.expiryDate).toLocaleDateString('en-IN') : 'N/A'}`
+    );
+    window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
+  };
+
+  const handleExportHistoryCSV = () => {
+    const history = user?.subscriptionHistory || [];
+    const formatted = history.map((h: any) => ({
+      'Transaction ID': h.transactionId || 'N/A',
+      'Plan Name': h.planType,
+      'Amount Paid': h.amountPaid,
+      'Payment Method': (h.paymentMethod || 'cash').toUpperCase(),
+      'Start Date': h.startDate ? new Date(h.startDate).toLocaleDateString('en-IN') : 'N/A',
+      'Expiry Date': h.expiryDate ? new Date(h.expiryDate).toLocaleDateString('en-IN') : 'N/A',
+      'Renewed By': h.renewedBy || 'System',
+      'Status': h.status || 'Completed',
+      'Transaction Date': h.transactionDate ? new Date(h.transactionDate).toLocaleString('en-IN') : 'N/A'
+    }));
+    exportToCSV(formatted, 'workspace_subscription_history');
   };
 
   if (loading) {
@@ -251,15 +353,51 @@ export const GymOwnerDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Expired Subscription Banner */}
+      {daysRemaining < 0 && (
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm shadow-sm">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-400 flex-shrink-0" />
+            <div>
+              <span className="font-bold">Subscription Expired:</span> Your GymLedger workspace license has expired. The platform is running in read-only mode. Please renew now to restore full operations.
+            </div>
+          </div>
+          <button
+            onClick={() => setShowUpgradeModal(true)}
+            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-md transition-all whitespace-nowrap active:scale-[0.98] cursor-pointer"
+          >
+            Renew Subscription
+          </button>
+        </div>
+      )}
+
+      {/* Expiring Soon Banner */}
+      {daysRemaining >= 0 && daysRemaining <= 7 && !isTrial && (
+        <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm shadow-sm animate-pulse">
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-amber-400 flex-shrink-0" />
+            <div>
+              <span className="font-bold">Subscription Expiring Soon:</span> Your license expires in <span className="font-bold text-amber-400">{daysRemaining} days</span>. Renew now to prevent service interruption.
+            </div>
+          </div>
+          <button
+            onClick={() => setShowUpgradeModal(true)}
+            className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white shadow-md transition-all whitespace-nowrap active:scale-[0.98] cursor-pointer"
+          >
+            Renew Now
+          </button>
+        </div>
+      )}
+
       {/* Trial Banner */}
-      {isTrial && (
+      {isTrial && daysRemaining >= 0 && (
         <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-500/10 via-primary/10 to-purple-500/10 border border-primary/20 text-foreground flex flex-col sm:flex-row items-center justify-between gap-4 text-xs sm:text-sm shadow-sm">
           <div className="flex items-center gap-3">
             <Clock className="w-5 h-5 text-primary flex-shrink-0 animate-pulse" />
             <div>
-              <span className="font-bold text-foreground">7-Day Free Trial Activated:</span> You have{' '}
+              <span className="font-bold">7-Day Free Trial Activated:</span> You have{' '}
               <span className="font-bold text-primary text-sm bg-primary/20 px-2 py-0.5 rounded">
-                {remainingTrialDays > 0 ? remainingTrialDays : 0} days remaining
+                {daysRemaining > 0 ? daysRemaining : 0} days remaining
               </span>{' '}
               on your trial workspace. Upgrade to keep full management active.
             </div>
@@ -272,6 +410,107 @@ export const GymOwnerDashboard: React.FC = () => {
           </button>
         </div>
       )}
+
+      {/* Premium My Subscription Card */}
+      <div className="bg-card border rounded-3xl p-6 shadow-sm space-y-6 relative overflow-hidden">
+        {/* Background highlight */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 rounded-bl-full pointer-events-none" />
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-3 bg-primary/10 text-primary rounded-2xl">
+              <Award className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-foreground">My Subscription Plan</h3>
+              <p className="text-xs text-muted-foreground">Manage your gym platform workspace license.</p>
+            </div>
+          </div>
+          <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase border tracking-wider ${
+            daysRemaining < 0
+              ? 'bg-rose-950/40 text-rose-400 border-rose-500/20'
+              : daysRemaining <= 7
+              ? 'bg-amber-950/40 text-amber-400 border-amber-500/20'
+              : 'bg-emerald-950/40 text-emerald-400 border-emerald-500/20'
+          }`}>
+            ● {daysRemaining < 0 ? 'Expired' : (daysRemaining <= 7 ? 'Expiring' : 'Active')}
+          </span>
+        </div>
+
+        {/* Subscription Info Fields */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
+          <div>
+            <span className="block font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">Current Plan</span>
+            <span className="font-bold text-foreground text-sm">{user?.subscription?.planType || 'Free Trial'}</span>
+          </div>
+          <div>
+            <span className="block font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">Plan Price</span>
+            <span className="font-bold text-foreground text-sm">₹{user?.subscription?.amountPaid || 0}</span>
+          </div>
+          <div>
+            <span className="block font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">Start Date</span>
+            <span className="font-bold text-foreground text-sm">
+              {user?.subscription?.startDate ? new Date(user.subscription.startDate).toLocaleDateString('en-IN') : 'N/A'}
+            </span>
+          </div>
+          <div>
+            <span className="block font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">Expiry Date</span>
+            <span className="font-bold text-foreground text-sm text-rose-400">
+              {user?.subscription?.expiryDate ? new Date(user.subscription.expiryDate).toLocaleDateString('en-IN') : 'N/A'}
+            </span>
+          </div>
+        </div>
+
+        {/* Validity & Progress bar */}
+        <div className="space-y-2 pt-2">
+          <div className="flex justify-between text-xs font-semibold">
+            <span className="text-muted-foreground">License Validity Progress</span>
+            <span className="text-foreground">
+              {daysRemaining > 0 ? `${daysRemaining} Days Remaining` : '0 Days Remaining (Expired)'}
+            </span>
+          </div>
+          <div className="w-full bg-muted rounded-full h-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-500 ${
+                daysRemaining < 0
+                  ? 'bg-rose-500'
+                  : daysRemaining <= 7
+                  ? 'bg-amber-500'
+                  : 'bg-primary'
+              }`}
+              style={{ width: `${daysRemaining < 0 ? 100 : progressPercent}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap gap-2.5 pt-4 border-t">
+          <button
+            onClick={() => setShowUpgradeModal(true)}
+            className="px-4 py-2 bg-primary hover:bg-primary/95 text-primary-foreground text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
+          >
+            Upgrade Plan
+          </button>
+          <button
+            onClick={handleWhatsAppRenew}
+            className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-xl border transition-all cursor-pointer"
+          >
+            Renew Plan
+          </button>
+          <button
+            onClick={() => setShowPlanDetailsModal(true)}
+            className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-xl border transition-all cursor-pointer"
+          >
+            View Plan Details
+          </button>
+          <button
+            onClick={() => setShowHistoryModal(true)}
+            className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-xl border transition-all cursor-pointer"
+          >
+            View Payment History
+          </button>
+        </div>
+      </div>
 
       {/* Expiry Alert banner */}
       {stats.attendanceOverview.expiringToday > 0 && (
@@ -367,6 +606,51 @@ export const GymOwnerDashboard: React.FC = () => {
             <span className="text-xs font-bold">Add Trainer</span>
           </button>
         </div>
+      </div>
+
+      {/* Auto Expiry & Dues Reminders Widget */}
+      <div className="p-6 rounded-3xl bg-card border shadow-sm space-y-4">
+        <div className="flex items-center justify-between border-b pb-3">
+          <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Clock className="w-4 h-4 text-primary" /> Auto Expiry &amp; Payment Reminders
+          </h3>
+          <span className="text-[10px] bg-primary/10 text-primary px-2.5 py-0.5 rounded-full font-bold uppercase">
+            {reminders.length} Pending Actions
+          </span>
+        </div>
+
+        {loadingReminders ? (
+          <div className="flex justify-center py-6">
+            <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+          </div>
+        ) : reminders.length === 0 ? (
+          <p className="text-center text-xs text-muted-foreground py-6">No pending automated alerts right now.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-1">
+            {reminders.map((rem, i) => (
+              <div
+                key={i}
+                className="p-3.5 rounded-2xl bg-background border flex items-center justify-between gap-4 text-xs hover:border-primary/30 transition-all"
+              >
+                <div className="space-y-1">
+                  <div className="font-bold text-foreground">{rem.member?.name}</div>
+                  <div className="text-[10px] text-muted-foreground">Phone: {rem.member?.phone}</div>
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase tracking-wide">
+                    {rem.message}
+                  </div>
+                </div>
+                <a
+                  href={rem.whatsappUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold flex items-center gap-1 shrink-0 shadow transition-colors"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" /> Remind
+                </a>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Tabs Selector */}
@@ -621,6 +905,103 @@ export const GymOwnerDashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Analytics Lists: Recent Registrations, Recent Payments, Top Plans */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Recent Registrations */}
+        <div className="p-5 rounded-2xl bg-card border space-y-4 shadow-sm">
+          <div className="flex items-center justify-between border-b pb-3">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <UserPlus className="w-4 h-4 text-primary" /> Recent Registrations
+            </h3>
+            <span className="text-[10px] bg-primary/10 text-primary px-2.5 py-0.5 rounded-full font-bold uppercase">
+              New
+            </span>
+          </div>
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+            {recentMembers.slice(0, 5).length === 0 ? (
+              <p className="text-center text-xs text-muted-foreground py-6">No recent registrations.</p>
+            ) : (
+              recentMembers.slice(0, 5).map((m: any, i: number) => (
+                <div key={i} className="p-3 rounded-xl bg-background border flex items-center justify-between gap-3 text-xs">
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-foreground">{m.name}</div>
+                    <div className="text-[10px] text-muted-foreground">Plan: {m.planId?.name || 'No Plan'}</div>
+                  </div>
+                  <div className="text-right space-y-0.5">
+                    <div className="text-[10px] text-muted-foreground">
+                      {new Date(m.createdAt || m.joiningDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                    </div>
+                    <div className="text-[9px] font-mono text-muted-foreground">{m.phone}</div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Recent Payments */}
+        <div className="p-5 rounded-2xl bg-card border space-y-4 shadow-sm">
+          <div className="flex items-center justify-between border-b pb-3">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <IndianRupee className="w-4 h-4 text-emerald-400" /> Recent Payments
+            </h3>
+            <span className="text-[10px] bg-emerald-500/10 text-emerald-400 px-2.5 py-0.5 rounded-full font-bold uppercase">
+              Collected
+            </span>
+          </div>
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+            {recentPayments.slice(0, 5).length === 0 ? (
+              <p className="text-center text-xs text-muted-foreground py-6">No recent payments.</p>
+            ) : (
+              [...recentPayments].sort((a: any, b: any) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime()).slice(0, 5).map((p: any, i: number) => (
+                <div key={i} className="p-3 rounded-xl bg-background border flex items-center justify-between gap-3 text-xs">
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-foreground">{p.memberId?.name || 'Unknown Member'}</div>
+                    <div className="text-[10px] text-muted-foreground uppercase">Method: {p.paymentMethod}</div>
+                  </div>
+                  <div className="text-right space-y-0.5">
+                    <div className="font-bold text-emerald-400">+₹{p.amount}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {new Date(p.paymentDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Top Plans */}
+        <div className="p-5 rounded-2xl bg-card border space-y-4 shadow-sm">
+          <div className="flex items-center justify-between border-b pb-3">
+            <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Award className="w-4 h-4 text-amber-400" /> Top Active Plans
+            </h3>
+            <span className="text-[10px] bg-amber-500/10 text-amber-400 px-2.5 py-0.5 rounded-full font-bold uppercase">
+              Popular
+            </span>
+          </div>
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+            {topPlans.slice(0, 5).length === 0 ? (
+              <p className="text-center text-xs text-muted-foreground py-6">No active plans data.</p>
+            ) : (
+              topPlans.slice(0, 5).map((tp: any, i: number) => (
+                <div key={i} className="p-3 rounded-xl bg-background border flex items-center justify-between gap-3 text-xs">
+                  <div className="space-y-0.5">
+                    <div className="font-bold text-foreground">{tp.name}</div>
+                    <div className="text-[10px] text-muted-foreground">Price: ₹{tp.price}</div>
+                  </div>
+                  <div className="text-right space-y-0.5">
+                    <div className="font-extrabold text-primary text-sm">{tp.count}</div>
+                    <div className="text-[10px] text-muted-foreground">members</div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Floating Action Button (FAB) for Record Attendance */}
       <button
         onClick={() => navigate('/app/attendance')}
@@ -747,6 +1128,155 @@ export const GymOwnerDashboard: React.FC = () => {
                   Confirm & Buy via WhatsApp <PhoneCall className="w-4 h-4" />
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Subscription History Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-4xl w-full relative max-h-[90vh] flex flex-col shadow-2xl">
+            <button
+              onClick={() => setShowHistoryModal(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all hover:bg-muted p-1 rounded-lg cursor-pointer animate-pulse"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center justify-between border-b pb-3 mb-4 pr-10">
+              <div>
+                <h3 className="text-lg font-bold text-foreground">Workspace Subscription History</h3>
+                <p className="text-xs text-muted-foreground">Ledger of platform renewals and workspace license logs.</p>
+              </div>
+              <button
+                onClick={handleExportHistoryCSV}
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold bg-background border hover:bg-muted text-foreground text-xs shadow-sm cursor-pointer"
+              >
+                <Download className="w-3.5 h-3.5" /> CSV Export
+              </button>
+            </div>
+
+            <div className="flex-grow overflow-y-auto">
+              {(!user?.subscriptionHistory || user.subscriptionHistory.length === 0) ? (
+                <p className="text-center text-xs text-muted-foreground py-12">No subscription renewal logs recorded yet.</p>
+              ) : (
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b bg-muted/40 text-muted-foreground uppercase font-bold">
+                      <th className="p-3">Transaction ID</th>
+                      <th className="p-3">Plan Type</th>
+                      <th className="p-3">Price Paid</th>
+                      <th className="p-3">Method</th>
+                      <th className="p-3">Start Date</th>
+                      <th className="p-3">Expiry Date</th>
+                      <th className="p-3">Renewed By</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3">Transaction Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {user.subscriptionHistory.map((h: any, i: number) => (
+                      <tr key={i} className="hover:bg-muted/15">
+                        <td className="p-3 font-mono font-bold text-primary">{h.transactionId || 'N/A'}</td>
+                        <td className="p-3 font-semibold">{h.planType}</td>
+                        <td className="p-3 font-bold">₹{h.amountPaid}</td>
+                        <td className="p-3 uppercase font-semibold text-muted-foreground">{h.paymentMethod || 'cash'}</td>
+                        <td className="p-3">{h.startDate ? new Date(h.startDate).toLocaleDateString('en-IN') : 'N/A'}</td>
+                        <td className="p-3 text-rose-400 font-semibold">{h.expiryDate ? new Date(h.expiryDate).toLocaleDateString('en-IN') : 'N/A'}</td>
+                        <td className="p-3 text-muted-foreground">{h.renewedBy || 'System'}</td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold uppercase tracking-wider text-[9px]">
+                            {h.status || 'Completed'}
+                          </span>
+                        </td>
+                        <td className="p-3 text-muted-foreground">{h.transactionDate ? new Date(h.transactionDate).toLocaleDateString('en-IN') : 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Plan Details Modal */}
+      {showPlanDetailsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-md w-full relative shadow-2xl">
+            <button
+              onClick={() => setShowPlanDetailsModal(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all hover:bg-muted p-1 rounded-lg cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center space-y-2 border-b pb-4 mb-4">
+              <h3 className="text-lg font-bold text-foreground">Current Plan Details</h3>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wide">
+                {user?.subscription?.planType || 'Free Trial'}
+              </span>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 border rounded-2xl">
+                <div>
+                  <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Price Paid</span>
+                  <span className="font-bold text-foreground text-sm">₹{user?.subscription?.amountPaid || 0}</span>
+                </div>
+                <div>
+                  <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Days Remaining</span>
+                  <span className="font-bold text-rose-400 text-sm">{daysRemaining > 0 ? daysRemaining : 0} Days</span>
+                </div>
+                <div>
+                  <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Starts</span>
+                  <span className="font-bold text-foreground">
+                    {user?.subscription?.startDate ? new Date(user.subscription.startDate).toLocaleDateString('en-IN') : 'N/A'}
+                  </span>
+                </div>
+                <div>
+                  <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Expires</span>
+                  <span className="font-bold text-foreground">
+                    {user?.subscription?.expiryDate ? new Date(user.subscription.expiryDate).toLocaleDateString('en-IN') : 'N/A'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-foreground uppercase tracking-wider text-[9px]">Platform Plan Inclusions</h4>
+                <ul className="space-y-1.5 pl-1.5">
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-400 font-bold">✓</span>
+                    <span>Complete Roster Members Registry</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-400 font-bold">✓</span>
+                    <span>QR Code Attendance Simulator Scanner</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-400 font-bold">✓</span>
+                    <span>Auto Expiry &amp; Outstanding Dues Reminders</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-400 font-bold">✓</span>
+                    <span>WhatsApp Click-to-Chat Welcome &amp; Due Receipts</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-emerald-400 font-bold">✓</span>
+                    <span>Financial Ledger, Auditing and PDF Invoice Exports</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                onClick={() => {
+                  setShowPlanDetailsModal(false);
+                  setShowUpgradeModal(true);
+                }}
+                className="w-full mt-2 py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-center shadow transition-all cursor-pointer"
+              >
+                Upgrade or Extend Plan
+              </button>
             </div>
           </div>
         </div>

@@ -122,7 +122,9 @@ export const updateGymOwnerStatusSchema = z.object({
 
 export const renewGymOwnerSubscriptionSchema = z.object({
   planType: z.string().min(1, 'Plan type is required.'),
-  amountPaid: z.number().nonnegative('Amount paid cannot be negative.')
+  amountPaid: z.number().nonnegative('Amount paid cannot be negative.'),
+  transactionId: z.string().optional().or(z.literal('')),
+  paymentMethod: z.string().optional().or(z.literal(''))
 });
 
 // 10. Workout Schema
@@ -185,7 +187,12 @@ export const createPlatformPlanSchema = z.object({
   durationMonths: z.number().positive('Duration must be positive.'),
   description: z.string().optional().or(z.literal('')),
   features: z.array(z.string()).default([]),
-  status: z.enum(['active', 'inactive']).optional()
+  status: z.enum(['active', 'inactive']).optional(),
+  isMostPopular: z.boolean().optional(),
+  displayOrder: z.number().optional(),
+  colorBadge: z.string().optional().or(z.literal('')),
+  couponCompatible: z.boolean().optional(),
+  trialDuration: z.enum(['none', '7', '14', '30', 'lifetime']).optional()
 });
 
 export const updatePlatformPlanSchema = createPlatformPlanSchema.partial();

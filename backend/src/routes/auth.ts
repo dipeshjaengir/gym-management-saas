@@ -83,7 +83,10 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
           email: gymOwner.email,
           role: 'gym_owner',
           subscription: gymOwner.subscription,
-          branding: gymOwner.branding
+          branding: gymOwner.branding,
+          subscriptionHistory: gymOwner.subscriptionHistory,
+          isTrial: gymOwner.isTrial,
+          status: gymOwner.status
         }
       });
     }

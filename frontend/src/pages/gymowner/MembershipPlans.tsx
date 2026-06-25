@@ -19,8 +19,8 @@ export const MembershipPlans: React.FC = () => {
   // Create Modal
   const [showAddModal, setShowAddModal] = useState(false);
   const [name, setName] = useState('');
-  const [durationMonths, setDurationMonths] = useState<number>(3);
-  const [price, setPrice] = useState<number>(1500);
+  const [durationMonths, setDurationMonths] = useState<number | ''>('');
+  const [price, setPrice] = useState<number | ''>('');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [adding, setAdding] = useState(false);
 
@@ -28,8 +28,8 @@ export const MembershipPlans: React.FC = () => {
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editName, setEditName] = useState('');
-  const [editDurationMonths, setEditDurationMonths] = useState<number>(3);
-  const [editPrice, setEditPrice] = useState<number>(1500);
+  const [editDurationMonths, setEditDurationMonths] = useState<number | ''>('');
+  const [editPrice, setEditPrice] = useState<number | ''>('');
   const [editStatus, setEditStatus] = useState<'active' | 'inactive'>('active');
   const [updating, setUpdating] = useState(false);
 
@@ -119,8 +119,8 @@ export const MembershipPlans: React.FC = () => {
 
   const resetAddForm = () => {
     setName('');
-    setDurationMonths(3);
-    setPrice(1500);
+    setDurationMonths('');
+    setPrice('');
     setStatus('active');
   };
 

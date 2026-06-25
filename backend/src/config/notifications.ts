@@ -3,10 +3,13 @@ export interface WelcomeTemplateData {
   gymName: string;
   memberName: string;
   planName: string;
+  totalAmount: number;
   amountPaid: number;
+  remainingDue: number;
   startDate: string;
   expiryDate: string;
 }
+
 
 export interface ExpiryTemplateData {
   gymName: string;
@@ -53,7 +56,22 @@ export class WhatsAppClickToChatProvider implements INotificationProvider {
   }
 
   async sendWelcomeMessage(to: string, data: WelcomeTemplateData) {
-    const rawMessage = `Hello ${data.memberName}\n\nWelcome to ${data.gymName}.\n\nMembership Plan:\n${data.planName}\n\nAmount Paid:\n₹${data.amountPaid}\n\nExpiry:\n${data.expiryDate}\n\nThank you.`;
+    const formatDate = (dateStr: string) => {
+      if (!dateStr || !dateStr.includes('-')) return dateStr;
+      const parts = dateStr.split('-');
+      if (parts.length === 3 && parts[0].length === 4) {
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+      }
+      return dateStr;
+    };
+    const formattedExpiry = formatDate(data.expiryDate);
+
+    let rawMessage = `Hello ${data.memberName}\n\nWelcome to ${data.gymName}\n\nMembership Plan:\n${data.planName}\n\nTotal Plan Amount:\n₹${data.totalAmount}\n\nAmount Paid:\n₹${data.amountPaid}\n`;
+    if (data.remainingDue > 0) {
+      rawMessage += `\nRemaining Due:\n₹${data.remainingDue}\n`;
+    }
+    rawMessage += `\nExpiry Date:\n${formattedExpiry}\n\nThank you for joining us.`;
+
     return {
       success: true,
       url: this.buildUrl(to, rawMessage),
