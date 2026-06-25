@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
-import { QrCode, ShieldCheck, ShieldAlert, Clock, UserCheck, Camera } from 'lucide-react';
+import { QrCode, ShieldCheck, ShieldAlert, Clock, UserCheck, Camera, LogIn, LogOut } from 'lucide-react';
 import { exportToExcel } from '../../utils/exportHelpers';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
@@ -22,6 +22,8 @@ interface LogEntry {
     gender: string;
   };
   checkInTime: string;
+  checkOutTime?: string;
+  workoutDuration?: string;
   date: string;
   status: string;
 }
@@ -33,6 +35,7 @@ export const QRAttendanceSimulator: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
   const [useCamera, setUseCamera] = useState(false);
+  const [scanMode, setScanMode] = useState<'check-in' | 'check-out'>('check-in');
 
   // Scan Result Animation States
   const [scanResult, setScanResult] = useState<{
@@ -104,36 +107,44 @@ export const QRAttendanceSimulator: React.FC = () => {
     setScanning(true);
     setScanResult(null);
     try {
-      const res = await api.post('/attendance/check-in', { qrCode: code });
+      const endpoint = scanMode === 'check-in' ? '/attendance/check-in' : '/attendance/check-out';
+      const res = await api.post(endpoint, { qrCode: code });
       
-      // Handle check-in outcome
+      const timeStr = scanMode === 'check-in' 
+        ? res.attendance?.checkInTime 
+        : res.attendance?.checkOutTime;
+
+      const extraDetails = scanMode === 'check-out' && res.attendance?.workoutDuration
+        ? ` | Workout Duration: ${res.attendance.workoutDuration}`
+        : '';
+
       setScanResult({
         success: true,
-        message: res.message || 'Access Granted!',
-        details: `Scan recorded at ${res.attendance?.checkInTime || new Date().toLocaleTimeString()}`
+        message: res.message || `${scanMode === 'check-in' ? 'Check-In' : 'Check-Out'} Successful!`,
+        details: `${scanMode === 'check-in' ? 'Checked In' : 'Checked Out'} at ${timeStr || new Date().toLocaleTimeString()}${extraDetails}`
       });
-      showToast(res.message || 'Access Granted.', 'success');
+      showToast(res.message || `${scanMode === 'check-in' ? 'Check-In' : 'Check-Out'} Successful.`, 'success');
       
       // Reload daily check-ins
       const logsData = await api.get('/attendance/daily');
       setRecentLogs(logsData);
       setQrCodeInput('');
     } catch (err: any) {
-      let detailsMsg = 'Network or connection failure.';
+      let detailsMsg = err.message || 'Scan processing failure.';
       if (err.status === 404) {
         detailsMsg = 'Invalid QR: Member QR Code not found.';
       } else if (err.status === 400) {
-        detailsMsg = 'Already Checked In: Attendance recorded today.';
+        detailsMsg = err.message || 'Scan constraint violation.';
       } else if (err.status === 403) {
         detailsMsg = err.message || 'Access Denied: Membership expired.';
       }
       
       setScanResult({
         success: false,
-        message: err.message || 'Access Denied.',
+        message: `${scanMode === 'check-in' ? 'Check-In' : 'Check-Out'} Denied`,
         details: detailsMsg
       });
-      showToast(err.message || 'Access Denied.', 'error');
+      showToast(err.message || 'Scan Denied.', 'error');
     } finally {
       setScanning(false);
     }
@@ -147,6 +158,8 @@ export const QRAttendanceSimulator: React.FC = () => {
       'Gender': log.memberId?.gender || 'N/A',
       'Check-in Date': log.date,
       'Check-in Time': log.checkInTime,
+      'Check-out Time': log.checkOutTime || 'N/A',
+      'Workout Duration': log.workoutDuration || 'N/A',
       'Status': log.status.toUpperCase()
     }));
     exportToExcel(formatted, `daily_attendance_report_${new Date().toISOString().split('T')[0]}`, 'Attendance');
@@ -165,13 +178,40 @@ export const QRAttendanceSimulator: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           {/* Scan Interface */}
           <div className="p-6 rounded-2xl bg-card border shadow-sm space-y-6">
-            <div className="flex items-center justify-between border-b pb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-3 gap-3">
               <h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
                 <QrCode className="w-4 h-4 text-primary" /> Scan Console
               </h2>
+              
+              {/* Scan Mode Toggle Switches */}
+              <div className="flex bg-muted/60 p-1 rounded-xl w-full sm:w-60 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => setScanMode('check-in')}
+                  className={`flex-grow py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                    scanMode === 'check-in'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <LogIn className="w-3.5 h-3.5" /> Check-In
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScanMode('check-out')}
+                  className={`flex-grow py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer ${
+                    scanMode === 'check-out'
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  <LogOut className="w-3.5 h-3.5" /> Check-Out
+                </button>
+              </div>
+
               <button
                 onClick={handleToggleCamera}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
                   useCamera
                     ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                     : 'bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20'
@@ -193,13 +233,13 @@ export const QRAttendanceSimulator: React.FC = () => {
                   type="text"
                   value={qrCodeInput}
                   onChange={(e) => setQrCodeInput(e.target.value)}
-                  placeholder="Paste member QR Pass Code (e.g. QR-MEMBER-HASH)..."
+                  placeholder={`Paste member QR Pass Code to ${scanMode === 'check-in' ? 'check-in' : 'check-out'}...`}
                   className="flex-grow px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
                 />
                 <button
                   onClick={() => handleSimulateScan(qrCodeInput)}
                   disabled={scanning}
-                  className="px-6 py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground font-semibold rounded-xl text-sm transition-all"
+                  className="px-6 py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground font-semibold rounded-xl text-sm transition-all cursor-pointer"
                 >
                   {scanning ? 'Validating...' : 'Trigger Scan'}
                 </button>
@@ -208,7 +248,9 @@ export const QRAttendanceSimulator: React.FC = () => {
 
             {/* Quick selectors shortcut */}
             <div className="space-y-2 pt-4 border-t">
-              <span className="block text-xs font-semibold text-muted-foreground uppercase">Or select active member to scan:</span>
+              <span className="block text-xs font-semibold text-muted-foreground uppercase">
+                Or select active member to {scanMode === 'check-in' ? 'check-in' : 'check-out'}:
+              </span>
               {loading ? (
                 <div className="w-5 h-5 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
               ) : members.length === 0 ? (
@@ -219,7 +261,7 @@ export const QRAttendanceSimulator: React.FC = () => {
                     <button
                       key={m._id}
                       onClick={() => handleSimulateScan(m.qrCode)}
-                      className="px-3 py-1.5 rounded-lg border bg-card hover:border-primary text-xs transition-colors flex items-center gap-1.5"
+                      className="px-3 py-1.5 rounded-lg border bg-card hover:border-primary text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                     >
                       <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
                       <span>{m.name}</span>
@@ -267,7 +309,7 @@ export const QRAttendanceSimulator: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={handleExportExcel}
-                className="text-[10px] bg-card hover:bg-muted border px-2 py-0.5 rounded font-semibold text-foreground transition-colors"
+                className="text-[10px] bg-card hover:bg-muted border px-2 py-0.5 rounded font-semibold text-foreground transition-colors cursor-pointer"
               >
                 Excel
               </button>
@@ -288,13 +330,17 @@ export const QRAttendanceSimulator: React.FC = () => {
           ) : (
             <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
               {recentLogs.map((log) => (
-                <div key={log._id} className="p-3 rounded-xl bg-background border flex items-center justify-between text-xs hover:border-primary/30 transition-all">
+                <div key={log._id} className="p-3 rounded-xl bg-background border flex flex-col sm:flex-row sm:items-center justify-between text-xs hover:border-primary/30 transition-all gap-2">
                   <div className="space-y-1">
                     <div className="font-bold text-foreground">{log.memberId?.name || 'Member'}</div>
                     <div className="text-[10px] text-muted-foreground font-mono">{log.memberId?.qrCode}</div>
+                    {log.workoutDuration && (
+                      <div className="text-[9px] text-primary font-bold">Duration: {log.workoutDuration}</div>
+                    )}
                   </div>
-                  <div className="text-right text-muted-foreground font-semibold">
-                    {log.checkInTime}
+                  <div className="text-right text-muted-foreground font-semibold flex flex-col items-end">
+                    <div>In: {log.checkInTime}</div>
+                    {log.checkOutTime && <div className="text-amber-400">Out: {log.checkOutTime}</div>}
                   </div>
                 </div>
               ))}

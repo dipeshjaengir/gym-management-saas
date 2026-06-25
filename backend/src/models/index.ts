@@ -139,13 +139,27 @@ export interface IAuditLog extends Document {
   user: string;
   ipAddress: string;
   timestamp: Date;
+  oldValue: string;
+  newValue: string;
+  operator: string;
+  browser: string;
+  device: string;
+  ip: string;
+  reason: string;
 }
 
 const AuditLogSchema = new Schema<IAuditLog>({
   action: { type: String, required: true },
   user: { type: String, required: true },
   ipAddress: { type: String, required: true },
-  timestamp: { type: Date, default: Date.now, index: true }
+  timestamp: { type: Date, default: Date.now, index: true },
+  oldValue: { type: String, default: '' },
+  newValue: { type: String, default: '' },
+  operator: { type: String, default: 'Admin' },
+  browser: { type: String, default: '' },
+  device: { type: String, default: '' },
+  ip: { type: String, default: '' },
+  reason: { type: String, default: '' }
 });
 
 export const AuditLog = mongoose.model<IAuditLog>('AuditLog', AuditLogSchema);
@@ -275,11 +289,13 @@ export interface IAttendance extends Document {
   memberId: any;
   date: string;
   checkInTime: string;
-  checkOutTime?: string;
-  status: 'present' | 'absent';
-  receptionist?: string;
-  qrScanTime?: string;
-  deviceInfo?: string;
+  checkOutTime: string;
+  workoutDuration: string;
+  status: 'present' | 'absent' | 'checked_out';
+  receptionist: string;
+  qrScanTime: string;
+  deviceInfo: string;
+  browserInfo: string;
 }
 
 const AttendanceSchema = new Schema<IAttendance>({
@@ -288,10 +304,12 @@ const AttendanceSchema = new Schema<IAttendance>({
   date: { type: String, required: true, index: true }, // Format YYYY-MM-DD
   checkInTime: { type: String, required: true },
   checkOutTime: { type: String, default: '' },
-  status: { type: String, enum: ['present', 'absent'], default: 'present' },
+  workoutDuration: { type: String, default: '' },
+  status: { type: String, enum: ['present', 'absent', 'checked_out'], default: 'present' },
   receptionist: { type: String, default: 'Admin' },
   qrScanTime: { type: String, default: '' },
-  deviceInfo: { type: String, default: '' }
+  deviceInfo: { type: String, default: '' },
+  browserInfo: { type: String, default: '' }
 }, { timestamps: true });
 
 export const Attendance = mongoose.model<IAttendance>('Attendance', AttendanceSchema);
@@ -456,3 +474,65 @@ const CouponSchema = new Schema<ICoupon>({
 }, { timestamps: true });
 
 export const Coupon = mongoose.model<ICoupon>('Coupon', CouponSchema);
+
+// ----------------------------------------------------
+// 15. MEMBER ACTIVITY SCHEMA
+// ----------------------------------------------------
+export interface IMemberActivity extends Document {
+  gymOwnerId: any;
+  memberId: any;
+  activityType: 'registration' | 'payment_initial' | 'payment_partial' | 'payment_due_collection' | 'plan_renewal' | 'plan_upgrade' | 'plan_downgrade' | 'refund' | 'correction' | 'void' | 'workout_updated' | 'diet_updated' | 'check_in' | 'check_out';
+  title: string;
+  date: Date;
+  time: string;
+  operator: string;
+  remarks: string;
+  receiptNumber?: string;
+  transactionId?: string;
+  oldAmount?: number;
+  newAmount?: number;
+  remainingDue?: number;
+  paymentMethod?: string;
+}
+
+const MemberActivitySchema = new Schema<IMemberActivity>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', required: true, index: true },
+  memberId: { type: Schema.Types.ObjectId, ref: 'Member', required: true, index: true },
+  activityType: { type: String, required: true, index: true },
+  title: { type: String, required: true },
+  date: { type: Date, default: Date.now, index: true },
+  time: { type: String, required: true },
+  operator: { type: String, default: 'Admin' },
+  remarks: { type: String, default: '' },
+  receiptNumber: { type: String, default: '' },
+  transactionId: { type: String, default: '' },
+  oldAmount: { type: Number },
+  newAmount: { type: Number },
+  remainingDue: { type: Number },
+  paymentMethod: { type: String, default: '' }
+}, { timestamps: true });
+
+export const MemberActivity = mongoose.model<IMemberActivity>('MemberActivity', MemberActivitySchema);
+
+// ----------------------------------------------------
+// 16. NOTIFICATION SCHEMA
+// ----------------------------------------------------
+export interface INotification extends Document {
+  gymOwnerId?: any; // empty for superadmin/system alerts
+  title: string;
+  message: string;
+  category: 'registration' | 'payment' | 'due_collection' | 'attendance' | 'renewal' | 'trial' | 'suspension' | 'expiry';
+  isRead: boolean;
+  isDismissed: boolean;
+}
+
+const NotificationSchema = new Schema<INotification>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', index: true },
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  category: { type: String, required: true, index: true },
+  isRead: { type: Boolean, default: false },
+  isDismissed: { type: Boolean, default: false, index: true }
+}, { timestamps: true });
+
+export const Notification = mongoose.model<INotification>('Notification', NotificationSchema);

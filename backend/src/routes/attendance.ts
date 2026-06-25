@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { Attendance, Member, GymOwner } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { validateBody, checkInSchema } from '../middleware/validation';
+import { logMemberActivity, createNotification } from '../utils/activityLogger';
 
 const router = Router();
 
@@ -75,11 +76,31 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
       date: todayStr,
       checkInTime: timeStr,
       checkOutTime: '',
+      workoutDuration: '',
       status: 'present',
       receptionist: receptionistName,
       qrScanTime: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      deviceInfo: deviceInfo
+      deviceInfo: deviceInfo,
+      browserInfo: req.headers['user-agent'] || 'Unknown Browser'
     });
+
+    // Log Member Activity
+    await logMemberActivity(
+      gymOwnerId,
+      member._id,
+      'check_in',
+      'Checked In via QR',
+      receptionistName,
+      `Device: ${deviceInfo}`
+    );
+
+    // Create Notification
+    await createNotification(
+      gymOwnerId,
+      'Member Checked In',
+      `${member.name} checked in today at ${timeStr}.`,
+      'attendance'
+    );
 
     return res.status(201).json({
       message: `Access Granted. Welcome, ${member.name}! ${paymentWarning}`,
@@ -88,6 +109,91 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
     });
   } catch (err) {
     console.error('Scan check-in error:', err);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+// 2.5 POST scan check-out member by QR code
+router.post('/check-out', validateBody(checkInSchema), async (req: AuthenticatedRequest, res: Response) => {
+  const { qrCode } = req.body;
+  const gymOwnerId = req.user!.id;
+
+  if (!qrCode) return res.status(400).json({ message: 'QR Code is required.' });
+
+  try {
+    const member = await Member.findOne({ qrCode, gymOwnerId, isDeleted: false });
+    if (!member) {
+      return res.status(404).json({ message: 'Invalid QR' });
+    }
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    // Find today's check-in record
+    const attendance = await Attendance.findOne({ gymOwnerId, memberId: member._id, date: todayStr });
+    if (!attendance) {
+      return res.status(400).json({ message: 'Not Checked In Today' });
+    }
+    if (attendance.checkOutTime) {
+      return res.status(400).json({ message: 'Already Checked Out' });
+    }
+
+    const owner = await GymOwner.findById(gymOwnerId);
+    const receptionistName = owner ? owner.ownerName : 'Admin';
+    const deviceInfo = req.headers['user-agent'] || 'Unknown Device';
+    const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
+
+    // Calculate duration
+    let workoutDuration = '';
+    try {
+      const [inH, inM, inS] = attendance.checkInTime.split(':').map(Number);
+      const [outH, outM, outS] = timeStr.split(':').map(Number);
+      const inDate = new Date(2000, 0, 1, inH, inM, inS || 0);
+      const outDate = new Date(2000, 0, 1, outH, outM, outS || 0);
+      let diffMs = outDate.getTime() - inDate.getTime();
+      if (diffMs > 0) {
+        const hours = Math.floor(diffMs / (1000 * 60 * 60));
+        diffMs %= 1000 * 60 * 60;
+        const minutes = Math.floor(diffMs / (1000 * 60));
+        workoutDuration = hours > 0 ? `${hours}h ${minutes}m` : `${minutes} mins`;
+      } else {
+        workoutDuration = '0 mins';
+      }
+    } catch (e) {
+      workoutDuration = 'N/A';
+    }
+
+    attendance.checkOutTime = timeStr;
+    attendance.workoutDuration = workoutDuration;
+    attendance.status = 'checked_out';
+    attendance.browserInfo = req.headers['user-agent'] || 'Unknown Browser';
+    await attendance.save();
+
+    // Log Activity
+    await logMemberActivity(
+      gymOwnerId,
+      member._id,
+      'check_out',
+      'Checked Out via QR',
+      receptionistName,
+      `Workout Duration: ${workoutDuration}`
+    );
+
+    // Create Notification
+    await createNotification(
+      gymOwnerId,
+      'Member Checked Out',
+      `${member.name} checked out. Workout duration: ${workoutDuration}`,
+      'attendance'
+    );
+
+    return res.json({
+      message: `Access Granted. Goodbye, ${member.name}!`,
+      member: { name: member.name, status: 'checked_out' },
+      attendance
+    });
+  } catch (err) {
+    console.error('Scan check-out error:', err);
     return res.status(500).json({ message: 'Internal server error.' });
   }
 });

@@ -11,9 +11,22 @@ import {
   Calendar,
   Layers,
   ArrowUpRight,
-  Download
+  Download,
+  Ticket
 } from 'lucide-react';
-import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
+import {
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid
+} from 'recharts';
 import { generateRevenueReportPDF, exportToExcel } from '../../utils/exportHelpers';
 
 interface Metrics {
@@ -30,6 +43,12 @@ interface Metrics {
   trialUsers?: number;
   activeSubscribers?: number;
   suspendedAccounts?: number;
+  totalCoupons?: number;
+  activeCoupons?: number;
+  totalCouponUses?: number;
+  trialConversionRate?: number;
+  convertedOwners?: number;
+  planDistribution?: { [key: string]: number };
 }
 
 export const SuperAdminDashboard: React.FC = () => {
@@ -299,6 +318,73 @@ export const SuperAdminDashboard: React.FC = () => {
                 No subscription distributions to map. Create owners to inspect ratios.
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* SaaS Telemetry: Plan Distribution & Coupons */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Plan Analytics */}
+        <div className="p-6 rounded-2xl bg-card border shadow-sm lg:col-span-2 flex flex-col justify-between">
+          <h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2 mb-4">
+            <Layers className="w-4 h-4 text-primary" /> Subscription Plan Distribution
+          </h2>
+          <div className="h-64 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={
+                  metrics.planDistribution
+                    ? Object.keys(metrics.planDistribution).map((key) => ({
+                        name: key,
+                        Gyms: metrics.planDistribution![key]
+                      }))
+                    : []
+                }
+                margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
+                <XAxis dataKey="name" stroke="#737373" fontSize={11} tickLine={false} />
+                <YAxis stroke="#737373" fontSize={11} tickLine={false} />
+                <Tooltip contentStyle={{ background: '#171717', border: '1px solid #262626', borderRadius: '12px', color: '#fff' }} />
+                <Bar dataKey="Gyms" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Coupon & Trial Telemetry */}
+        <div className="p-6 rounded-2xl bg-card border shadow-sm flex flex-col gap-4">
+          <h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Ticket className="w-4 h-4 text-primary" /> Coupon &amp; Conversion Analytics
+          </h2>
+
+          <div className="space-y-3 flex-1 flex flex-col justify-center">
+            {/* Conversion */}
+            <div className="p-3 bg-muted/20 border border-border/40 rounded-xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase font-bold block">Trial Conversion Rate</span>
+                <span className="text-lg font-black text-foreground">{metrics.trialConversionRate || 0}%</span>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-indigo-950/40 text-indigo-400 border border-indigo-500/25">
+                {metrics.convertedOwners || 0} Converted
+              </span>
+            </div>
+
+            {/* Coupons Total */}
+            <div className="p-3 bg-muted/20 border border-border/40 rounded-xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase font-bold block">Active Coupons</span>
+                <span className="text-lg font-black text-foreground">{metrics.activeCoupons || 0} / {metrics.totalCoupons || 0}</span>
+              </div>
+            </div>
+
+            {/* Coupons Usage */}
+            <div className="p-3 bg-muted/20 border border-border/40 rounded-xl flex items-center justify-between">
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase font-bold block">Total Coupon Usage Redemptions</span>
+                <span className="text-lg font-black text-emerald-400">{metrics.totalCouponUses || 0} Times</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

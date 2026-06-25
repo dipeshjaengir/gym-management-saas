@@ -1,9 +1,10 @@
 import { Router, Response } from 'express';
-import { Member, MembershipPlan, ProgressMetric, GymOwner, Payment } from '../models';
+import { Member, MembershipPlan, ProgressMetric, GymOwner, Payment, MemberActivity } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
 import { validateBody, createMemberSchema, updateMemberSchema } from '../middleware/validation';
 import { notificationProvider } from '../config/notifications';
+import { logMemberActivity, createNotification } from '../utils/activityLogger';
 
 const router = Router();
 
@@ -88,6 +89,19 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
   }
 });
 
+// 2.5 GET Member timeline history
+router.get('/:id/timeline', async (req: AuthenticatedRequest, res: Response) => {
+  const gymOwnerId = req.user!.id;
+  const memberId = req.params.id;
+  try {
+    const list = await MemberActivity.find({ gymOwnerId, memberId })
+      .sort({ createdAt: -1 });
+    return res.json(list);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error retrieving member timeline.' });
+  }
+});
+
 // 3. POST Create Member
 router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequest, res: Response) => {
   const {
@@ -147,16 +161,35 @@ router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequ
       isArchived: false
     });
 
+    const ownerObj = await GymOwner.findById(gymOwnerId);
+    const opName = ownerObj ? ownerObj.ownerName : 'Admin';
+
+    // Log Registration Activity
+    await logMemberActivity(
+      gymOwnerId,
+      member._id,
+      'registration',
+      'Member Registered',
+      opName,
+      `Registered package: ${plan.name}. Height: ${height}cm, Weight: ${weight}kg.`
+    );
+
+    // Create Registration Notification
+    await createNotification(
+      gymOwnerId,
+      'New Member Registered',
+      `${name} has been registered under plan "${plan.name}".`,
+      'registration'
+    );
+
     // Log initial payment receipt if amountPaid > 0
     if (amountPaid > 0) {
       const now = new Date();
       const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
       const rand = Math.floor(1000 + Math.random() * 9000);
       const receiptNumber = `REC-${dateStr}-${rand}`;
-      
-      const owner = await GymOwner.findById(gymOwnerId);
 
-      await Payment.create({
+      const payment = await Payment.create({
         gymOwnerId,
         memberId: member._id,
         amount: amountPaid,
@@ -164,9 +197,35 @@ router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequ
         paymentMethod: req.body.paymentMethod || 'cash',
         receiptNumber,
         notes: 'Initial Plan Registration Payment',
-        operatorName: owner ? owner.ownerName : 'Admin',
+        operatorName: opName,
         isVoided: false
       });
+
+      // Log Initial Payment Activity
+      await logMemberActivity(
+        gymOwnerId,
+        member._id,
+        'payment_initial',
+        'Initial Plan Payment',
+        opName,
+        `Collected ₹${amountPaid} via ${(req.body.paymentMethod || 'cash').toUpperCase()}. Receipt: ${receiptNumber}`,
+        {
+          receiptNumber,
+          transactionId: payment._id,
+          oldAmount: 0,
+          newAmount: amountPaid,
+          remainingDue: remainingAmount,
+          paymentMethod: req.body.paymentMethod || 'cash'
+        }
+      );
+
+      // Create Payment Notification
+      await createNotification(
+        gymOwnerId,
+        'Initial Payment Received',
+        `Collected ₹${amountPaid} initial payment from ${name}.`,
+        'payment'
+      );
     }
 
     // Create Initial Progress Metric Log
@@ -253,13 +312,42 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
         // Check for plan upgrade/downgrade/renewal event type
         const oldPlan = await MembershipPlan.findById(oldPlanId);
         let planAction = 'Membership Renewal';
+        let activityType: 'plan_renewal' | 'plan_upgrade' | 'plan_downgrade' = 'plan_renewal';
         if (oldPlan) {
           if (plan.price > oldPlan.price) {
             planAction = 'Plan Upgrade';
+            activityType = 'plan_upgrade';
           } else if (plan.price < oldPlan.price) {
             planAction = 'Plan Downgrade';
+            activityType = 'plan_downgrade';
           }
         }
+
+        const owner = await GymOwner.findById(req.user!.id);
+        const opName = owner ? owner.ownerName : 'Admin';
+
+        // Log Plan Activity
+        await logMemberActivity(
+          req.user!.id,
+          member._id,
+          activityType,
+          planAction,
+          opName,
+          `Swapped plan from ${oldPlan ? oldPlan.name : 'N/A'} to ${plan.name}. Remaining dues: ₹${member.remainingAmount}`,
+          {
+            oldAmount: oldPlan ? oldPlan.price : 0,
+            newAmount: plan.price,
+            remainingDue: member.remainingAmount
+          }
+        );
+
+        // Create Notification
+        await createNotification(
+          req.user!.id,
+          planAction,
+          `${member.name} packages adjusted to "${plan.name}".`,
+          activityType === 'plan_renewal' ? 'renewal' : 'trial'
+        );
 
         // Log payment receipt for additional amount
         const paidDiff = newPaid - oldPaid;
@@ -268,9 +356,8 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
           const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
           const rand = Math.floor(1000 + Math.random() * 9000);
           const receiptNumber = `REC-${dateStr}-${rand}`;
-          const owner = await GymOwner.findById(req.user!.id);
           
-          await Payment.create({
+          const payment = await Payment.create({
             gymOwnerId: req.user!.id,
             memberId: member._id,
             amount: paidDiff,
@@ -278,9 +365,35 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
             paymentMethod: req.body.paymentMethod || 'cash',
             receiptNumber,
             notes: `${planAction} Payment`,
-            operatorName: owner ? owner.ownerName : 'Admin',
+            operatorName: opName,
             isVoided: false
           });
+
+          // Log payment activity
+          await logMemberActivity(
+            req.user!.id,
+            member._id,
+            'payment_partial',
+            'Plan Adjustment Payment',
+            opName,
+            `Collected additional ₹${paidDiff} via ${(req.body.paymentMethod || 'cash').toUpperCase()}. Receipt: ${receiptNumber}`,
+            {
+              receiptNumber,
+              transactionId: payment._id,
+              oldAmount: oldPaid,
+              newAmount: newPaid,
+              remainingDue: member.remainingAmount,
+              paymentMethod: req.body.paymentMethod || 'cash'
+            }
+          );
+
+          // Create notification
+          await createNotification(
+            req.user!.id,
+            'Payment Collected',
+            `Collected ₹${paidDiff} for plan adjustment from ${member.name}.`,
+            'payment'
+          );
         }
       }
     } else {

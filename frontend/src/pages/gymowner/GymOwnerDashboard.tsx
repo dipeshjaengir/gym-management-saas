@@ -1,4 +1,21 @@
 import React, { useEffect, useState } from 'react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  PieChart as RechartsPieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend
+} from 'recharts';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useNavigate } from 'react-router-dom';
@@ -754,6 +771,57 @@ export const GymOwnerDashboard: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Recharts Pie Chart for Membership Distribution */}
+          <div className="p-6 rounded-3xl bg-card border shadow-sm space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Membership Breakdown Analytics</h3>
+            <div className="h-64 flex flex-col sm:flex-row items-center justify-around gap-4">
+              <div className="w-full sm:w-1/2 h-full min-h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsPieChart>
+                    <Pie
+                      data={[
+                        { name: 'Active', value: stats.metrics.activeMembers || 0 },
+                        { name: 'Expired', value: stats.metrics.expiredMembers || 0 },
+                        { name: 'Blocked', value: stats.metrics.blockedMembers || 0 }
+                      ].filter(d => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={80}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      <Cell fill="#10B981" />
+                      <Cell fill="#EF4444" />
+                      <Cell fill="#F59E0B" />
+                    </Pie>
+                    <Tooltip formatter={(value) => [`${value} Members`, 'Count']} contentStyle={{ background: '#171717', border: '1px solid #262626', borderRadius: '12px', color: '#fff' }} />
+                  </RechartsPieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="space-y-2 text-xs w-full sm:w-1/3">
+                <div className="flex items-center justify-between border-b pb-1.5">
+                  <span className="flex items-center gap-2 font-semibold text-muted-foreground">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" /> Active Members
+                  </span>
+                  <span className="font-bold text-foreground">{stats.metrics.activeMembers}</span>
+                </div>
+                <div className="flex items-center justify-between border-b pb-1.5">
+                  <span className="flex items-center gap-2 font-semibold text-muted-foreground">
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500" /> Expired Members
+                  </span>
+                  <span className="font-bold text-foreground">{stats.metrics.expiredMembers}</span>
+                </div>
+                <div className="flex items-center justify-between pb-1.5">
+                  <span className="flex items-center gap-2 font-semibold text-muted-foreground">
+                    <span className="w-2.5 h-2.5 rounded-full bg-amber-500" /> Blocked/Suspended
+                  </span>
+                  <span className="font-bold text-foreground">{stats.metrics.blockedMembers}</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -839,6 +907,32 @@ export const GymOwnerDashboard: React.FC = () => {
               </div>
             </div>
           </div>
+
+          {/* Recharts Bar Chart comparing collection categories and dues */}
+          <div className="p-6 rounded-3xl bg-card border shadow-sm space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Collections vs Outstanding Dues Analysis</h3>
+            <div className="h-72 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={[
+                    { name: 'Membership', Collected: stats.paymentOverview.membershipCollection, Dues: stats.paymentOverview.membershipDue },
+                    { name: 'PT Plans', Collected: stats.paymentOverview.ptCollection || 0, Dues: stats.paymentOverview.ptDue },
+                    { name: 'Admission', Collected: stats.paymentOverview.admissionFees || 0, Dues: 0 },
+                    { name: 'Other Services', Collected: stats.paymentOverview.servicePaid || 0, Dues: stats.paymentOverview.serviceDue }
+                  ]}
+                  margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
+                  <XAxis dataKey="name" stroke="#737373" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#737373" fontSize={11} tickLine={false} />
+                  <Tooltip contentStyle={{ background: '#171717', border: '1px solid #262626', borderRadius: '12px', color: '#fff' }} />
+                  <Legend verticalAlign="top" height={36} iconType="circle" />
+                  <Bar dataKey="Collected" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Dues" fill="#EF4444" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
       )}
 
@@ -900,6 +994,36 @@ export const GymOwnerDashboard: React.FC = () => {
                 <span className="text-[10px] font-bold text-muted-foreground uppercase block">Expiring (8–15d)</span>
                 <div className="text-xl font-bold text-foreground">{stats.attendanceOverview.expiring8to15Days}</div>
               </div>
+            </div>
+          </div>
+
+          {/* Recharts Area Chart showing check-in and check-out distribution / expiry warning forecast */}
+          <div className="p-6 rounded-3xl bg-card border shadow-sm space-y-4">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Membership Expiry Risk Horizon</h3>
+            <div className="h-64 w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={[
+                    { name: 'Today', Count: stats.attendanceOverview.expiringToday },
+                    { name: '1-3 Days', Count: stats.attendanceOverview.expiring1to3Days },
+                    { name: '4-7 Days', Count: stats.attendanceOverview.expiring4to7Days },
+                    { name: '8-15 Days', Count: stats.attendanceOverview.expiring8to15Days }
+                  ]}
+                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#262626" />
+                  <XAxis dataKey="name" stroke="#737373" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#737373" fontSize={11} tickLine={false} />
+                  <Tooltip contentStyle={{ background: '#171717', border: '1px solid #262626', borderRadius: '12px', color: '#fff' }} />
+                  <Area type="monotone" dataKey="Count" stroke="#3B82F6" strokeWidth={2} fillOpacity={1} fill="url(#colorCount)" />
+                </AreaChart>
+              </ResponsiveContainer>
             </div>
           </div>
         </div>

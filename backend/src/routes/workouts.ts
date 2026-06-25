@@ -1,7 +1,8 @@
 import { Router, Response } from 'express';
-import { WorkoutPlan } from '../models';
+import { WorkoutPlan, GymOwner } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { validateBody, saveWorkoutSchema } from '../middleware/validation';
+import { logMemberActivity } from '../utils/activityLogger';
 
 const router = Router();
 
@@ -46,6 +47,20 @@ router.post('/member/:memberId', validateBody(saveWorkoutSchema), async (req: Au
         exercises: exercises || []
       });
     }
+
+    // Resolve operator name
+    const owner = await GymOwner.findById(req.user!.id);
+    const opName = owner ? owner.ownerName : 'Admin';
+
+    // Log Activity
+    await logMemberActivity(
+      req.user!.id,
+      req.params.memberId,
+      'workout_updated',
+      'Workout Plan Updated',
+      opName,
+      `Workout details saved with ${exercises?.length || 0} exercises.`
+    );
 
     return res.json(plan);
   } catch (err) {

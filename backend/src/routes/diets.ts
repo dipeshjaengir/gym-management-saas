@@ -1,7 +1,8 @@
 import { Router, Response } from 'express';
-import { DietPlan } from '../models';
+import { DietPlan, GymOwner } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { validateBody, saveDietSchema } from '../middleware/validation';
+import { logMemberActivity } from '../utils/activityLogger';
 
 const router = Router();
 
@@ -46,6 +47,20 @@ router.post('/member/:memberId', validateBody(saveDietSchema), async (req: Authe
         meals: meals || []
       });
     }
+
+    // Resolve operator name
+    const owner = await GymOwner.findById(req.user!.id);
+    const opName = owner ? owner.ownerName : 'Admin';
+
+    // Log Activity
+    await logMemberActivity(
+      req.user!.id,
+      req.params.memberId,
+      'diet_updated',
+      'Diet Plan Updated',
+      opName,
+      `Diet details saved with ${meals?.length || 0} meals.`
+    );
 
     return res.json(plan);
   } catch (err) {

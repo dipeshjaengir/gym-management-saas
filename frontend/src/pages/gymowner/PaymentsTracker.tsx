@@ -9,7 +9,10 @@ import {
   Trash2,
   X,
   CreditCard,
-  Printer
+  Printer,
+  MessageCircle,
+  Mail,
+  QrCode
 } from 'lucide-react';
 import { generateReceiptPDF, exportToExcel } from '../../utils/exportHelpers';
 
@@ -157,6 +160,20 @@ export const PaymentsTracker: React.FC = () => {
     if (receipt) {
       generateReceiptPDF(receipt);
     }
+  };
+
+  const handleShareWhatsApp = () => {
+    if (!receipt) return;
+    const msg = `Hello ${receipt.member?.name},\n\nThank you for your payment at *${receipt.branding.gymName}*!\n\n*Payment Details:*\nReceipt No: ${receipt.receiptNumber}\nAmount Paid: ₹${receipt.amount}\nRemaining Dues: ₹${receipt.pendingAmount}\nPayment Method: ${receipt.paymentMethod.toUpperCase()}\nDate: ${new Date(receipt.paymentDate).toLocaleDateString('en-IN')}\n\nRemarks: ${receipt.notes || 'N/A'}\n\nHave a great workout session!`;
+    const url = `https://wa.me/${receipt.member?.phone.replace(/\D/g, '').length === 10 ? '91' + receipt.member?.phone.replace(/\D/g, '') : receipt.member?.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`;
+    window.open(url, '_blank');
+  };
+
+  const handleShareEmail = () => {
+    if (!receipt) return;
+    const subject = `Payment Receipt - ${receipt.receiptNumber} - ${receipt.branding.gymName}`;
+    const body = `Hello ${receipt.member?.name},\n\nThis is to confirm receipt of ₹${receipt.amount} for your membership subscription at ${receipt.branding.gymName}.\n\nReceipt Details:\nReceipt No: ${receipt.receiptNumber}\nRemaining Dues: ₹${receipt.pendingAmount}\nDate: ${new Date(receipt.paymentDate).toLocaleString('en-IN')}\n\nThank you for working out with us!`;
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   };
 
   const handleExportExcel = () => {
@@ -436,79 +453,112 @@ export const PaymentsTracker: React.FC = () => {
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Print Control (Hidden in printing) */}
-                <div className="flex justify-end gap-2 border-b pb-4 print:hidden">
-                  <button
-                    onClick={handlePrint}
-                    className="px-4 py-2 bg-primary hover:bg-primary/95 text-primary-foreground text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all"
-                  >
-                    <Printer className="w-3.5 h-3.5" /> Print Receipt
-                  </button>
-                </div>
+                 {/* Share & Print Control Controls (Hidden in printing) */}
+                 <div className="flex flex-wrap gap-2 border-b pb-4 print:hidden items-center justify-end">
+                   <button
+                     onClick={handleShareWhatsApp}
+                     className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                   >
+                     <MessageCircle className="w-4 h-4" /> Share WhatsApp
+                   </button>
+                   <button
+                     onClick={handleShareEmail}
+                     className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                   >
+                     <Mail className="w-4 h-4" /> Send Email
+                   </button>
+                   <button
+                     onClick={handlePrint}
+                     className="px-3.5 py-2 bg-primary hover:bg-primary/95 text-primary-foreground text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+                   >
+                     <Printer className="w-4 h-4" /> Download PDF
+                   </button>
+                 </div>
 
-                {/* Printable Content Area */}
-                <div id="printable-receipt" className="space-y-6 text-foreground font-sans">
-                  {/* Gym Header */}
-                  <div className="text-center space-y-1">
-                    {receipt.branding.logo && (
-                      <img
-                        src={receipt.branding.logo}
-                        alt="Logo"
-                        className="w-12 h-12 rounded-full object-cover mx-auto mb-2 border"
-                      />
-                    )}
-                    <h3 className="font-extrabold text-xl">{receipt.branding.gymName}</h3>
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wide">
-                      Tax invoice &amp; Payment Receipt
-                    </p>
-                    <p className="text-xs text-muted-foreground max-w-xs mx-auto">{receipt.branding.address}</p>
-                    <p className="text-xs text-muted-foreground">Office: {receipt.branding.contactNumber}</p>
-                  </div>
+                 {/* Printable Content Area */}
+                 <div id="printable-receipt" className="space-y-6 text-foreground font-sans p-2">
+                   {/* Gym Header */}
+                   <div className="text-center space-y-1">
+                     {receipt.branding.logo ? (
+                       <img
+                         src={receipt.branding.logo}
+                         alt="Logo"
+                         className="w-12 h-12 rounded-full object-cover mx-auto mb-2 border"
+                       />
+                     ) : (
+                       <div className="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center mx-auto mb-2">
+                         <QrCode className="w-6 h-6 text-primary" />
+                       </div>
+                     )}
+                     <h3 className="font-extrabold text-xl">{receipt.branding.gymName}</h3>
+                     <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-widest bg-muted/40 px-3 py-1 rounded-full inline-block">
+                       OFFICIAL TAX INVOICE &amp; RECEIPT
+                     </p>
+                     <p className="text-xs text-muted-foreground max-w-xs mx-auto mt-1">{receipt.branding.address || 'Gym Premises Address'}</p>
+                     <p className="text-[11px] text-muted-foreground font-medium">Contact: {receipt.branding.contactNumber}</p>
+                   </div>
 
-                  {/* Receipt Meta */}
-                  <div className="grid grid-cols-2 gap-4 p-3 bg-muted/30 border rounded-xl text-xs">
-                    <div>
-                      <span className="block text-muted-foreground font-semibold">Receipt Number</span>
-                      <span className="font-mono font-bold text-foreground">{receipt.receiptNumber}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="block text-muted-foreground font-semibold">Date &amp; Time</span>
-                      <span className="font-semibold text-foreground">
-                        {new Date(receipt.paymentDate).toLocaleString('en-IN')}
-                      </span>
-                    </div>
-                  </div>
+                   {/* Receipt Meta */}
+                   <div className="grid grid-cols-2 gap-4 p-3 bg-muted/30 border rounded-xl text-xs">
+                     <div>
+                       <span className="block text-muted-foreground font-semibold uppercase text-[9px] tracking-wider">Receipt Number</span>
+                       <span className="font-mono font-bold text-foreground text-sm">{receipt.receiptNumber}</span>
+                     </div>
+                     <div className="text-right">
+                       <span className="block text-muted-foreground font-semibold uppercase text-[9px] tracking-wider">Date &amp; Time</span>
+                       <span className="font-semibold text-foreground">
+                         {new Date(receipt.paymentDate).toLocaleString('en-IN')}
+                       </span>
+                     </div>
+                   </div>
 
-                  {/* Member Meta */}
-                  <div className="space-y-1 text-xs">
-                    <span className="block font-semibold uppercase text-muted-foreground text-[10px]">Received From</span>
-                    <div className="font-bold text-sm text-foreground">{receipt.member?.name || 'Gym Member'}</div>
-                    <div className="text-muted-foreground">Phone: {receipt.member?.phone}</div>
-                  </div>
+                   {/* Member Meta */}
+                   <div className="space-y-1 text-xs">
+                     <span className="block font-semibold uppercase text-muted-foreground text-[9px] tracking-wider">Billed To (Recipient)</span>
+                     <div className="font-bold text-sm text-foreground">{receipt.member?.name || 'Gym Member'}</div>
+                     <div className="text-muted-foreground">Phone: {receipt.member?.phone}</div>
+                     {receipt.member?.address && (
+                       <div className="text-muted-foreground">Address: {receipt.member.address}</div>
+                     )}
+                   </div>
 
-                  {/* Details Block */}
-                  <div className="border border-collapse rounded-xl overflow-hidden text-xs">
-                    <div className="grid grid-cols-2 bg-muted/40 p-2.5 font-semibold text-muted-foreground border-b uppercase text-[9px] tracking-wide">
-                      <span>Description</span>
-                      <span className="text-right">Amount</span>
-                    </div>
-                    <div className="grid grid-cols-2 p-3 font-medium border-b">
-                      <span>Gym Membership Collection</span>
-                      <span className="text-right font-bold text-foreground">₹{receipt.amount}.00</span>
-                    </div>
-                    <div className="grid grid-cols-2 p-3 text-muted-foreground">
-                      <span>Remaining Balance Dues</span>
-                      <span className="text-right font-bold text-rose-400">₹{receipt.pendingAmount}.00</span>
-                    </div>
-                  </div>
+                   {/* Details Block */}
+                   <div className="border border-collapse rounded-xl overflow-hidden text-xs">
+                     <div className="grid grid-cols-2 bg-muted/40 p-2.5 font-semibold text-muted-foreground border-b uppercase text-[9px] tracking-wide">
+                       <span>Description</span>
+                       <span className="text-right">Amount</span>
+                     </div>
+                     <div className="grid grid-cols-2 p-3 font-medium border-b">
+                       <span>Gym Membership Service Collection</span>
+                       <span className="text-right font-bold text-foreground">₹{receipt.amount}.00</span>
+                     </div>
+                     <div className="grid grid-cols-2 p-3 text-muted-foreground">
+                       <span>Remaining Outstanding Dues</span>
+                       <span className="text-right font-bold text-rose-400">₹{receipt.pendingAmount}.00</span>
+                     </div>
+                   </div>
 
-                  {/* Footer Meta */}
-                  <div className="text-center text-[10px] text-muted-foreground pt-4 border-t border-dashed">
-                    Payment Method: <span className="font-bold uppercase text-foreground">{receipt.paymentMethod}</span>
-                    {receipt.notes && <div className="mt-1 italic">Remarks: {receipt.notes}</div>}
-                    <div className="mt-4 font-semibold text-foreground">Thank you for working out with us!</div>
-                  </div>
-                </div>
+                   {/* Footer Meta */}
+                   <div className="text-center text-[10px] text-muted-foreground pt-4 border-t border-dashed space-y-4">
+                     <div>
+                       Payment Method: <span className="font-bold uppercase text-foreground">{receipt.paymentMethod}</span>
+                       {receipt.notes && <div className="mt-1 italic">Remarks: {receipt.notes}</div>}
+                     </div>
+
+                     {/* Dynamic QR Verification Invoice Badge */}
+                     <div className="flex flex-col items-center justify-center p-3 bg-muted/15 border border-border/40 rounded-xl max-w-xs mx-auto space-y-1.5">
+                       <QrCode className="w-12 h-12 text-muted-foreground/80" />
+                       <div className="text-[8px] text-muted-foreground uppercase font-extrabold tracking-widest text-center">
+                         Invoice Authenticity QR Verification
+                       </div>
+                       <div className="text-[7px] font-mono text-muted-foreground break-all max-w-[180px] text-center">
+                         https://gymledger.in/verify/{receipt.receiptNumber}
+                       </div>
+                     </div>
+
+                     <div className="pt-2 font-bold text-foreground text-xs uppercase tracking-wide">Thank you for working out with us!</div>
+                   </div>
+                 </div>
               </div>
             )}
           </div>

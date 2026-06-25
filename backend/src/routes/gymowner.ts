@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { GymOwner, Member, Payment, Attendance } from '../models';
+import { GymOwner, Member, Payment, Attendance, MembershipPlan } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
 import { validateBody, updateBrandingSchema } from '../middleware/validation';
@@ -206,6 +206,61 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
     });
   } catch (err) {
     return res.status(500).json({ message: 'Error fetching gym dashboard stats.' });
+  }
+});
+
+// 4. Unified Global Search for Gym Owner
+router.get('/search', async (req: AuthenticatedRequest, res: Response) => {
+  const gymOwnerId = req.user!.id;
+  const q = String(req.query.q || '').trim();
+
+  if (!q) {
+    return res.json({ members: [], payments: [], attendance: [], plans: [] });
+  }
+
+  try {
+    const regex = { $regex: q, $options: 'i' };
+
+    // Search members by name, phone, email, qrCode
+    const members = await Member.find({
+      gymOwnerId,
+      isDeleted: false,
+      $or: [{ name: regex }, { phone: regex }, { email: regex }, { qrCode: regex }]
+    }).limit(10);
+
+    // Search payments by receiptNumber, notes
+    const payments = await Payment.find({
+      gymOwnerId,
+      isDeleted: false,
+      $or: [{ receiptNumber: regex }, { notes: regex }]
+    }).populate({ path: 'memberId', select: 'name phone' }).limit(10);
+
+    // Search plans by name
+    const plans = await MembershipPlan.find({
+      gymOwnerId,
+      isDeleted: false,
+      name: regex
+    }).limit(10);
+
+    // Search attendance by date, receptionist, and matching member name
+    const matchingMembers = await Member.find({ gymOwnerId, name: regex, isDeleted: false }).select('_id');
+    const memberIds = matchingMembers.map(m => m._id);
+
+    const attendance = await Attendance.find({
+      gymOwnerId,
+      $or: [
+        { date: regex },
+        { checkInTime: regex },
+        { checkOutTime: regex },
+        { receptionist: regex },
+        { memberId: { $in: memberIds } }
+      ]
+    }).populate({ path: 'memberId', select: 'name phone' }).limit(10);
+
+    return res.json({ members, payments, plans, attendance });
+  } catch (err) {
+    console.error('GymOwner Global search error:', err);
+    return res.status(500).json({ message: 'Error performing global search.' });
   }
 });
 

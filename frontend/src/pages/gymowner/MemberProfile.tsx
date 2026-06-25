@@ -140,7 +140,8 @@ export const MemberProfile: React.FC = () => {
   const [loadingReceipt, setLoadingReceipt] = useState(false);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'payments' | 'attendance' | 'workout' | 'diet'>('payments');
+  const [activeTab, setActiveTab] = useState<'payments' | 'attendance' | 'workout' | 'diet' | 'timeline'>('payments');
+  const [timeline, setTimeline] = useState<any[]>([]);
 
   useEffect(() => {
     if (id) {
@@ -151,12 +152,13 @@ export const MemberProfile: React.FC = () => {
   const loadProfileData = async () => {
     setLoading(true);
     try {
-      const [mRes, payRes, attRes, wkRes, dtRes] = await Promise.all([
+      const [mRes, payRes, attRes, wkRes, dtRes, timelineRes] = await Promise.all([
         api.get(`/members/${id}`),
         api.get(`/payments/member/${id}`),
         api.get(`/attendance/member/${id}`).catch(() => []),
         api.get(`/workouts/member/${id}`).catch(() => null),
-        api.get(`/diets/member/${id}`).catch(() => null)
+        api.get(`/diets/member/${id}`).catch(() => null),
+        api.get(`/members/${id}/timeline`).catch(() => [])
       ]);
 
       setMember(mRes);
@@ -164,10 +166,43 @@ export const MemberProfile: React.FC = () => {
       setAttendance(attRes);
       setWorkout(wkRes);
       setDiet(dtRes);
+      setTimeline(timelineRes);
     } catch (err: any) {
       showToast(err.message || 'Error loading member profile details.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadQRBadge = async () => {
+    if (!member) return;
+    const badgeElement = document.getElementById('member-qr-badge');
+    if (!badgeElement) return;
+
+    try {
+      showToast('Generating print-ready PDF badge...', 'info');
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+
+      const canvas = await html2canvas(badgeElement, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#0a0a0a'
+      });
+
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: [85, 120]
+      });
+
+      pdf.addImage(imgData, 'PNG', 0, 0, 85, 120);
+      pdf.save(`badge-${member.name.toLowerCase().replace(/\s+/g, '-')}.pdf`);
+      showToast('Badge PDF downloaded successfully!', 'success');
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      showToast('Failed to download PDF badge.', 'error');
     }
   };
 
@@ -554,14 +589,46 @@ export const MemberProfile: React.FC = () => {
           {/* QR Receptionist Pass */}
           <div className="bg-card border rounded-3xl p-6 shadow-sm text-center space-y-4">
             <h4 className="text-sm font-extrabold uppercase text-muted-foreground tracking-wider">Receptionist QR Pass</h4>
-            <div className="p-4 bg-white rounded-2xl inline-block border shadow-inner">
-              {/* Fallback visual QR Representation */}
-              <div className="w-36 h-36 bg-slate-100 flex flex-col items-center justify-center gap-2 border border-slate-200 rounded-xl relative">
-                <QrCode className="w-20 h-20 text-slate-800" />
-                <span className="text-[10px] text-slate-500 font-mono font-semibold uppercase">{member.qrCode}</span>
+            
+            <div className="flex justify-center">
+              <div
+                id="member-qr-badge"
+                className="w-[240px] h-[340px] bg-slate-950 border border-primary/20 rounded-2xl p-4 flex flex-col items-center justify-between text-white shadow-lg relative overflow-hidden"
+              >
+                <div className="absolute -top-12 -left-12 w-28 h-28 rounded-full bg-primary/10 blur-2xl" />
+                <div className="absolute -bottom-12 -right-12 w-28 h-28 rounded-full bg-primary/10 blur-2xl" />
+
+                <div className="text-center w-full mt-2 z-10">
+                  <div className="text-[10px] font-bold text-primary tracking-widest uppercase">GYMLEDGER MEMBER</div>
+                  <div className="text-sm font-black truncate max-w-full mt-0.5 text-slate-100">
+                    {user?.branding?.gymName || user?.gymName || 'GymLedger Gym'}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-white rounded-xl inline-block border border-slate-800 shadow-inner z-10">
+                  <div className="w-28 h-28 bg-slate-100 flex flex-col items-center justify-center gap-1.5 rounded-lg relative">
+                    <QrCode className="w-16 h-16 text-slate-900" />
+                    <span className="text-[9px] text-slate-500 font-mono font-bold tracking-wider">{member.qrCode}</span>
+                  </div>
+                </div>
+
+                <div className="text-center w-full mb-2 z-10">
+                  <div className="text-sm font-extrabold text-white truncate px-2">{member.name}</div>
+                  <div className="text-[10px] text-muted-foreground font-semibold mt-0.5">Plan: {member.planId?.name || 'General Membership'}</div>
+                  <div className="text-[9px] text-rose-400 font-extrabold uppercase tracking-wide mt-1 bg-rose-500/10 px-2 py-0.5 rounded-full inline-block">
+                    Expires: {new Date(member.membershipEnd).toLocaleDateString('en-IN')}
+                  </div>
+                </div>
               </div>
             </div>
-            <p className="text-[10px] text-muted-foreground"> receptionist scans this code to log check-in attendance.</p>
+
+            <button
+              onClick={downloadQRBadge}
+              className="w-full py-2.5 bg-muted hover:bg-muted/80 text-foreground font-bold rounded-xl text-xs transition-all border flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" /> Download Badge PDF
+            </button>
+            <p className="text-[10px] text-muted-foreground">Scanned at the gym entrance desk to verify active member access.</p>
           </div>
         </div>
 
@@ -569,7 +636,7 @@ export const MemberProfile: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           {/* Section Navigation Tabs */}
           <div className="flex border-b border-border overflow-x-auto pb-px">
-            {(['payments', 'attendance', 'workout', 'diet'] as const).map((tab) => (
+            {(['payments', 'attendance', 'workout', 'diet', 'timeline'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -583,6 +650,7 @@ export const MemberProfile: React.FC = () => {
                 {tab === 'attendance' && 'Attendance Logs'}
                 {tab === 'workout' && 'Workout Schedule'}
                 {tab === 'diet' && 'Diet Routine'}
+                {tab === 'timeline' && 'Activity Timeline'}
               </button>
             ))}
           </div>
@@ -797,70 +865,86 @@ export const MemberProfile: React.FC = () => {
                 )}
               </div>
             )}
-          </div>
 
-          {/* Activity Timeline */}
-          <div className="bg-card border rounded-3xl p-6 shadow-sm space-y-6">
-            <h3 className="text-lg font-bold">Profile Activity Timeline</h3>
-            <div className="relative border-l border-border pl-6 ml-2 space-y-6">
-              {timelineItems.map((item, idx) => (
-                <div key={idx} className="relative">
-                  {/* Dot */}
-                  <span className={`absolute -left-[31px] top-1.5 w-4.5 h-4.5 rounded-full border-4 border-card flex items-center justify-center ${
-                    item.type === 'success' 
-                      ? 'bg-emerald-500' 
-                      : item.type === 'warn'
-                      ? 'bg-rose-500'
-                      : 'bg-primary'
-                  }`} />
-                  <div className="space-y-1">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                      <h4 className="text-xs font-bold text-foreground">{item.title}</h4>
-                      <span className="text-[10px] text-muted-foreground">{item.date.toLocaleString('en-IN')}</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{item.desc}</p>
-                    {item.details && (
-                      <div className="mt-2 p-3 bg-muted/20 border rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-muted-foreground">
-                        {item.details.transactionId && (
-                          <div>
-                            <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Transaction ID</span>
-                            <span className="text-foreground font-mono font-bold">{item.details.transactionId}</span>
-                          </div>
-                        )}
-                        <div>
-                          <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Member Name</span>
-                          <span className="text-foreground font-bold">{item.details.memberName}</span>
-                        </div>
-                        {item.details.amount !== undefined && (
-                          <div>
-                            <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Amount</span>
-                            <span className="text-foreground font-bold text-primary">₹{item.details.amount}</span>
-                          </div>
-                        )}
-                        {item.details.method && (
-                          <div>
-                            <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Payment Method</span>
-                            <span className="text-foreground uppercase font-bold">{item.details.method}</span>
-                          </div>
-                        )}
-                        {item.details.collectedBy && (
-                          <div>
-                            <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Collected By</span>
-                            <span className="text-foreground font-bold">{item.details.collectedBy}</span>
-                          </div>
-                        )}
-                        {item.details.notes && (
-                          <div className="col-span-2">
-                            <span className="font-semibold block text-[8px] uppercase tracking-wider text-muted-foreground">Notes / Remarks</span>
-                            <span className="text-foreground italic">{item.details.notes}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
+            {activeTab === 'timeline' && (
+              <div className="bg-card border rounded-3xl p-6 shadow-sm space-y-4">
+                <div className="flex justify-between items-center border-b border-border/40 pb-3">
+                  <div>
+                    <h3 className="text-lg font-bold">Member Activity Ledger</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Database-driven financial &amp; check-in history</p>
                   </div>
+                  <span className="text-xs text-muted-foreground font-semibold bg-muted px-2.5 py-1 rounded-full">Total Entries: {timeline.length}</span>
                 </div>
-              ))}
-            </div>
+
+                {timeline.length === 0 ? (
+                  <div className="p-8 text-center bg-muted/20 border border-dashed rounded-2xl">
+                    <p className="text-sm text-muted-foreground">No activity records logged for this member yet.</p>
+                  </div>
+                ) : (
+                  <div className="relative border-l border-border pl-6 ml-3 space-y-6 pt-2">
+                    {timeline.map((item, idx) => {
+                      // Color and icon coding
+                      let bulletColor = 'bg-primary';
+                      let actIcon = <Activity className="w-3.5 h-3.5 text-white" />;
+
+                      if (item.activityType === 'registration') {
+                        bulletColor = 'bg-emerald-500';
+                        actIcon = <User className="w-3.5 h-3.5 text-white" />;
+                      } else if (item.activityType.startsWith('payment') || item.activityType === 'correction') {
+                        bulletColor = 'bg-amber-500';
+                        actIcon = <IndianRupee className="w-3.5 h-3.5 text-white" />;
+                      } else if (item.activityType === 'void' || item.activityType === 'refund') {
+                        bulletColor = 'bg-rose-500';
+                        actIcon = <XCircle className="w-3.5 h-3.5 text-white" />;
+                      } else if (item.activityType.startsWith('plan')) {
+                        bulletColor = 'bg-purple-500';
+                        actIcon = <RefreshCw className="w-3.5 h-3.5 text-white" />;
+                      } else if (item.activityType.startsWith('check_')) {
+                        bulletColor = 'bg-sky-500';
+                        actIcon = <Clock className="w-3.5 h-3.5 text-white" />;
+                      } else if (item.activityType.endsWith('_updated')) {
+                        bulletColor = 'bg-indigo-500';
+                        actIcon = <Dumbbell className="w-3.5 h-3.5 text-white" />;
+                      }
+
+                      return (
+                        <div key={item._id || idx} className="relative">
+                          {/* Bullet Icon */}
+                          <span className={`absolute -left-[35px] top-1 flex items-center justify-center w-7 h-7 rounded-full border-4 border-card shadow-sm ${bulletColor}`}>
+                            {actIcon}
+                          </span>
+                          <div className="space-y-1 bg-muted/10 p-4 border border-border/40 rounded-2xl hover:bg-muted/20 transition-all">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                              <span className="font-bold text-xs sm:text-sm text-foreground">{item.title}</span>
+                              <span className="text-[10px] text-muted-foreground font-semibold bg-muted/40 px-2 py-0.5 rounded-full">
+                                {item.date ? new Date(item.date).toLocaleDateString('en-IN') : ''} at {item.time}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed">{item.remarks}</p>
+
+                            {/* Extra transaction info */}
+                            {(item.receiptNumber || item.paymentMethod || item.remainingDue !== undefined) && (
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 mt-2 border-t border-border/30 text-[10px] text-muted-foreground font-medium">
+                                {item.receiptNumber && (
+                                  <span>Receipt: <strong className="text-foreground font-mono">{item.receiptNumber}</strong></span>
+                                )}
+                                {item.paymentMethod && (
+                                  <span className="uppercase">Method: <strong className="text-foreground">{item.paymentMethod}</strong></span>
+                                )}
+                                {item.remainingDue !== undefined && (
+                                  <span>Outstanding Dues: <strong className="text-foreground">₹{item.remainingDue}</strong></span>
+                                )}
+                                <span>Operator: <strong className="text-foreground">{item.operator || 'Admin'}</strong></span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

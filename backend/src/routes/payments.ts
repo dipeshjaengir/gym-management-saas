@@ -4,6 +4,7 @@ import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
 import { validateBody, createPaymentSchema } from '../middleware/validation';
 import { notificationProvider } from '../config/notifications';
+import { logMemberActivity, createNotification } from '../utils/activityLogger';
 
 const router = Router();
 
@@ -78,6 +79,32 @@ router.post('/', validateBody(createPaymentSchema), async (req: AuthenticatedReq
 
     await logAudit(`Logged Payment receipt ${receiptNumber} (₹${amount}) for Member: ${member.name}`, owner.email, req);
 
+    // Log Member Activity
+    await logMemberActivity(
+      req.user!.id,
+      memberId,
+      'payment_due_collection',
+      'Dues Collected',
+      owner.ownerName || 'Admin',
+      `Collected ₹${amount} via ${paymentMethod.toUpperCase()}. Receipt: ${receiptNumber}`,
+      {
+        receiptNumber,
+        transactionId: payment._id,
+        oldAmount: member.remainingAmount + amount,
+        newAmount: amount,
+        remainingDue: newRemainingAmount,
+        paymentMethod
+      }
+    );
+
+    // Create Notification
+    await createNotification(
+      req.user!.id,
+      'Payment Collected',
+      `Collected ₹${amount} from ${member.name}. Outstanding dues: ₹${newRemainingAmount}`,
+      'due_collection'
+    );
+
     // Generate WhatsApp dues recovery url
     const welcomeResult = await notificationProvider.sendDueCollectionMessage(member.phone, {
       memberName: member.name,
@@ -137,6 +164,32 @@ router.put('/:id/edit', async (req: AuthenticatedRequest, res: Response) => {
 
     await logAudit(`Edited Payment receipt ${payment.receiptNumber}: changed from ₹${oldAmount} to ₹${amount} for Member: ${member.name}`, owner ? owner.email : 'Admin', req);
 
+    // Log Activity
+    await logMemberActivity(
+      req.user!.id,
+      member._id,
+      'correction',
+      'Payment Corrected',
+      operator,
+      `Corrected payment from ₹${oldAmount} to ₹${amount}. Reason: ${notes || 'Manual correction'}`,
+      {
+        receiptNumber: payment.receiptNumber,
+        transactionId: payment._id,
+        oldAmount: oldAmount,
+        newAmount: amount,
+        remainingDue: member.remainingAmount,
+        paymentMethod: payment.paymentMethod
+      }
+    );
+
+    // Create Notification
+    await createNotification(
+      req.user!.id,
+      'Payment Transaction Corrected',
+      `Corrected payment of ${member.name} from ₹${oldAmount} to ₹${amount}.`,
+      'payment'
+    );
+
     return res.json(payment);
   } catch (err) {
     console.error('Error editing payment:', err);
@@ -168,6 +221,32 @@ router.put('/:id/void', async (req: AuthenticatedRequest, res: Response) => {
     await payment.save();
 
     await logAudit(`Voided Payment receipt ${payment.receiptNumber} (₹${payment.amount}) for Member: ${member.name}`, owner ? owner.email : 'Admin', req);
+
+    // Log Activity
+    await logMemberActivity(
+      req.user!.id,
+      member._id,
+      'void',
+      'Payment Voided',
+      owner ? owner.ownerName : 'Admin',
+      `Voided payment transaction of ₹${payment.amount}. Receipt: ${payment.receiptNumber}`,
+      {
+        receiptNumber: payment.receiptNumber,
+        transactionId: payment._id,
+        oldAmount: payment.amount,
+        newAmount: 0,
+        remainingDue: member.remainingAmount,
+        paymentMethod: payment.paymentMethod
+      }
+    );
+
+    // Create Notification
+    await createNotification(
+      req.user!.id,
+      'Payment Voided',
+      `Voided transaction of ₹${payment.amount} for ${member.name}.`,
+      'payment'
+    );
 
     return res.json(payment);
   } catch (err) {

@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { Member, GymOwner } from '../models';
+import { Member, GymOwner, Notification } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { notificationProvider } from '../config/notifications';
 
@@ -158,6 +158,64 @@ router.get('/reminders', async (req: AuthenticatedRequest, res: Response) => {
     return res.json(reminders);
   } catch (err) {
     return res.status(500).json({ message: 'Error compiling reminders.' });
+  }
+});
+
+// 3. GET all active notifications for in-app tray
+router.get('/center', async (req: AuthenticatedRequest, res: Response) => {
+  const gymOwnerId = req.user!.id;
+  try {
+    const list = await Notification.find({ gymOwnerId, isDismissed: false })
+      .sort({ createdAt: -1 });
+    return res.json(list);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error retrieving notifications.' });
+  }
+});
+
+// 4. PUT mark notification as read
+router.put('/center/:id/read', async (req: AuthenticatedRequest, res: Response) => {
+  const gymOwnerId = req.user!.id;
+  try {
+    const notification = await Notification.findOneAndUpdate(
+      { _id: req.params.id, gymOwnerId },
+      { isRead: true },
+      { new: true }
+    );
+    if (!notification) return res.status(404).json({ message: 'Notification not found.' });
+    return res.json(notification);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error marking notification as read.' });
+  }
+});
+
+// 5. PUT dismiss specific notification
+router.put('/center/:id/dismiss', async (req: AuthenticatedRequest, res: Response) => {
+  const gymOwnerId = req.user!.id;
+  try {
+    const notification = await Notification.findOneAndUpdate(
+      { _id: req.params.id, gymOwnerId },
+      { isDismissed: true },
+      { new: true }
+    );
+    if (!notification) return res.status(404).json({ message: 'Notification not found.' });
+    return res.json(notification);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error dismissing notification.' });
+  }
+});
+
+// 6. PUT dismiss all notifications
+router.put('/center/dismiss-all', async (req: AuthenticatedRequest, res: Response) => {
+  const gymOwnerId = req.user!.id;
+  try {
+    await Notification.updateMany(
+      { gymOwnerId, isDismissed: false },
+      { isDismissed: true }
+    );
+    return res.json({ message: 'All notifications dismissed successfully.' });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error dismissing all notifications.' });
   }
 });
 

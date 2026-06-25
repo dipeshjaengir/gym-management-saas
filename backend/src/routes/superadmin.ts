@@ -32,6 +32,7 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const owners = await GymOwner.find({ isDeleted: false });
     const membersCount = await Member.countDocuments({ isDeleted: false });
+    const coupons = await Coupon.find({ isDeleted: false });
 
     let activeCount = 0;
     let expiredCount = 0;
@@ -50,12 +51,39 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
     let activeSubscribersCount = 0;
     let suspendedAccountsCount = 0;
 
+    // Plan distribution counters
+    const planDistribution: { [key: string]: number } = {
+      'Monthly': 0,
+      'Quarterly': 0,
+      'Half-Yearly': 0,
+      'Yearly': 0,
+      'Trial/Free': 0,
+      'Other': 0
+    };
+
+    // Calculate trial conversions
+    let convertedOwnersCount = 0;
+
     owners.forEach(owner => {
       const expDate = new Date(owner.subscription.expiryDate);
       const isExpiringThisMonth = expDate.getMonth() === currentMonth && expDate.getFullYear() === currentYear;
 
       if (owner.isTrial) {
         trialCount++;
+        planDistribution['Trial/Free']++;
+      } else {
+        const pType = owner.subscription.planType;
+        if (pType === 'Monthly' || pType === 'Quarterly' || pType === 'Half-Yearly' || pType === 'Yearly') {
+          planDistribution[pType]++;
+        } else {
+          planDistribution['Other']++;
+        }
+      }
+
+      // Check if this owner has any paid subscription history entries
+      const hasPaid = owner.subscriptionHistory && owner.subscriptionHistory.some((h: any) => h.amountPaid > 0);
+      if (hasPaid && !owner.isTrial) {
+        convertedOwnersCount++;
       }
 
       if (owner.status === 'suspended' || owner.subscription.status === 'suspended') {
@@ -87,6 +115,17 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
       }
     });
 
+    // Coupon stats
+    const totalCoupons = coupons.length;
+    const activeCoupons = coupons.filter(c => c.isActive).length;
+    const totalCouponUses = coupons.reduce((sum, c) => sum + (c.timesUsed || 0), 0);
+
+    // Trial conversion rate
+    const totalTrialsAndConversions = convertedOwnersCount + trialCount;
+    const trialConversionRate = totalTrialsAndConversions > 0
+      ? Math.round((convertedOwnersCount / totalTrialsAndConversions) * 100)
+      : 0;
+
     return res.json({
       metrics: {
         totalGymOwners: owners.length,
@@ -101,7 +140,19 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
         renewalsDue: renewalsDueCount,
         trialUsers: trialCount,
         activeSubscribers: activeSubscribersCount,
-        suspendedAccounts: suspendedAccountsCount
+        suspendedAccounts: suspendedAccountsCount,
+        
+        // Coupon Analytics
+        totalCoupons,
+        activeCoupons,
+        totalCouponUses,
+
+        // Trial conversion
+        trialConversionRate,
+        convertedOwners: convertedOwnersCount,
+
+        // Plan distribution
+        planDistribution
       }
     });
   } catch (err) {
@@ -522,6 +573,48 @@ async function seedDefaultCoupons() {
     console.error('[SEED] Error seeding default coupons:', err);
   }
 }
+
+// 7. Unified Global Search for Super Admin
+router.get('/search', async (req: AuthenticatedRequest, res: Response) => {
+  const q = String(req.query.q || '').trim();
+
+  if (!q) {
+    return res.json({ owners: [], plans: [], leads: [], coupons: [] });
+  }
+
+  try {
+    const regex = { $regex: q, $options: 'i' };
+
+    // Search Gym Owners
+    const owners = await GymOwner.find({
+      isDeleted: false,
+      $or: [{ gymName: regex }, { ownerName: regex }, { email: regex }, { phone: regex }]
+    }).select('-passwordHash').limit(10);
+
+    // Search Platform Plans
+    const plans = await PlatformPlan.find({
+      isDeleted: false,
+      $or: [{ name: regex }, { description: regex }]
+    }).limit(10);
+
+    // Search Platform Leads
+    const leads = await PlatformLead.find({
+      isDeleted: false,
+      $or: [{ name: regex }, { phone: regex }, { city: regex }, { interestedPlan: regex }]
+    }).limit(10);
+
+    // Search Coupons
+    const coupons = await Coupon.find({
+      isDeleted: false,
+      $or: [{ code: regex }, { discountType: regex }]
+    }).limit(10);
+
+    return res.json({ owners, plans, leads, coupons });
+  } catch (err) {
+    console.error('Superadmin global search error:', err);
+    return res.status(500).json({ message: 'Error performing global search.' });
+  }
+});
 
 // Execute seeders on startup
 seedDefaultPlans();
