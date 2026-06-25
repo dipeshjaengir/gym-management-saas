@@ -9,6 +9,80 @@ import { validateBody, loginSchema } from '../middleware/validation';
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-india-gym-saas-2026';
 
+// Temporary Endpoint to Seed Production Database
+router.get('/temp-seed', async (req, res) => {
+  if (req.query.secret !== 'qa-seeder-bypass-secret-2026') {
+    return res.status(404).send('Cannot GET /api/auth/temp-seed');
+  }
+  try {
+    const existing = await SuperAdmin.findOne({ email: 'dipeshjangir12@gmail.com' });
+    
+    const hashedAdminPassword = await bcrypt.hash('As12qw34.@', 10);
+    if (!existing) {
+      await SuperAdmin.create({
+        name: 'Dipesh Jangir (SaaS Admin)',
+        email: 'dipeshjangir12@gmail.com',
+        passwordHash: hashedAdminPassword,
+        role: 'super_admin'
+      });
+    }
+
+    const hashedOwnerPassword = await bcrypt.hash('owner123', 10);
+    
+    // 1. Active Gym Owner
+    await GymOwner.deleteMany({ email: 'owner@gymledger.com' });
+    const owner1 = await GymOwner.create({
+      gymName: 'Alpha Fitness Studio',
+      ownerName: 'Marcus Vance',
+      email: 'owner@gymledger.com',
+      passwordHash: hashedOwnerPassword,
+      phone: '9876543210',
+      role: 'gym_owner',
+      status: 'active',
+      isTrial: false,
+      subscription: {
+        planType: '12_months',
+        amountPaid: 15000,
+        status: 'active',
+        startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+        expiryDate: new Date(Date.now() + 335 * 24 * 60 * 60 * 1000)
+      },
+      subscriptionHistory: []
+    });
+
+    // 2. Suspended Gym Owner
+    await GymOwner.deleteMany({ email: 'owner@titan.com' });
+    const owner2 = await GymOwner.create({
+      gymName: 'Titan Gyms Ltd',
+      ownerName: 'Diana Prince',
+      email: 'owner@titan.com',
+      passwordHash: hashedOwnerPassword,
+      phone: '9876543211',
+      role: 'gym_owner',
+      status: 'suspended',
+      isTrial: false,
+      subscription: {
+        planType: '3_months',
+        amountPaid: 5000,
+        status: 'expired',
+        startDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000),
+        expiryDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      },
+      subscriptionHistory: []
+    });
+
+    return res.json({ 
+      message: 'Super admin and Gym Owners seeded successfully', 
+      admin: 'dipeshjangir12@gmail.com',
+      owner1: owner1.email,
+      owner2: owner2.email
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+
 // 1. Unified Login Endpoint
 router.post('/login', validateBody(loginSchema), async (req, res) => {
 
