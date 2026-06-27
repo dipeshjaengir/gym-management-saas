@@ -61,6 +61,7 @@ interface Member {
   notes?: string;
   isArchived: boolean;
   lastPaymentDate?: string;
+  bmi?: number;
 }
 
 interface Payment {
@@ -97,6 +98,19 @@ interface DietPlan {
   instructions: string;
   meals: { time: string; items: string; calories: number }[];
 }
+
+const calculateBMI = (hCm: number, wKg: number) => {
+  if (hCm <= 0) return 0;
+  const hM = hCm / 100;
+  return parseFloat((wKg / (hM * hM)).toFixed(1));
+};
+
+const getBMICategory = (bmi: number) => {
+  if (bmi < 18.5) return { label: 'Underweight', color: 'bg-sky-500/10 text-sky-400 border border-sky-500/20' };
+  if (bmi < 25) return { label: 'Normal', color: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' };
+  if (bmi < 30) return { label: 'Overweight', color: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' };
+  return { label: 'Obese', color: 'bg-rose-500/10 text-rose-400 border border-rose-500/20' };
+};
 
 export const MemberProfile: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -504,6 +518,22 @@ export const MemberProfile: React.FC = () => {
                 <MapPin className="w-4 h-4 shrink-0 text-primary" />
                 <span className="text-foreground truncate">{member.address || 'No Address Logged'}</span>
               </div>
+              {member.height > 0 && member.weight > 0 && (() => {
+                const bmiVal = calculateBMI(member.height, member.weight);
+                const cat = getBMICategory(bmiVal);
+                return (
+                  <div className="p-3 bg-secondary/20 border border-border/30 rounded-xl mt-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground">BMI Score</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cat.color}`}>{cat.label}</span>
+                    </div>
+                    <div className="text-xl font-black text-foreground mt-1">{bmiVal}</div>
+                    <div className="text-[10px] text-muted-foreground mt-1">
+                      Healthy Range: <span className="text-emerald-400 font-semibold">18.5 - 24.9</span>
+                    </div>
+                  </div>
+                );
+              })()}
               {member.emergencyContact && (
                 <div className="p-3 bg-rose-950/20 border border-rose-900/40 rounded-xl mt-2">
                   <div className="text-[10px] uppercase font-bold text-rose-400">Emergency Contact</div>

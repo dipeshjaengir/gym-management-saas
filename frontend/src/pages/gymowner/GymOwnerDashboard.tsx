@@ -100,6 +100,7 @@ export const GymOwnerDashboard: React.FC = () => {
   const [upgradeCoupon, setUpgradeCoupon] = useState('');
   const [upgradeDiscount, setUpgradeDiscount] = useState<any>(null);
   const [validatingUpgradeCoupon, setValidatingUpgradeCoupon] = useState(false);
+  const [activeCoupons, setActiveCoupons] = useState<any[]>([]);
 
   // Reminders & Subscription History Modals
   const [reminders, setReminders] = useState<any[]>([]);
@@ -157,6 +158,18 @@ export const GymOwnerDashboard: React.FC = () => {
       }
     }
     fetchPlans();
+  }, []);
+
+  useEffect(() => {
+    async function fetchActiveCoupons() {
+      try {
+        const data = await api.get('/public/active-coupons');
+        setActiveCoupons(data);
+      } catch (err) {
+        console.error('Error fetching active coupons', err);
+      }
+    }
+    fetchActiveCoupons();
   }, []);
 
   useEffect(() => {
@@ -1207,6 +1220,51 @@ export const GymOwnerDashboard: React.FC = () => {
                     <p className="text-xs text-emerald-400 font-bold mt-1.5">
                       ✓ Coupon Applied! Discount: {upgradeDiscount.discountType === 'percentage' ? `${upgradeDiscount.discountValue}% OFF` : `₹${upgradeDiscount.discountValue} OFF`}
                     </p>
+                  )}
+
+                  {/* Active Coupons List */}
+                  {activeCoupons.length > 0 && (
+                    <div className="mt-3 bg-secondary/10 border border-border/30 rounded-xl p-3 space-y-2">
+                      <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide">Available Coupons (Tap to Apply)</div>
+                      <div className="grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto pr-1">
+                        {activeCoupons.map((c) => (
+                          <div
+                            key={c._id}
+                            onClick={async () => {
+                              setUpgradeCoupon(c.code);
+                              setValidatingUpgradeCoupon(true);
+                              try {
+                                const res = await api.post('/public/validate-coupon', { code: c.code });
+                                if (res.valid) {
+                                  setUpgradeDiscount(res.coupon);
+                                  showToast(`Coupon ${c.code} applied successfully!`, 'success');
+                                } else {
+                                  setUpgradeDiscount(null);
+                                  showToast(res.message || 'Invalid coupon.', 'error');
+                                }
+                              } catch (err: any) {
+                                setUpgradeDiscount(null);
+                                showToast(err.message || 'Invalid coupon.', 'error');
+                              } finally {
+                                setValidatingUpgradeCoupon(false);
+                              }
+                            }}
+                            className="flex items-center justify-between p-2 rounded-lg bg-card border hover:border-primary/40 transition-all cursor-pointer text-left"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <span className="text-[10px] font-black text-foreground tracking-wider uppercase bg-primary/10 px-1.5 py-0.5 rounded text-primary">{c.code}</span>
+                              <p className="text-[9px] text-muted-foreground mt-1 truncate">{c.description || 'Special Discount Coupon'}</p>
+                              <p className="text-[8px] text-muted-foreground/70 mt-0.5">Exp: {new Date(c.expiryDate).toLocaleDateString('en-IN')}</p>
+                            </div>
+                            <div className="text-right ml-2 shrink-0">
+                              <span className="text-xs font-bold text-emerald-400">
+                                {c.discountType === 'percentage' ? `${c.discountValue}% OFF` : `₹${c.discountValue} OFF`}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   )}
                 </div>
  

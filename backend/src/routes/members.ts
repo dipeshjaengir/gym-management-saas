@@ -138,6 +138,9 @@ router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequ
     const gymOwnerId = req.user!.id;
     const qrCode = `GYM-${gymOwnerId.slice(-4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
 
+    const heightInMeters = height / 100;
+    const bmiVal = heightInMeters > 0 ? parseFloat((weight / (heightInMeters * heightInMeters)).toFixed(1)) : 0;
+
     const member = await Member.create({
       gymOwnerId,
       name,
@@ -158,6 +161,7 @@ router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequ
       qrCode,
       emergencyContact,
       notes,
+      bmi: bmiVal,
       isArchived: false
     });
 
@@ -229,8 +233,8 @@ router.post('/', validateBody(createMemberSchema), async (req: AuthenticatedRequ
     }
 
     // Create Initial Progress Metric Log
-    const heightInMeters = height / 100;
-    const bmi = weight / (heightInMeters * heightInMeters);
+    const heightM = height / 100;
+    const bmi = weight / (heightM * heightM);
     await ProgressMetric.create({
       memberId: member._id,
       date: new Date(),
@@ -273,6 +277,21 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
   try {
     const member = await Member.findOne({ _id: req.params.id, gymOwnerId: req.user!.id, isDeleted: false });
     if (!member) return res.status(404).json({ message: 'Member not found.' });
+
+    // Direct parameters override and BMI calculation
+    member.name = name || member.name;
+    member.phone = phone || member.phone;
+    member.email = email !== undefined ? email : member.email;
+    member.gender = gender || member.gender;
+    member.dob = dob || member.dob;
+    member.height = height !== undefined ? height : member.height;
+    member.weight = weight !== undefined ? weight : member.weight;
+    member.address = address !== undefined ? address : member.address;
+    member.emergencyContact = emergencyContact !== undefined ? emergencyContact : member.emergencyContact;
+    member.notes = notes !== undefined ? notes : member.notes;
+
+    const hM = member.height / 100;
+    member.bmi = hM > 0 ? parseFloat((member.weight / (hM * hM)).toFixed(1)) : 0;
 
     let isRenewal = false;
     const oldPlanId = String(member.planId);
@@ -397,18 +416,6 @@ router.put('/:id', validateBody(updateMemberSchema), async (req: AuthenticatedRe
         }
       }
     } else {
-      // Direct parameters override
-      member.name = name || member.name;
-      member.phone = phone || member.phone;
-      member.email = email || member.email;
-      member.gender = gender || member.gender;
-      member.dob = dob || member.dob;
-      member.height = height || member.height;
-      member.weight = weight || member.weight;
-      member.address = address || member.address;
-      member.emergencyContact = emergencyContact || member.emergencyContact;
-      member.notes = notes || member.notes;
-
       // Update amountPaid directly
       if (amountPaid !== undefined && amountPaid !== member.amountPaid) {
         member.amountPaid = amountPaid;

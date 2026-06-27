@@ -153,7 +153,8 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
 
         // Plan distribution
         planDistribution
-      }
+      },
+      recentActivities: await AuditLog.find({}).sort({ timestamp: -1 }).limit(10)
     });
   } catch (err) {
     return res.status(500).json({ message: 'Error retrieving platform statistics.' });

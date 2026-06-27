@@ -88,6 +88,9 @@ export const MemberManagement: React.FC = () => {
   const [emergencyContact, setEmergencyContact] = useState('');
   const [notes, setNotes] = useState('');
   const [adding, setAdding] = useState(false);
+  const [whatsAppModalOpen, setWhatsAppModalOpen] = useState(false);
+  const [pendingWhatsAppUrl, setPendingWhatsAppUrl] = useState<string | null>(null);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Edit Modal
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
@@ -162,37 +165,65 @@ export const MemberManagement: React.FC = () => {
       showToast('No Membership Plans Available. Please create a plan first.', 'error');
       return;
     }
-    if (!name || !phone || !email || !planId) {
-      showToast('Name, Phone, Email and Membership plan are required.', 'error');
-      return;
+
+    const errors: Record<string, string> = {};
+    setFormErrors({});
+
+    if (!name) {
+      errors.name = 'Full Name is required.';
     }
 
-    // Strict validations
     const phoneRegex = /^\d{10}$/;
-    if (!phoneRegex.test(phone)) {
-      showToast('Phone number must be exactly 10 digits.', 'error');
-      return;
+    if (!phone) {
+      errors.phone = 'Phone number is required.';
+    } else if (!phoneRegex.test(phone)) {
+      errors.phone = 'Phone number must contain exactly 10 digits.';
     }
-    if (!phoneRegex.test(emergencyContact)) {
-      showToast('Emergency contact number must be exactly 10 digits.', 'error');
-      return;
+
+    if (emergencyContact && !phoneRegex.test(emergencyContact)) {
+      errors.emergencyContact = 'Phone number must contain exactly 10 digits.';
     }
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      showToast('Please enter a valid email address.', 'error');
-      return;
+    if (!email) {
+      errors.email = 'Email is required.';
+    } else if (!emailRegex.test(email)) {
+      errors.email = 'Please enter a valid email.';
     }
-    const dobDate = new Date(dob);
-    if (isNaN(dobDate.getTime()) || dobDate > new Date()) {
-      showToast('Date of Birth cannot be in the future.', 'error');
-      return;
+
+    if (!planId) {
+      errors.planId = 'Please select a membership plan.';
     }
-    if (Number(height) <= 0) {
-      showToast('Height must be a positive number.', 'error');
-      return;
+
+    if (!dob) {
+      errors.dob = 'Date of Birth is required.';
+    } else {
+      const dobDate = new Date(dob);
+      if (isNaN(dobDate.getTime()) || dobDate > new Date()) {
+        errors.dob = 'Date of Birth cannot be in the future.';
+      } else {
+        const age = new Date().getFullYear() - dobDate.getFullYear();
+        if (age < 10 || age > 100) {
+          errors.dob = 'Age must be between 10 and 100.';
+        }
+      }
     }
-    if (Number(weight) <= 0) {
-      showToast('Weight must be a positive number.', 'error');
+
+    if (!height) {
+      errors.height = 'Height is required.';
+    } else if (Number(height) <= 0) {
+      errors.height = 'Height must be a positive number.';
+    }
+
+    if (!weight) {
+      errors.weight = 'Weight is required.';
+    } else if (Number(weight) <= 0) {
+      errors.weight = 'Weight must be greater than 0.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      showToast('Validation Failed', 'error');
       return;
     }
 
@@ -219,8 +250,8 @@ export const MemberManagement: React.FC = () => {
       loadMembersData();
 
       if (res && res.whatsappUrl) {
-        showToast('WhatsApp link generated successfully!', 'info');
-        window.open(res.whatsappUrl, '_blank');
+        setPendingWhatsAppUrl(res.whatsappUrl);
+        setWhatsAppModalOpen(true);
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to register member.', 'error');
@@ -708,6 +739,7 @@ export const MemberManagement: React.FC = () => {
                     placeholder="e.g. Rohan Khanna"
                     className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
                   />
+                  {formErrors.name && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.name}</p>}
                 </div>
 
                 <div>
@@ -720,6 +752,7 @@ export const MemberManagement: React.FC = () => {
                     placeholder="e.g. +91 91111 91111"
                     className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
                   />
+                  {formErrors.phone && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.phone}</p>}
                 </div>
               </div>
 
@@ -734,6 +767,7 @@ export const MemberManagement: React.FC = () => {
                     placeholder="member@gmail.com"
                     className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
                   />
+                  {formErrors.email && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.email}</p>}
                 </div>
 
                 <div>
@@ -760,6 +794,7 @@ export const MemberManagement: React.FC = () => {
                     onChange={(e) => setDob(e.target.value)}
                     className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
                   />
+                  {formErrors.dob && <p className="text-[10px] text-rose-500 mt-1 font-medium">{formErrors.dob}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Height (cm)</label>
@@ -770,6 +805,7 @@ export const MemberManagement: React.FC = () => {
                     onChange={(e) => setHeight(Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
                   />
+                  {formErrors.height && <p className="text-[10px] text-rose-500 mt-1 font-medium">{formErrors.height}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Weight (kg)</label>
@@ -780,6 +816,7 @@ export const MemberManagement: React.FC = () => {
                     onChange={(e) => setWeight(Number(e.target.value))}
                     className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
                   />
+                  {formErrors.weight && <p className="text-[10px] text-rose-500 mt-1 font-medium">{formErrors.weight}</p>}
                 </div>
               </div>
 
@@ -820,6 +857,7 @@ export const MemberManagement: React.FC = () => {
                       }}
                       className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none z-10"
                     >
+                      <option value="" className="bg-card text-foreground">Select a plan</option>
                       {plans.map((p) => (
                         <option key={p._id} value={p._id} className="bg-card text-foreground">
                           {p.name} (₹{p.price})
@@ -827,6 +865,7 @@ export const MemberManagement: React.FC = () => {
                       ))}
                     </select>
                   )}
+                  {formErrors.planId && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.planId}</p>}
                 </div>
 
                 <div>
@@ -863,6 +902,7 @@ export const MemberManagement: React.FC = () => {
                     placeholder="Guardian Phone..."
                     className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
                   />
+                  {formErrors.emergencyContact && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.emergencyContact}</p>}
                 </div>
               </div>
 
@@ -1224,6 +1264,41 @@ export const MemberManagement: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Welcome Confirmation Modal */}
+      {whatsAppModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-sm bg-card border rounded-3xl p-6 shadow-2xl relative text-center">
+            <h3 className="text-lg font-bold text-foreground mb-2">Member Registered Successfully</h3>
+            <p className="text-xs text-muted-foreground mb-6">
+              Would you like to send the welcome WhatsApp message to this member now?
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  if (pendingWhatsAppUrl) {
+                    window.open(pendingWhatsAppUrl, '_blank');
+                  }
+                  setWhatsAppModalOpen(false);
+                  setPendingWhatsAppUrl(null);
+                }}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+              >
+                Send WhatsApp
+              </button>
+              <button
+                onClick={() => {
+                  setWhatsAppModalOpen(false);
+                  setPendingWhatsAppUrl(null);
+                }}
+                className="w-full py-2.5 bg-secondary hover:bg-secondary-hover text-foreground rounded-xl text-xs font-semibold transition-all border border-border/40"
+              >
+                Skip
+              </button>
+            </div>
           </div>
         </div>
       )}

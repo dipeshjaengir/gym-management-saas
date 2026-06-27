@@ -36,6 +36,12 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
     // Find member by QR code
     const member = await Member.findOne({ qrCode, gymOwnerId, isDeleted: false });
     if (!member) {
+      await createNotification(
+        gymOwnerId,
+        'QR Attendance Failure',
+        `Check-in failed: QR code "${qrCode}" is invalid.`,
+        'attendance'
+      );
       return res.status(404).json({ message: 'Invalid QR' });
     }
 
@@ -46,6 +52,12 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
     if (expiry < todayStart) {
+      await createNotification(
+        gymOwnerId,
+        'QR Attendance Failure',
+        `Check-in failed for ${member.name}: Membership expired on ${member.membershipEnd.toISOString().split('T')[0]}.`,
+        'attendance'
+      );
       return res.status(403).json({
         message: `Access Denied: Membership plan expired on ${member.membershipEnd.toISOString().split('T')[0]}.`,
         member: { name: member.name, status: 'expired' }
@@ -94,13 +106,7 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
       `Device: ${deviceInfo}`
     );
 
-    // Create Notification
-    await createNotification(
-      gymOwnerId,
-      'Member Checked In',
-      `${member.name} checked in today at ${timeStr}.`,
-      'attendance'
-    );
+
 
     return res.status(201).json({
       message: `Access Granted. Welcome, ${member.name}! ${paymentWarning}`,
@@ -179,13 +185,7 @@ router.post('/check-out', validateBody(checkInSchema), async (req: Authenticated
       `Workout Duration: ${workoutDuration}`
     );
 
-    // Create Notification
-    await createNotification(
-      gymOwnerId,
-      'Member Checked Out',
-      `${member.name} checked out. Workout duration: ${workoutDuration}`,
-      'attendance'
-    );
+
 
     return res.json({
       message: `Access Granted. Goodbye, ${member.name}!`,

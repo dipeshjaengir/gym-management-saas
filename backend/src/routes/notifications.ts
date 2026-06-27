@@ -165,6 +165,63 @@ router.get('/reminders', async (req: AuthenticatedRequest, res: Response) => {
 router.get('/center', async (req: AuthenticatedRequest, res: Response) => {
   const gymOwnerId = req.user!.id;
   try {
+    // A. Gym Owner Subscription Expiring / Trial Ending
+    const owner = await GymOwner.findById(gymOwnerId);
+    if (owner) {
+      const expiry = new Date(owner.subscription.expiryDate);
+      const now = new Date();
+      const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysLeft > 0 && daysLeft <= 7) {
+        if (owner.isTrial) {
+          const title = 'Trial Ending Soon';
+          const existing = await Notification.findOne({ gymOwnerId, title, isDismissed: false });
+          if (!existing) {
+            await Notification.create({
+              gymOwnerId,
+              title,
+              message: `Your free trial expires in ${daysLeft} days (on ${expiry.toLocaleDateString('en-IN')}). Upgrade now to keep full access.`,
+              category: 'trial'
+            });
+          }
+        } else {
+          const title = 'Gym Subscription Expiring';
+          const existing = await Notification.findOne({ gymOwnerId, title, isDismissed: false });
+          if (!existing) {
+            await Notification.create({
+              gymOwnerId,
+              title,
+              message: `Your platform subscription expires in ${daysLeft} days (on ${expiry.toLocaleDateString('en-IN')}). Please renew.`,
+              category: 'expiry'
+            });
+          }
+        }
+      }
+    }
+
+    // B. Member Membership Expiring Soon (7 days)
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sevenDaysFromNow = new Date(todayStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const expiringMembers = await Member.find({
+      gymOwnerId,
+      membershipEnd: { $gte: todayStart, $lte: sevenDaysFromNow },
+      isDeleted: false,
+      isArchived: false
+    });
+
+    for (const m of expiringMembers) {
+      const title = `Membership Expiring: ${m.name}`;
+      const existing = await Notification.findOne({ gymOwnerId, title, isDismissed: false });
+      if (!existing) {
+        await Notification.create({
+          gymOwnerId,
+          title,
+          message: `Membership for ${m.name} is expiring soon (on ${new Date(m.membershipEnd).toLocaleDateString('en-IN')}).`,
+          category: 'renewal'
+        });
+      }
+    }
+
     const list = await Notification.find({ gymOwnerId, isDismissed: false })
       .sort({ createdAt: -1 });
     return res.json(list);

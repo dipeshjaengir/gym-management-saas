@@ -208,8 +208,9 @@ export interface IMember extends Document {
   remainingAmount: number;
   paymentStatus: 'paid' | 'partial' | 'unpaid';
   qrCode: string;
-  emergencyContact: string;
   notes: string;
+  bmi: number;
+  emergencyContact: string;
   isArchived: boolean;
   isDeleted: boolean;
 }
@@ -234,6 +235,7 @@ const MemberSchema = new Schema<IMember>({
   qrCode: { type: String, required: true, unique: true, index: true },
   emergencyContact: { type: String, default: '' },
   notes: { type: String, default: '' },
+  bmi: { type: Number, default: 0 },
   isArchived: { type: Boolean, default: false, index: true },
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });

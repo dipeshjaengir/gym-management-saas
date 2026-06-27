@@ -269,4 +269,19 @@ router.post('/validate-coupon', async (req, res) => {
   }
 });
 
+// 7. GET active, unexpired coupons
+router.get('/active-coupons', async (req, res) => {
+  try {
+    const now = new Date();
+    const coupons = await Coupon.find({
+      isDeleted: false,
+      isActive: true,
+      expiryDate: { $gt: now }
+    }).sort({ createdAt: -1 });
+    return res.json(coupons);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error retrieving active coupons.' });
+  }
+});
+
 export default router;

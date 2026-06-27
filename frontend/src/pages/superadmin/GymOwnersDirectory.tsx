@@ -60,6 +60,7 @@ export const GymOwnersDirectory: React.FC = () => {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [adding, setAdding] = useState(false);
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Activation Link Modal
   const [activationLinkModal, setActivationLinkModal] = useState<string | null>(null);
@@ -116,8 +117,30 @@ export const GymOwnersDirectory: React.FC = () => {
 
   const handleCreateOwner = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gymName || !ownerName || !email || !phone) {
-      showToast('Gym Name, Owner Name, Email, and Phone are required.', 'error');
+    
+    const errors: Record<string, string> = {};
+    setFormErrors({});
+
+    if (!gymName) errors.gymName = 'Gym Name is required.';
+    if (!ownerName) errors.ownerName = 'Owner Name is required.';
+    
+    const phoneRegex = /^\d{10}$/;
+    if (!phone) {
+      errors.phone = 'Phone number is required.';
+    } else if (!phoneRegex.test(phone)) {
+      errors.phone = 'Phone number must contain exactly 10 digits.';
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      errors.email = 'Email is required.';
+    } else if (!emailRegex.test(email)) {
+      errors.email = 'Please enter a valid email.';
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      showToast('Validation Failed', 'error');
       return;
     }
     setAdding(true);
@@ -496,6 +519,7 @@ export const GymOwnersDirectory: React.FC = () => {
                   placeholder="e.g. GymLedger Hub"
                   className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
                 />
+                {formErrors.gymName && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.gymName}</p>}
               </div>
 
               <div>
@@ -508,6 +532,7 @@ export const GymOwnersDirectory: React.FC = () => {
                   placeholder="e.g. Rajesh Kumar"
                   className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
                 />
+                {formErrors.ownerName && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.ownerName}</p>}
               </div>
 
               <div>
@@ -520,6 +545,7 @@ export const GymOwnersDirectory: React.FC = () => {
                   placeholder="owner@example.com"
                   className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
                 />
+                {formErrors.email && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.email}</p>}
               </div>
 
               <div>
@@ -534,6 +560,7 @@ export const GymOwnersDirectory: React.FC = () => {
                   placeholder="e.g. 7742111581"
                   className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
                 />
+                {formErrors.phone && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.phone}</p>}
               </div>
 
               <div className="flex gap-3 pt-2">

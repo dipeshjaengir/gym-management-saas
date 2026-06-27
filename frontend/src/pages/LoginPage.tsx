@@ -11,6 +11,8 @@ export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [suspendedError, setSuspendedError] = useState<string | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const { login } = useAuth();
   const { showToast } = useNotification();
@@ -18,8 +20,30 @@ export const LoginPage: React.FC = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) {
-      showToast('Please enter both email and password.', 'error');
+    
+    let hasError = false;
+    setEmailError(null);
+    setPasswordError(null);
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email) {
+      setEmailError('Please enter a valid email.');
+      hasError = true;
+    } else if (!emailRegex.test(email)) {
+      setEmailError('Please enter a valid email.');
+      hasError = true;
+    }
+
+    if (!password) {
+      setPasswordError('Password must contain minimum 8 characters.');
+      hasError = true;
+    } else if (password.length < 8) {
+      setPasswordError('Password must contain minimum 8 characters.');
+      hasError = true;
+    }
+
+    if (hasError) {
+      showToast('Validation Failed', 'error');
       return;
     }
 
@@ -103,6 +127,7 @@ export const LoginPage: React.FC = () => {
                   className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:border-primary focus:outline-none transition-colors"
                 />
               </div>
+              {emailError && <p className="text-xs text-rose-500 mt-1 font-medium">{emailError}</p>}
             </div>
 
             <div>
@@ -127,6 +152,7 @@ export const LoginPage: React.FC = () => {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+              {passwordError && <p className="text-xs text-rose-500 mt-1 font-medium">{passwordError}</p>}
             </div>
 
             <button
