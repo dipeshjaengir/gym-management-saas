@@ -29,7 +29,8 @@ import {
   Dumbbell,
   Utensils,
   RefreshCw,
-  IndianRupee
+  IndianRupee,
+  Database
 } from 'lucide-react';
 
 interface Plan {
@@ -62,6 +63,9 @@ interface Member {
   isArchived: boolean;
   lastPaymentDate?: string;
   bmi?: number;
+  isMigrated?: boolean;
+  migrationMethod?: 'excel' | 'manual';
+  openingBalance?: number;
 }
 
 interface Payment {
@@ -487,13 +491,22 @@ export const MemberProfile: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-lg font-bold">{member.name}</h3>
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${
-                  member.isArchived 
-                    ? 'bg-rose-950/40 text-rose-400 border-rose-500/25'
-                    : 'bg-emerald-950/40 text-emerald-400 border-emerald-500/25'
-                }`}>
-                  {member.isArchived ? 'Archived File' : 'Active Member'}
-                </span>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${
+                    member.isArchived 
+                      ? 'bg-rose-950/40 text-rose-400 border-rose-500/25'
+                      : 'bg-emerald-950/40 text-emerald-400 border-emerald-500/25'
+                  }`}>
+                    {member.isArchived ? 'Archived File' : 'Active Member'}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${
+                    member.isMigrated 
+                      ? 'bg-blue-950/40 text-blue-400 border-blue-500/25'
+                      : 'bg-emerald-950/40 text-emerald-400 border-emerald-500/25'
+                  }`}>
+                    {member.isMigrated ? '🔵 Migrated Member' : '🟢 Registered in GymLedger'}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -935,6 +948,12 @@ export const MemberProfile: React.FC = () => {
                       } else if (item.activityType.endsWith('_updated')) {
                         bulletColor = 'bg-indigo-500';
                         actIcon = <Dumbbell className="w-3.5 h-3.5 text-white" />;
+                      } else if (item.activityType === 'migration') {
+                        bulletColor = 'bg-blue-500';
+                        actIcon = <Database className="w-3.5 h-3.5 text-white" />;
+                      } else if (item.activityType === 'opening_balance') {
+                        bulletColor = 'bg-indigo-500';
+                        actIcon = <IndianRupee className="w-3.5 h-3.5 text-white" />;
                       }
 
                       return (

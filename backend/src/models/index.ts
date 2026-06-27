@@ -213,6 +213,9 @@ export interface IMember extends Document {
   emergencyContact: string;
   isArchived: boolean;
   isDeleted: boolean;
+  isMigrated: boolean;
+  migrationMethod?: 'excel' | 'manual';
+  openingBalance?: number;
 }
 
 const MemberSchema = new Schema<IMember>({
@@ -237,7 +240,10 @@ const MemberSchema = new Schema<IMember>({
   notes: { type: String, default: '' },
   bmi: { type: Number, default: 0 },
   isArchived: { type: Boolean, default: false, index: true },
-  isDeleted: { type: Boolean, default: false }
+  isDeleted: { type: Boolean, default: false },
+  isMigrated: { type: Boolean, default: false },
+  migrationMethod: { type: String, enum: ['excel', 'manual'] },
+  openingBalance: { type: Number, default: 0 }
 }, { timestamps: true });
 
 export const Member = mongoose.model<IMember>('Member', MemberSchema);
@@ -483,7 +489,7 @@ export const Coupon = mongoose.model<ICoupon>('Coupon', CouponSchema);
 export interface IMemberActivity extends Document {
   gymOwnerId: any;
   memberId: any;
-  activityType: 'registration' | 'payment_initial' | 'payment_partial' | 'payment_due_collection' | 'plan_renewal' | 'plan_upgrade' | 'plan_downgrade' | 'refund' | 'correction' | 'void' | 'workout_updated' | 'diet_updated' | 'check_in' | 'check_out';
+  activityType: 'registration' | 'payment_initial' | 'payment_partial' | 'payment_due_collection' | 'plan_renewal' | 'plan_upgrade' | 'plan_downgrade' | 'refund' | 'correction' | 'void' | 'workout_updated' | 'diet_updated' | 'check_in' | 'check_out' | 'migration' | 'opening_balance';
   title: string;
   date: Date;
   time: string;
@@ -538,3 +544,35 @@ const NotificationSchema = new Schema<INotification>({
 }, { timestamps: true });
 
 export const Notification = mongoose.model<INotification>('Notification', NotificationSchema);
+
+// ----------------------------------------------------
+// 17. IMPORT HISTORY SCHEMA
+// ----------------------------------------------------
+export interface IImportHistory extends Document {
+  gymOwnerId: any;
+  importedBy: string;
+  fileName: string;
+  totalRecords: number;
+  successCount: number;
+  failedCount: number;
+  duplicateCount: number;
+  rowErrors: Array<{ row: number; name?: string; error: string }>;
+  createdAt: Date;
+}
+
+const ImportHistorySchema = new Schema<IImportHistory>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', required: true, index: true },
+  importedBy: { type: String, required: true },
+  fileName: { type: String, required: true },
+  totalRecords: { type: Number, required: true },
+  successCount: { type: Number, required: true },
+  failedCount: { type: Number, required: true },
+  duplicateCount: { type: Number, required: true },
+  rowErrors: [{
+    row: { type: Number },
+    name: { type: String },
+    error: { type: String }
+  }]
+}, { timestamps: true });
+
+export const ImportHistory = mongoose.model<IImportHistory>('ImportHistory', ImportHistorySchema);

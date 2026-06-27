@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
+import * as XLSX from 'xlsx';
 import {
   Users,
   Plus,
@@ -15,7 +16,13 @@ import {
   Activity,
   UserCheck,
   TrendingUp,
-  Printer
+  Printer,
+  UploadCloud,
+  FileSpreadsheet,
+  CheckCircle2,
+  Download,
+  AlertCircle,
+  Database
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateMemberCardPDF, exportToExcel } from '../../utils/exportHelpers';
@@ -59,6 +66,14 @@ interface ProgressLog {
   date: string;
 }
 
+interface PreviewRow {
+  id: string;
+  data: any;
+  errors: string[];
+  isDuplicate: boolean;
+  isValid: boolean;
+}
+
 export const MemberManagement: React.FC = () => {
   const navigate = useNavigate();
   const [members, setMembers] = useState<Member[]>([]);
@@ -71,6 +86,50 @@ export const MemberManagement: React.FC = () => {
   const { showToast } = useNotification();
   const { user } = useAuth();
   const isSuspended = user?.status === 'suspended' || user?.subscription?.status === 'suspended' || user?.subscription?.status === 'expired';
+
+  // Migration States
+  const [showMigrationModal, setShowMigrationModal] = useState(false);
+  const [migrationTab, setMigrationTab] = useState<'import' | 'history'>('import');
+  
+  // Excel Import States
+  const [previewRows, setPreviewRows] = useState<PreviewRow[]>([]);
+  const [uploadFileName, setUploadFileName] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importSummary, setImportSummary] = useState<{
+    successCount: number;
+    duplicateCount: number;
+    failedCount: number;
+    errors: any[];
+  } | null>(null);
+
+  // Manual Migration States
+  const [showManualMigrateModal, setShowManualMigrateModal] = useState(false);
+  const [manualForm, setManualForm] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    gender: 'male',
+    dob: '',
+    height: '',
+    weight: '',
+    address: '',
+    emergencyContact: '',
+    planName: '',
+    startDate: '',
+    expiryDate: '',
+    totalAmount: '',
+    amountPaid: '',
+    remainingDue: '',
+    paymentStatus: 'unpaid',
+    notes: ''
+  });
+  const [manualFormErrors, setManualFormErrors] = useState<any>({});
+  const [savingManualMigration, setSavingManualMigration] = useState(false);
+
+  // Import History Log State
+  const [importHistory, setImportHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   // Create Modal
   const [showAddModal, setShowAddModal] = useState(false);
@@ -148,6 +207,349 @@ export const MemberManagement: React.FC = () => {
     } finally {
       setLoading(false);
       setPlansLoading(false);
+    }
+  };
+
+  // Migration History Log Fetch
+  const fetchMigrationHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      const data = await api.get('/members/migration/history');
+      setImportHistory(data);
+    } catch (err) {
+      console.error('Error fetching import history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showMigrationModal && migrationTab === 'history') {
+      fetchMigrationHistory();
+    }
+  }, [showMigrationModal, migrationTab]);
+
+  // Excel Sample Template Downloader
+  const downloadSampleTemplate = () => {
+    const headers = [
+      'Member Name',
+      'Phone Number',
+      'Email',
+      'Gender',
+      'Date of Birth',
+      'Age (optional)',
+      'Height (cm)',
+      'Weight (kg)',
+      'Address',
+      'Emergency Contact',
+      'Membership Plan',
+      'Membership Start Date',
+      'Membership Expiry Date',
+      'Total Plan Amount',
+      'Amount Paid',
+      'Remaining Due',
+      'Payment Status',
+      'Medical Notes',
+      'Active / Inactive'
+    ];
+
+    const sampleRow = [
+      'Amit Kumar',
+      '9876543210',
+      'amit@example.com',
+      'male',
+      '1995-08-15',
+      '30',
+      '175',
+      '72',
+      'Jaipur, Rajasthan',
+      '9876543211',
+      'Premium Annual',
+      '2026-01-01',
+      '2027-01-01',
+      '12000',
+      '10000',
+      '2000',
+      'partial',
+      'Knee injury history',
+      'active'
+    ];
+
+    const instructions = [
+      ['Column Name', 'Required?', 'Allowed Values / Constraints', 'Example'],
+      ['Member Name', 'Yes', 'Full Name of the member', 'Amit Kumar'],
+      ['Phone Number', 'Yes', '10-digit mobile number (Must be unique)', '9876543210'],
+      ['Email', 'No', 'Valid email address format', 'amit@example.com'],
+      ['Gender', 'Yes', 'male / female / other', 'male'],
+      ['Date of Birth', 'Yes', 'YYYY-MM-DD format', '1995-08-15'],
+      ['Age (optional)', 'No', 'Integer number', '30'],
+      ['Height (cm)', 'Yes', 'Height in centimeters', '175'],
+      ['Weight (kg)', 'Yes', 'Weight in kilograms', '72'],
+      ['Address', 'No', 'Text string address', 'Jaipur, Rajasthan'],
+      ['Emergency Contact', 'No', '10-digit mobile number', '9876543211'],
+      ['Membership Plan', 'Yes', 'Plan name (Creates new plan if not exists)', 'Premium Annual'],
+      ['Membership Start Date', 'Yes', 'YYYY-MM-DD format', '2026-01-01'],
+      ['Membership Expiry Date', 'Yes', 'YYYY-MM-DD format', '2027-01-01'],
+      ['Total Plan Amount', 'Yes', 'Number representing plan cost', '12000'],
+      ['Amount Paid', 'Yes', 'Number representing amount paid so far', '10000'],
+      ['Remaining Due', 'Yes', 'Total Plan Amount minus Amount Paid', '2000'],
+      ['Payment Status', 'Yes', 'paid / partial / unpaid', 'partial'],
+      ['Medical Notes', 'No', 'Any medical restrictions or notes', 'Knee injury history'],
+      ['Active / Inactive', 'Yes', 'active / inactive', 'active']
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const wsTemplate = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+    const wsInstructions = XLSX.utils.aoa_to_sheet(instructions);
+
+    XLSX.utils.book_append_sheet(wb, wsTemplate, 'Template');
+    XLSX.utils.book_append_sheet(wb, wsInstructions, 'Instructions');
+
+    XLSX.writeFile(wb, 'gymledger_migration_template.xlsx');
+  };
+
+  // Drag and Drop File Upload Parser
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadFileName(file.name);
+    setImportSummary(null);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json<any>(sheet);
+        processPreviewData(json);
+      } catch (err: any) {
+        showToast(`Failed to parse Excel file: ${err.message}`, 'error');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  // Preview Data Processor (with client-side duplicate detection)
+  const processPreviewData = (rows: any[]) => {
+    const existingPhones = new Set(members.map(m => m.phone.trim()));
+    const existingEmails = new Set(members.filter(m => m.email).map(m => m.email.trim().toLowerCase()));
+
+    const processedPhones = new Set<string>();
+    const processedEmails = new Set<string>();
+
+    const tempPreview: PreviewRow[] = rows.map((row, idx) => {
+      const name = row.name || row['Member Name'];
+      const phone = String(row.phone || row['Phone Number'] || '').trim();
+      const email = String(row.email || row['Email'] || '').trim().toLowerCase();
+      const gender = String(row.gender || row['Gender'] || '').trim().toLowerCase();
+      const dob = row.dob || row['Date of Birth'] || row['DOB'];
+      const height = Number(row.height || row['Height'] || row['Height (cm)']);
+      const weight = Number(row.weight || row['Weight'] || row['Weight (kg)']);
+      const planName = String(row.planName || row['Membership Plan'] || '').trim();
+      const startDate = row.startDate || row['Membership Start Date'];
+      const expiryDate = row.expiryDate || row['Membership Expiry Date'];
+
+      const rowErrors: string[] = [];
+      let isDuplicate = false;
+
+      if (!name) rowErrors.push('Name is required');
+      if (!phone) {
+        rowErrors.push('Phone is required');
+      } else {
+        if (existingPhones.has(phone) || processedPhones.has(phone)) {
+          isDuplicate = true;
+          rowErrors.push(`Duplicate phone number: ${phone}`);
+        }
+        processedPhones.add(phone);
+      }
+
+      if (email) {
+        if (existingEmails.has(email) || processedEmails.has(email)) {
+          isDuplicate = true;
+          rowErrors.push(`Duplicate email: ${email}`);
+        }
+        processedEmails.add(email);
+      }
+
+      if (gender !== 'male' && gender !== 'female' && gender !== 'other') {
+        rowErrors.push('Gender must be male, female, or other');
+      }
+      if (!dob) {
+        rowErrors.push('Date of Birth is required');
+      }
+      if (!planName) {
+        rowErrors.push('Membership Plan is required');
+      }
+      if (!startDate) {
+        rowErrors.push('Start Date is required');
+      }
+      if (!expiryDate) {
+        rowErrors.push('Expiry Date is required');
+      }
+      if (isNaN(height) || height <= 0) {
+        rowErrors.push('Height must be a positive number');
+      }
+      if (isNaN(weight) || weight <= 0) {
+        rowErrors.push('Weight must be a positive number');
+      }
+
+      return {
+        id: `row-${idx}-${Math.random()}`,
+        data: row,
+        errors: rowErrors,
+        isDuplicate,
+        isValid: rowErrors.length === 0
+      };
+    });
+
+    setPreviewRows(tempPreview);
+  };
+
+  // Trigger batch sequential imports (Sequenced Chunks of size 100)
+  const triggerBatchImport = async () => {
+    const validRows = previewRows.filter(r => r.isValid && !r.isDuplicate);
+    if (validRows.length === 0) {
+      showToast('No valid, non-duplicate records to import.', 'error');
+      return;
+    }
+
+    setImporting(true);
+    setImportProgress(0);
+    setImportSummary(null);
+
+    const batchSize = 100;
+    let successCount = 0;
+    let duplicateCount = 0;
+    let failedCount = 0;
+    const allErrors: any[] = [];
+
+    for (let i = 0; i < validRows.length; i += batchSize) {
+      const batch = validRows.slice(i, i + batchSize).map(r => r.data);
+      try {
+        const res = await api.post('/members/migrate/excel', {
+          fileName: uploadFileName || 'batch_import.xlsx',
+          members: batch
+        });
+        
+        successCount += res.importedCount;
+        duplicateCount += res.duplicateCount;
+        failedCount += res.failedCount;
+        if (res.importHistory && res.importHistory.rowErrors) {
+          allErrors.push(...res.importHistory.rowErrors);
+        }
+      } catch (err: any) {
+        console.error('Batch import failed:', err);
+        failedCount += batch.length;
+        allErrors.push({ row: i + 1, error: err.message || 'Batch request failed' });
+      }
+
+      setImportProgress(Math.min(100, Math.round(((i + batch.length) / validRows.length) * 100)));
+    }
+
+    setImporting(false);
+    setImportSummary({
+      successCount,
+      duplicateCount,
+      failedCount,
+      errors: allErrors
+    });
+
+    setPreviewRows([]);
+    setUploadFileName('');
+    showToast(`Excel migration finished: ${successCount} successfully imported.`, 'success');
+    loadMembersData();
+  };
+
+  // Download error log as CSV
+  const downloadErrorReport = (errors: any[]) => {
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + ["Row Number,Name,Error Description"].join(",") + "\n"
+      + errors.map(e => `${e.row || ''},"${e.name || ''}","${e.error || ''}"`).join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `gymledger_import_errors_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Submit manual migration form
+  const handleManualMigrationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setManualFormErrors({});
+    
+    const errors: any = {};
+    if (!manualForm.name) errors.name = 'Full Name is required.';
+    if (!manualForm.phone) {
+      errors.phone = 'Phone number is required.';
+    } else if (!/^\d{10}$/.test(manualForm.phone)) {
+      errors.phone = 'Phone number must be exactly 10 digits.';
+    }
+    if (!manualForm.gender) errors.gender = 'Gender is required.';
+    if (!manualForm.dob) errors.dob = 'Date of Birth is required.';
+    if (!manualForm.height || isNaN(Number(manualForm.height)) || Number(manualForm.height) <= 0) {
+      errors.height = 'Valid height (cm) is required.';
+    }
+    if (!manualForm.weight || isNaN(Number(manualForm.weight)) || Number(manualForm.weight) <= 0) {
+      errors.weight = 'Valid weight (kg) is required.';
+    }
+    if (!manualForm.planName) errors.planName = 'Membership Plan Name is required.';
+    if (!manualForm.startDate) errors.startDate = 'Start Date is required.';
+    if (!manualForm.expiryDate) errors.expiryDate = 'Expiry Date is required.';
+    if (!manualForm.totalAmount || isNaN(Number(manualForm.totalAmount))) {
+      errors.totalAmount = 'Plan amount is required.';
+    }
+    
+    if (Object.keys(errors).length > 0) {
+      setManualFormErrors(errors);
+      showToast('Please fix all validation errors.', 'error');
+      return;
+    }
+
+    setSavingManualMigration(true);
+    try {
+      const payload = {
+        ...manualForm,
+        height: Number(manualForm.height),
+        weight: Number(manualForm.weight),
+        totalAmount: Number(manualForm.totalAmount),
+        amountPaid: Number(manualForm.amountPaid || 0),
+        remainingDue: Number(manualForm.remainingDue || 0)
+      };
+
+      await api.post('/members/migrate/manual', payload);
+      showToast(`Member ${manualForm.name} migrated successfully!`, 'success');
+      
+      setManualForm({
+        name: '',
+        phone: '',
+        email: '',
+        gender: 'male',
+        dob: '',
+        height: '',
+        weight: '',
+        address: '',
+        emergencyContact: '',
+        planName: '',
+        startDate: '',
+        expiryDate: '',
+        totalAmount: '',
+        amountPaid: '',
+        remainingDue: '',
+        paymentStatus: 'unpaid',
+        notes: ''
+      });
+      setShowManualMigrateModal(false);
+      setShowMigrationModal(false);
+      loadMembersData();
+    } catch (err: any) {
+      showToast(err.message || 'Manual migration failed.', 'error');
+    } finally {
+      setSavingManualMigration(false);
     }
   };
 
@@ -511,12 +913,23 @@ export const MemberManagement: React.FC = () => {
             Export Excel
           </button>
           {!isSuspended && (
-            <button
-              onClick={openAddModal}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-primary-foreground text-sm shadow-md flex-1 sm:flex-none"
-            >
-              <Plus className="w-4 h-4" /> Register Member
-            </button>
+            <>
+              <button
+                onClick={() => {
+                  setShowMigrationModal(true);
+                  setMigrationTab('import');
+                }}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-indigo-600 hover:bg-indigo-700 text-white text-sm shadow-md flex-1 sm:flex-none cursor-pointer"
+              >
+                <UploadCloud className="w-4 h-4" /> Import Existing Members
+              </button>
+              <button
+                onClick={openAddModal}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-primary-foreground text-sm shadow-md flex-1 sm:flex-none cursor-pointer"
+              >
+                <Plus className="w-4 h-4" /> Register Member
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -1299,6 +1712,556 @@ export const MemberManagement: React.FC = () => {
                 Skip
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Migration Hub Modal */}
+      {showMigrationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-4xl bg-card border rounded-3xl p-6 shadow-2xl relative my-8 flex flex-col max-h-[90vh]">
+            <button
+              onClick={() => {
+                setShowMigrationModal(false);
+                setPreviewRows([]);
+                setUploadFileName('');
+                setImportSummary(null);
+              }}
+              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-2 mb-4">
+              <Database className="w-6 h-6 text-indigo-500" />
+              <h2 className="text-xl font-bold">Existing Member Migration Hub</h2>
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b mb-6 gap-4 text-sm font-semibold">
+              <button
+                onClick={() => setMigrationTab('import')}
+                className={`pb-2 border-b-2 transition-colors ${migrationTab === 'import' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              >
+                New Import / Manual Entry
+              </button>
+              <button
+                onClick={() => setMigrationTab('history')}
+                className={`pb-2 border-b-2 transition-colors ${migrationTab === 'history' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+              >
+                Migration Audit Log History
+              </button>
+            </div>
+
+            {/* Tab: Import */}
+            {migrationTab === 'import' && (
+              <div className="flex-1 overflow-y-auto space-y-6 pr-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Left Option: Excel template and upload */}
+                  <div className="p-5 border rounded-2xl bg-muted/20 space-y-4">
+                    <h3 className="font-bold text-sm flex items-center gap-1.5">
+                      <FileSpreadsheet className="w-5 h-5 text-emerald-500" /> Excel / CSV Import
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Download our pre-structured dual-sheet Excel template, fill in your historical membership records, and re-upload here.
+                    </p>
+                    <button
+                      onClick={downloadSampleTemplate}
+                      className="w-full py-2 border border-emerald-500/30 bg-emerald-950/20 hover:bg-emerald-950/40 text-emerald-400 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all"
+                    >
+                      <Download className="w-4 h-4" /> Download Excel Migration Template
+                    </button>
+
+                    <div className="border border-dashed border-border/80 rounded-xl p-4 flex flex-col items-center justify-center text-center relative hover:bg-muted/10 transition-colors">
+                      <UploadCloud className="w-8 h-8 text-muted-foreground mb-2" />
+                      <span className="text-xs font-semibold text-muted-foreground">
+                        {uploadFileName ? uploadFileName : "Select or drag Excel sheet (.xlsx)"}
+                      </span>
+                      <input
+                        type="file"
+                        accept=".xlsx"
+                        onChange={handleFileUpload}
+                        className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Right Option: Manual Migration Form Button */}
+                  <div className="p-5 border rounded-2xl bg-muted/20 flex flex-col justify-between space-y-4">
+                    <div className="space-y-2">
+                      <h3 className="font-bold text-sm flex items-center gap-1.5">
+                        <Users className="w-5 h-5 text-indigo-500" /> Manual Onboarding
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        Need to migrate a single member manually? Onboard individual members without generating fake receipts, keeping their past balance and start dates intact.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowManualMigrateModal(true)}
+                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md"
+                    >
+                      Onboard Single Member Manually
+                    </button>
+                  </div>
+                </div>
+
+                {/* Import progress bar */}
+                {importing && (
+                  <div className="p-4 border border-indigo-500/30 bg-indigo-950/20 rounded-xl space-y-2">
+                    <div className="flex justify-between text-xs font-bold text-indigo-400">
+                      <span>Uploading batch records sequentially...</span>
+                      <span>{importProgress}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="bg-indigo-500 h-full transition-all duration-300" style={{ width: `${importProgress}%` }} />
+                    </div>
+                  </div>
+                )}
+
+                {/* Import summary completion */}
+                {importSummary && (
+                  <div className="p-5 border border-emerald-500/20 bg-emerald-950/10 rounded-2xl space-y-3">
+                    <h4 className="font-bold text-sm text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-4 h-4" /> Migration Process Completed
+                    </h4>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="p-2 border rounded-lg bg-card">
+                        <span className="text-muted-foreground block text-[10px]">SUCCESSFULLY IMPORTED</span>
+                        <span className="text-lg font-bold text-emerald-400">{importSummary.successCount}</span>
+                      </div>
+                      <div className="p-2 border rounded-lg bg-card">
+                        <span className="text-muted-foreground block text-[10px]">DUPLICATE SKIPPED</span>
+                        <span className="text-lg font-bold text-amber-400">{importSummary.duplicateCount}</span>
+                      </div>
+                      <div className="p-2 border rounded-lg bg-card">
+                        <span className="text-muted-foreground block text-[10px]">FAILED RECORDS</span>
+                        <span className="text-lg font-bold text-rose-400">{importSummary.failedCount}</span>
+                      </div>
+                    </div>
+                    {importSummary.errors.length > 0 && (
+                      <button
+                        onClick={() => downloadErrorReport(importSummary.errors)}
+                        className="py-1.5 px-4 border border-rose-500/30 hover:bg-rose-950/20 text-rose-400 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
+                      >
+                        <AlertCircle className="w-4 h-4" /> Download Failure Error Report
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Smart Preview table */}
+                {previewRows.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-bold text-sm">Smart Preview Table</h4>
+                      <div className="flex gap-2 text-xs font-semibold">
+                        <span className="px-2 py-0.5 bg-muted rounded-full">Total: {previewRows.length}</span>
+                        <span className="px-2 py-0.5 bg-emerald-950/30 text-emerald-400 rounded-full">Valid: {previewRows.filter(r => r.isValid).length}</span>
+                        <span className="px-2 py-0.5 bg-amber-950/30 text-amber-400 rounded-full">Duplicates: {previewRows.filter(r => r.isDuplicate).length}</span>
+                        <span className="px-2 py-0.5 bg-rose-950/30 text-rose-400 rounded-full">Errors: {previewRows.filter(r => !r.isValid && !r.isDuplicate).length}</span>
+                      </div>
+                    </div>
+
+                    <div className="max-h-[300px] overflow-y-auto border rounded-xl">
+                      <table className="w-full text-left border-collapse text-xs">
+                        <thead>
+                          <tr className="border-b bg-muted/40 font-bold">
+                            <th className="p-2">Name</th>
+                            <th className="p-2">Phone</th>
+                            <th className="p-2">Plan</th>
+                            <th className="p-2">Dates</th>
+                            <th className="p-2">Validation Status / Errors</th>
+                            <th className="p-2 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {previewRows.map(row => (
+                            <tr key={row.id} className={`hover:bg-muted/10 ${!row.isValid ? 'bg-rose-950/10' : row.isDuplicate ? 'bg-amber-950/10' : ''}`}>
+                              <td className="p-2 font-semibold">{row.data['Member Name'] || row.data.name || 'N/A'}</td>
+                              <td className="p-2">{row.data['Phone Number'] || row.data.phone || 'N/A'}</td>
+                              <td className="p-2">{row.data['Membership Plan'] || row.data.planName || 'N/A'}</td>
+                              <td className="p-2 text-[10px] text-muted-foreground">
+                                {row.data['Membership Start Date'] || 'N/A'} to {row.data['Membership Expiry Date'] || 'N/A'}
+                              </td>
+                              <td className="p-2">
+                                {row.isValid ? (
+                                  <span className="text-emerald-400 font-bold">✓ Valid Ready</span>
+                                ) : (
+                                  <div className="text-rose-400 space-y-0.5 text-[10px]">
+                                    {row.errors.map((err, i) => (
+                                      <div key={i}>• {err}</div>
+                                    ))}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="p-2 text-right">
+                                <button
+                                  onClick={() => setPreviewRows(prev => prev.filter(r => r.id !== row.id))}
+                                  className="text-rose-400 hover:text-rose-300 font-bold px-2 py-1 rounded hover:bg-rose-950/20"
+                                >
+                                  Remove
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex gap-2 justify-end">
+                      <button
+                        onClick={() => setPreviewRows([])}
+                        className="px-4 py-2 border rounded-xl text-xs font-semibold hover:bg-muted"
+                      >
+                        Clear Sheet
+                      </button>
+                      <button
+                        onClick={triggerBatchImport}
+                        disabled={importing || previewRows.filter(r => r.isValid && !r.isDuplicate).length === 0}
+                        className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {importing ? 'Importing...' : 'Begin Batch Import'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Tab: History */}
+            {migrationTab === 'history' && (
+              <div className="flex-1 overflow-y-auto">
+                {loadingHistory ? (
+                  <div className="flex justify-center py-12">
+                    <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+                  </div>
+                ) : importHistory.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground text-xs font-semibold">
+                    No migration imports recorded yet.
+                  </div>
+                ) : (
+                  <div className="border rounded-2xl overflow-hidden bg-card text-xs">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b bg-muted/40 font-bold">
+                          <th className="p-3">Import Date</th>
+                          <th className="p-3">File / Action</th>
+                          <th className="p-3">Imported By</th>
+                          <th className="p-3 text-center">Total Rows</th>
+                          <th className="p-3 text-center text-emerald-400">Success</th>
+                          <th className="p-3 text-center text-rose-400">Failed</th>
+                          <th className="p-3 text-center text-amber-400">Duplicate</th>
+                          <th className="p-3 text-right">Logs</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {importHistory.map((hist) => (
+                          <tr key={hist._id} className="hover:bg-muted/10">
+                            <td className="p-3">{new Date(hist.createdAt).toLocaleString('en-IN')}</td>
+                            <td className="p-3 font-semibold">{hist.fileName}</td>
+                            <td className="p-3 text-muted-foreground">{hist.importedBy}</td>
+                            <td className="p-3 text-center font-bold">{hist.totalRecords}</td>
+                            <td className="p-3 text-center text-emerald-400 font-bold">{hist.successCount}</td>
+                            <td className="p-3 text-center text-rose-400 font-bold">{hist.failedCount}</td>
+                            <td className="p-3 text-center text-amber-400 font-bold">{hist.duplicateCount}</td>
+                            <td className="p-3 text-right">
+                              {hist.rowErrors && hist.rowErrors.length > 0 ? (
+                                <button
+                                  onClick={() => downloadErrorReport(hist.rowErrors)}
+                                  className="text-rose-400 hover:text-rose-300 font-bold hover:underline"
+                                >
+                                  Download Error Log
+                                </button>
+                              ) : (
+                                <span className="text-muted-foreground">No Errors</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Manual Existing Member Migration Modal */}
+      {showManualMigrateModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-2xl bg-card border rounded-3xl p-6 shadow-2xl relative my-8 flex flex-col max-h-[90vh]">
+            <button
+              onClick={() => {
+                setShowManualMigrateModal(false);
+                setManualFormErrors({});
+              }}
+              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground z-10"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-xl font-bold mb-4">Add Existing Migrated Member</h2>
+
+            <form onSubmit={handleManualMigrationSubmit} className="space-y-4 overflow-y-auto pr-2 flex-1">
+              <div className="border-b pb-2 font-bold text-xs text-indigo-400 uppercase tracking-wide">
+                1. Personal Details
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={manualForm.name}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, name: e.target.value }))}
+                    placeholder="Amit Kumar"
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                  {manualFormErrors.name && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.name}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Phone Number (10 digits)</label>
+                  <input
+                    type="tel"
+                    required
+                    value={manualForm.phone}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="9876543210"
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                  {manualFormErrors.phone && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.phone}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={manualForm.email}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="amit@example.com"
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gender</label>
+                  <select
+                    value={manualForm.gender}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, gender: e.target.value }))}
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">DOB</label>
+                  <input
+                    type="date"
+                    required
+                    value={manualForm.dob}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, dob: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
+                  />
+                  {manualFormErrors.dob && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.dob}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Height (cm)</label>
+                  <input
+                    type="number"
+                    required
+                    value={manualForm.height}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, height: e.target.value }))}
+                    placeholder="175"
+                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
+                  />
+                  {manualFormErrors.height && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.height}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Weight (kg)</label>
+                  <input
+                    type="number"
+                    required
+                    value={manualForm.weight}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, weight: e.target.value }))}
+                    placeholder="70"
+                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
+                  />
+                  {manualFormErrors.weight && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.weight}</p>}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Address</label>
+                  <input
+                    type="text"
+                    value={manualForm.address}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, address: e.target.value }))}
+                    placeholder="Area, City..."
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Emergency Contact</label>
+                  <input
+                    type="tel"
+                    value={manualForm.emergencyContact}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, emergencyContact: e.target.value }))}
+                    placeholder="Emergency Phone..."
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="border-b pb-2 pt-4 font-bold text-xs text-indigo-400 uppercase tracking-wide">
+                2. Membership Plan & Financial Opening Balances
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Membership Plan Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={manualForm.planName}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, planName: e.target.value }))}
+                    placeholder="e.g. Premium Annual"
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                  {manualFormErrors.planName && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.planName}</p>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Start Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={manualForm.startDate}
+                      onChange={(e) => setManualForm(prev => ({ ...prev, startDate: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
+                    />
+                    {manualFormErrors.startDate && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.startDate}</p>}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Expiry Date</label>
+                    <input
+                      type="date"
+                      required
+                      value={manualForm.expiryDate}
+                      onChange={(e) => setManualForm(prev => ({ ...prev, expiryDate: e.target.value }))}
+                      className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
+                    />
+                    {manualFormErrors.expiryDate && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.expiryDate}</p>}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Total Price (₹)</label>
+                  <input
+                    type="number"
+                    required
+                    value={manualForm.totalAmount}
+                    onChange={(e) => {
+                      const val = Number(e.target.value);
+                      const paid = Number(manualForm.amountPaid || 0);
+                      setManualForm(prev => ({
+                        ...prev,
+                        totalAmount: e.target.value,
+                        remainingDue: String(val - paid)
+                      }));
+                    }}
+                    placeholder="12000"
+                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
+                  />
+                  {manualFormErrors.totalAmount && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.totalAmount}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Amount Paid (₹)</label>
+                  <input
+                    type="number"
+                    value={manualForm.amountPaid}
+                    onChange={(e) => {
+                      const paid = Number(e.target.value);
+                      const total = Number(manualForm.totalAmount || 0);
+                      setManualForm(prev => ({
+                        ...prev,
+                        amountPaid: e.target.value,
+                        remainingDue: String(total - paid)
+                      }));
+                    }}
+                    placeholder="10000"
+                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Remaining Due (₹)</label>
+                  <input
+                    type="number"
+                    value={manualForm.remainingDue}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, remainingDue: e.target.value }))}
+                    placeholder="2000"
+                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none bg-muted/20"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Payment Status</label>
+                  <select
+                    value={manualForm.paymentStatus}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, paymentStatus: e.target.value }))}
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  >
+                    <option value="paid">Paid (Fully)</option>
+                    <option value="partial">Partial Dues</option>
+                    <option value="unpaid">Unpaid / Pending</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Medical Notes</label>
+                  <input
+                    type="text"
+                    value={manualForm.notes}
+                    onChange={(e) => setManualForm(prev => ({ ...prev, notes: e.target.value }))}
+                    placeholder="Any previous ailments or details..."
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4 border-t">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowManualMigrateModal(false);
+                    setManualFormErrors({});
+                  }}
+                  className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-bold"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingManualMigration}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md"
+                >
+                  {savingManualMigration ? 'Saving Migration...' : 'Confirm Manual Migration'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

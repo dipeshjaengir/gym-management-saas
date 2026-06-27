@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { Member, MembershipPlan, ProgressMetric, GymOwner, Payment, MemberActivity } from '../models';
+import { Member, MembershipPlan, ProgressMetric, GymOwner, Payment, MemberActivity, ImportHistory } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
 import { validateBody, createMemberSchema, updateMemberSchema } from '../middleware/validation';
@@ -536,6 +536,362 @@ router.post('/:id/progress', async (req: AuthenticatedRequest, res: Response) =>
     return res.status(201).json(metric);
   } catch (err) {
     return res.status(500).json({ message: 'Error logging progress parameter.' });
+  }
+});
+
+// GET /migration/history
+router.get('/migration/history', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const history = await ImportHistory.find({ gymOwnerId: req.user!.id }).sort({ createdAt: -1 });
+    return res.json(history);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error fetching import history.' });
+  }
+});
+
+// POST /migrate/excel
+router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) => {
+  const { fileName, members } = req.body;
+  if (!Array.isArray(members)) {
+    return res.status(400).json({ message: 'Members data array is required.' });
+  }
+  const gymOwnerId = req.user!.id;
+  const operatorEmail = req.user!.email;
+
+  try {
+    // 1. Fetch existing members for duplicate checking
+    const existingList = await Member.find({ gymOwnerId, isDeleted: false }, { phone: 1, email: 1 });
+    const existingPhones = new Set(existingList.map(m => m.phone.trim()));
+    const existingEmails = new Set(existingList.filter(m => m.email).map(m => m.email.trim().toLowerCase()));
+
+    // 2. Fetch existing plans for mapping
+    const plans = await MembershipPlan.find({ gymOwnerId, isDeleted: false });
+    const planMap = new Map(plans.map(p => [p.name.trim().toLowerCase(), p]));
+
+    const membersToInsert: any[] = [];
+    const errors: Array<{ row: number; name?: string; error: string }> = [];
+    let duplicateCount = 0;
+
+    const processedPhones = new Set<string>();
+    const processedEmails = new Set<string>();
+
+    for (let i = 0; i < members.length; i++) {
+      const row = members[i];
+      const rowIndex = i + 1;
+
+      // Basic field extraction
+      const name = row.name || row['Member Name'];
+      const phone = String(row.phone || row['Phone Number'] || '').trim();
+      const email = String(row.email || row['Email'] || '').trim().toLowerCase();
+      const gender = String(row.gender || row['Gender'] || '').trim().toLowerCase();
+      const dob = row.dob || row['Date of Birth'] || row['DOB'];
+      const height = Number(row.height || row['Height'] || row['Height (cm)']);
+      const weight = Number(row.weight || row['Weight'] || row['Weight (kg)']);
+      const address = String(row.address || row['Address'] || '');
+      const emergencyContact = String(row.emergencyContact || row['Emergency Contact'] || '');
+      const planName = String(row.planName || row['Membership Plan'] || '').trim();
+      const startDate = row.startDate || row['Membership Start Date'];
+      const expiryDate = row.expiryDate || row['Membership Expiry Date'];
+      const totalAmount = Number(row.totalAmount || row['Total Plan Amount'] || 0);
+      const amountPaid = Number(row.amountPaid || row['Amount Paid'] || 0);
+      const remainingDue = Number(row.remainingDue || row['Remaining Due'] || 0);
+      const paymentStatus = String(row.paymentStatus || row['Payment Status'] || 'unpaid').trim().toLowerCase();
+      const notes = String(row.notes || row['Medical Notes'] || row['Notes'] || '');
+      const statusStr = String(row.status || row['Active / Inactive'] || 'active').trim().toLowerCase();
+
+      // Validation checks
+      if (!name) {
+        errors.push({ row: rowIndex, error: 'Name is required.' });
+        continue;
+      }
+      if (!phone) {
+        errors.push({ row: rowIndex, name, error: 'Phone number is required.' });
+        continue;
+      }
+      if (gender !== 'male' && gender !== 'female' && gender !== 'other') {
+        errors.push({ row: rowIndex, name, error: 'Gender must be male, female, or other.' });
+        continue;
+      }
+      if (!dob || isNaN(Date.parse(dob))) {
+        errors.push({ row: rowIndex, name, error: 'Valid Date of Birth is required.' });
+        continue;
+      }
+      if (!planName) {
+        errors.push({ row: rowIndex, name, error: 'Membership Plan Name is required.' });
+        continue;
+      }
+      if (!startDate || isNaN(Date.parse(startDate))) {
+        errors.push({ row: rowIndex, name, error: 'Valid Membership Start Date is required.' });
+        continue;
+      }
+      if (!expiryDate || isNaN(Date.parse(expiryDate))) {
+        errors.push({ row: rowIndex, name, error: 'Valid Membership Expiry Date is required.' });
+        continue;
+      }
+      if (isNaN(height) || height <= 0) {
+        errors.push({ row: rowIndex, name, error: 'Height must be a valid positive number.' });
+        continue;
+      }
+      if (isNaN(weight) || weight <= 0) {
+        errors.push({ row: rowIndex, name, error: 'Weight must be a valid positive number.' });
+        continue;
+      }
+
+      // Duplicate detection
+      if (existingPhones.has(phone) || processedPhones.has(phone)) {
+        duplicateCount++;
+        errors.push({ row: rowIndex, name, error: `Member with Phone ${phone} already exists.` });
+        continue;
+      }
+      if (email && (existingEmails.has(email) || processedEmails.has(email))) {
+        duplicateCount++;
+        errors.push({ row: rowIndex, name, error: `Member with Email ${email} already exists.` });
+        continue;
+      }
+
+      // Check plan ID map
+      let planId;
+      const planNameKey = planName.toLowerCase();
+      if (planMap.has(planNameKey)) {
+        planId = planMap.get(planNameKey)!._id;
+      } else {
+        // Create plan dynamically
+        const startD = new Date(startDate);
+        const expiryD = new Date(expiryDate);
+        let durationMonths = (expiryD.getFullYear() - startD.getFullYear()) * 12 + (expiryD.getMonth() - startD.getMonth());
+        if (durationMonths <= 0) durationMonths = 1;
+
+        const newPlan = await MembershipPlan.create({
+          gymOwnerId,
+          name: planName,
+          price: totalAmount || 0,
+          durationMonths,
+          status: 'active'
+        });
+        planMap.set(planNameKey, newPlan);
+        planId = newPlan._id;
+      }
+
+      // BMI calculation
+      const hM = height / 100;
+      const bmiVal = hM > 0 ? parseFloat((weight / (hM * hM)).toFixed(1)) : 0;
+
+      // Unique QR code format
+      const qrCode = `GYM-${gymOwnerId.slice(-4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+      processedPhones.add(phone);
+      if (email) processedEmails.add(email);
+
+      // Status
+      const isArchived = (statusStr === 'inactive' || statusStr === 'expired');
+
+      membersToInsert.push({
+        gymOwnerId,
+        name,
+        phone,
+        email: email || '',
+        gender,
+        dob: new Date(dob),
+        height,
+        weight,
+        address,
+        emergencyContact,
+        planId,
+        membershipStart: new Date(startDate),
+        membershipEnd: new Date(expiryDate),
+        amountPaid,
+        remainingAmount: remainingDue,
+        paymentStatus: paymentStatus === 'paid' || paymentStatus === 'partial' || paymentStatus === 'unpaid' ? paymentStatus : 'unpaid',
+        qrCode,
+        notes,
+        bmi: bmiVal,
+        isArchived,
+        isMigrated: true,
+        migrationMethod: 'excel',
+        openingBalance: remainingDue
+      });
+    }
+
+    let insertedCount = 0;
+    if (membersToInsert.length > 0) {
+      const inserted = await Member.insertMany(membersToInsert);
+      insertedCount = inserted.length;
+
+      // Log activity timeline bulk records
+      const activities: any[] = [];
+      for (const m of inserted) {
+        activities.push({
+          gymOwnerId,
+          memberId: m._id,
+          activityType: 'migration',
+          title: 'Member Migrated',
+          remarks: `Member migrated from previous software. Method: Excel. Operator: ${operatorEmail}`,
+          time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          date: new Date()
+        });
+
+        if (m.remainingAmount > 0) {
+          activities.push({
+            gymOwnerId,
+            memberId: m._id,
+            activityType: 'opening_balance',
+            title: 'Opening Balance',
+            remainingDue: m.remainingAmount,
+            remarks: 'Opening outstanding balance from previous software.',
+            time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+            date: new Date()
+          });
+        }
+      }
+      await MemberActivity.insertMany(activities);
+    }
+
+    // Save import history log
+    const hist = await ImportHistory.create({
+      gymOwnerId,
+      importedBy: operatorEmail,
+      fileName: fileName || 'excel_import',
+      totalRecords: members.length,
+      successCount: insertedCount,
+      failedCount: errors.length,
+      duplicateCount,
+      rowErrors: errors
+    });
+
+    await logAudit(`Uploaded Member Migration Excel: ${fileName} (${insertedCount} succeeded, ${errors.length} failed)`, operatorEmail, req);
+
+    return res.json({
+      success: true,
+      importHistory: hist,
+      importedCount: insertedCount,
+      duplicateCount,
+      failedCount: errors.length
+    });
+
+  } catch (err: any) {
+    console.error('Migration Excel error:', err);
+    return res.status(500).json({ message: 'Error processing excel migration.' });
+  }
+});
+
+// POST /migrate/manual
+router.post('/migrate/manual', async (req: AuthenticatedRequest, res: Response) => {
+  const {
+    name,
+    phone,
+    email,
+    gender,
+    dob,
+    height,
+    weight,
+    address,
+    emergencyContact,
+    planName,
+    startDate,
+    expiryDate,
+    totalAmount,
+    amountPaid,
+    remainingDue,
+    paymentStatus,
+    notes
+  } = req.body;
+
+  const gymOwnerId = req.user!.id;
+  const operatorEmail = req.user!.email;
+
+  if (!name || !phone || !gender || !dob || !planName || !startDate || !expiryDate || !height || !weight) {
+    return res.status(400).json({ message: 'All required fields must be supplied for migration.' });
+  }
+
+  try {
+    // Duplicate check
+    const existing = await Member.findOne({
+      gymOwnerId,
+      isDeleted: false,
+      $or: [{ phone }, { email: email ? email : undefined }]
+    });
+
+    if (existing) {
+      return res.status(400).json({ message: 'Member with this phone number or email already exists.' });
+    }
+
+    // Map or create plan
+    let plan = await MembershipPlan.findOne({ gymOwnerId, name: planName, isDeleted: false });
+    if (!plan) {
+      const startD = new Date(startDate);
+      const expiryD = new Date(expiryDate);
+      let durationMonths = (expiryD.getFullYear() - startD.getFullYear()) * 12 + (expiryD.getMonth() - startD.getMonth());
+      if (durationMonths <= 0) durationMonths = 1;
+
+      plan = await MembershipPlan.create({
+        gymOwnerId,
+        name: planName,
+        price: totalAmount || 0,
+        durationMonths,
+        status: 'active'
+      });
+    }
+
+    const hM = height / 100;
+    const bmiVal = hM > 0 ? parseFloat((weight / (hM * hM)).toFixed(1)) : 0;
+    const qrCode = `GYM-${gymOwnerId.slice(-4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+    const member = await Member.create({
+      gymOwnerId,
+      name,
+      phone,
+      email: email || '',
+      gender,
+      dob: new Date(dob),
+      height,
+      weight,
+      address: address || '',
+      emergencyContact: emergencyContact || '',
+      planId: plan._id,
+      membershipStart: new Date(startDate),
+      membershipEnd: new Date(expiryDate),
+      amountPaid: amountPaid || 0,
+      remainingAmount: remainingDue || 0,
+      paymentStatus: paymentStatus || 'unpaid',
+      qrCode,
+      notes: notes || '',
+      bmi: bmiVal,
+      isMigrated: true,
+      migrationMethod: 'manual',
+      openingBalance: remainingDue || 0
+    });
+
+    // Write Activities
+    await MemberActivity.create({
+      gymOwnerId,
+      memberId: member._id,
+      activityType: 'migration',
+      title: 'Member Migrated',
+      remarks: `Member migrated from previous software. Method: Manual. Operator: ${operatorEmail}`,
+      time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      date: new Date()
+    });
+
+    if (member.remainingAmount > 0) {
+      await MemberActivity.create({
+        gymOwnerId,
+        memberId: member._id,
+        activityType: 'opening_balance',
+        title: 'Opening Balance',
+        remainingDue: member.remainingAmount,
+        remarks: 'Opening outstanding balance from previous software.',
+        time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+        date: new Date()
+      });
+    }
+
+    await logAudit(`Manually migrated member: ${member.name}`, operatorEmail, req);
+
+    return res.status(201).json(member);
+
+  } catch (err: any) {
+    console.error('Manual migration error:', err);
+    return res.status(500).json({ message: 'Error performing manual migration.' });
   }
 });
 

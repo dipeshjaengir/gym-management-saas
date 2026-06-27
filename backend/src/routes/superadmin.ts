@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
-import { GymOwner, PlatformLead, AuditLog, Member, PlatformPlan, Coupon } from '../models';
+import { GymOwner, PlatformLead, AuditLog, Member, PlatformPlan, Coupon, ImportHistory } from '../models';
 import { authenticateToken, authorizeRoles, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
 import {
@@ -614,6 +614,16 @@ router.get('/search', async (req: AuthenticatedRequest, res: Response) => {
   } catch (err) {
     console.error('Superadmin global search error:', err);
     return res.status(500).json({ message: 'Error performing global search.' });
+  }
+});
+
+// GET platform wide imports history
+router.get('/imports', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const history = await ImportHistory.find({}).populate('gymOwnerId', 'gymName ownerName').sort({ createdAt: -1 });
+    return res.json(history);
+  } catch (err) {
+    return res.status(500).json({ message: 'Error retrieving platform imports log.' });
   }
 });
 
