@@ -391,43 +391,6 @@ export const SuperAdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Recent Activities */}
-      <div className="p-6 rounded-2xl bg-card border shadow-sm">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            <Layers className="w-4 h-4 text-primary" /> Recent Platform Activities
-          </h2>
-          <span className="text-[10px] bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full font-bold">
-            Live Feed
-          </span>
-        </div>
-        
-        {recentActivities.length === 0 ? (
-          <p className="text-xs text-muted-foreground py-6 text-center">No recent platform activities recorded.</p>
-        ) : (
-          <div className="divide-y divide-border/40 max-h-96 overflow-y-auto pr-2">
-            {recentActivities.map((act) => (
-              <div key={act._id} className="py-3 flex items-start justify-between gap-4 text-xs">
-                <div>
-                  <span className="font-bold text-foreground block">{act.action}</span>
-                  <p className="text-muted-foreground mt-0.5">{act.details}</p>
-                  <span className="text-[10px] text-muted-foreground/60 block mt-1">
-                    By: <span className="font-semibold text-primary">{act.operatorName || 'System'}</span>
-                  </span>
-                </div>
-                <div className="text-right shrink-0">
-                  <span className="text-[10px] text-muted-foreground block">
-                    {new Date(act.timestamp).toLocaleDateString('en-IN')}
-                  </span>
-                  <span className="text-[9px] text-muted-foreground/70 block mt-0.5">
-                    {new Date(act.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 };

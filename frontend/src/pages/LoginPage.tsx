@@ -35,10 +35,7 @@ export const LoginPage: React.FC = () => {
     }
 
     if (!password) {
-      setPasswordError('Password must contain minimum 8 characters.');
-      hasError = true;
-    } else if (password.length < 8) {
-      setPasswordError('Password must contain minimum 8 characters.');
+      setPasswordError('Password is required.');
       hasError = true;
     }
 

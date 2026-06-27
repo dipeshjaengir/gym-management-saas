@@ -254,21 +254,12 @@ export const GymOwnerDashboard: React.FC = () => {
     const gymNameVal = user?.branding?.gymName || user?.gymName || 'My Gym';
     const ownerNameVal = user?.ownerName || user?.name || 'Gym Owner';
 
-    const finalPrice = upgradeDiscount
-      ? (upgradeDiscount.discountType === 'percentage'
-          ? Math.round(selectedUpgradePlan.price * (1 - upgradeDiscount.discountValue / 100))
-          : Math.max(0, selectedUpgradePlan.price - upgradeDiscount.discountValue))
-      : selectedUpgradePlan.price;
-
-    const couponPart = upgradeDiscount ? `Applied Coupon: ${upgradeCoupon.toUpperCase()} (${upgradeDiscount.discountType === 'percentage' ? `${upgradeDiscount.discountValue}% OFF` : `₹${upgradeDiscount.discountValue} OFF`})` : 'Applied Coupon: None';
-
     const text = encodeURIComponent(
       `Hello GymLedger Team, I want to upgrade my trial workspace to premium.
 - Gym Name: ${gymNameVal}
 - Owner Name: ${ownerNameVal}
 - Selected Plan: ${selectedUpgradePlan.name} (₹${selectedUpgradePlan.price})
-- ${couponPart}
-- Total Price: ₹${finalPrice}`
+- Total Price: ₹${selectedUpgradePlan.price}`
     );
 
     window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
@@ -1155,8 +1146,7 @@ export const GymOwnerDashboard: React.FC = () => {
           <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-md w-full relative">
             <button
               onClick={() => {
-                   setUpgradeCoupon('');
-                setUpgradeDiscount(null);
+                setShowUpgradeModal(false);
               }}
               className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all hover:bg-muted p-1 rounded-lg"
             >
@@ -1172,6 +1162,18 @@ export const GymOwnerDashboard: React.FC = () => {
               </div>
  
               <div className="space-y-4">
+                {/* Gym Details */}
+                <div className="bg-secondary/20 border border-border/30 rounded-xl p-3.5 space-y-2 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Gym Name</span>
+                    <span className="font-semibold text-foreground">{user?.branding?.gymName || user?.gymName || 'My Gym'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Owner Name</span>
+                    <span className="font-semibold text-foreground">{user?.ownerName || user?.name || 'Gym Owner'}</span>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Select Subscription Plan</label>
                   <select
@@ -1197,108 +1199,15 @@ export const GymOwnerDashboard: React.FC = () => {
                   </select>
                 </div>
  
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Coupon Code</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={upgradeCoupon}
-                      onChange={(e) => setUpgradeCoupon(e.target.value.toUpperCase())}
-                      placeholder="e.g. SUMMER25"
-                      className="flex-grow px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleUpgradeCouponValidate}
-                      disabled={validatingUpgradeCoupon}
-                      className="px-4 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:bg-primary/90"
-                    >
-                      {validatingUpgradeCoupon ? '...' : 'Apply'}
-                    </button>
-                  </div>
-                  {upgradeDiscount && (
-                    <p className="text-xs text-emerald-400 font-bold mt-1.5">
-                      ✓ Coupon Applied! Discount: {upgradeDiscount.discountType === 'percentage' ? `${upgradeDiscount.discountValue}% OFF` : `₹${upgradeDiscount.discountValue} OFF`}
-                    </p>
-                  )}
-
-                  {/* Active Coupons List */}
-                  {activeCoupons.length > 0 && (
-                    <div className="mt-3 bg-secondary/10 border border-border/30 rounded-xl p-3 space-y-2">
-                      <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wide">Available Coupons (Tap to Apply)</div>
-                      <div className="grid grid-cols-1 gap-1.5 max-h-36 overflow-y-auto pr-1">
-                        {activeCoupons.map((c) => (
-                          <div
-                            key={c._id}
-                            onClick={async () => {
-                              setUpgradeCoupon(c.code);
-                              setValidatingUpgradeCoupon(true);
-                              try {
-                                const res = await api.post('/public/validate-coupon', { code: c.code });
-                                if (res.valid) {
-                                  setUpgradeDiscount(res.coupon);
-                                  showToast(`Coupon ${c.code} applied successfully!`, 'success');
-                                } else {
-                                  setUpgradeDiscount(null);
-                                  showToast(res.message || 'Invalid coupon.', 'error');
-                                }
-                              } catch (err: any) {
-                                setUpgradeDiscount(null);
-                                showToast(err.message || 'Invalid coupon.', 'error');
-                              } finally {
-                                setValidatingUpgradeCoupon(false);
-                              }
-                            }}
-                            className="flex items-center justify-between p-2 rounded-lg bg-card border hover:border-primary/40 transition-all cursor-pointer text-left"
-                          >
-                            <div className="min-w-0 flex-1">
-                              <span className="text-[10px] font-black text-foreground tracking-wider uppercase bg-primary/10 px-1.5 py-0.5 rounded text-primary">{c.code}</span>
-                              <p className="text-[9px] text-muted-foreground mt-1 truncate">{c.description || 'Special Discount Coupon'}</p>
-                              <p className="text-[8px] text-muted-foreground/70 mt-0.5">Exp: {new Date(c.expiryDate).toLocaleDateString('en-IN')}</p>
-                            </div>
-                            <div className="text-right ml-2 shrink-0">
-                              <span className="text-xs font-bold text-emerald-400">
-                                {c.discountType === 'percentage' ? `${c.discountValue}% OFF` : `₹${c.discountValue} OFF`}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
- 
                 {selectedUpgradePlan && (
                   <div className="border-t border-muted/30 pt-4 space-y-2">
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Plan Price</span>
                       <span>₹{selectedUpgradePlan.price}</span>
                     </div>
-                    {upgradeDiscount && (
-                      <div className="flex justify-between text-xs text-emerald-400">
-                        <span>Discount</span>
-                        <span>
-                          -₹
-                          {upgradeDiscount.discountType === 'percentage'
-                            ? Math.round(selectedUpgradePlan.price * (upgradeDiscount.discountValue / 100))
-                            : upgradeDiscount.discountValue}
-                        </span>
-                      </div>
-                    )}
                     <div className="flex justify-between font-bold text-sm text-foreground border-t border-muted/20 pt-2">
                       <span>Total Amount</span>
-                      <span>
-                        ₹
-                        {upgradeDiscount
-                          ? Math.max(
-                              0,
-                              selectedUpgradePlan.price -
-                                (upgradeDiscount.discountType === 'percentage'
-                                  ? Math.round(selectedUpgradePlan.price * (upgradeDiscount.discountValue / 100))
-                                  : upgradeDiscount.discountValue)
-                            )
-                          : selectedUpgradePlan.price}
-                      </span>
+                      <span>₹{selectedUpgradePlan.price}</span>
                     </div>
                   </div>
                 )}
