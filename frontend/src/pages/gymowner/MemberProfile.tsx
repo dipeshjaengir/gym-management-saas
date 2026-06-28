@@ -948,7 +948,7 @@ export const MemberProfile: React.FC = () => {
                       } else if (item.activityType.endsWith('_updated')) {
                         bulletColor = 'bg-indigo-500';
                         actIcon = <Dumbbell className="w-3.5 h-3.5 text-white" />;
-                      } else if (item.activityType === 'migration') {
+                      } else if (item.activityType === 'migration' || item.activityType === 'migration_updated' || item.activityType === 'migration_merged') {
                         bulletColor = 'bg-blue-500';
                         actIcon = <Database className="w-3.5 h-3.5 text-white" />;
                       } else if (item.activityType === 'opening_balance') {

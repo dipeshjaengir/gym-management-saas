@@ -22,7 +22,9 @@ import {
   CheckCircle2,
   Download,
   AlertCircle,
-  Database
+  Database,
+  Sparkles,
+  Scan
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateMemberCardPDF, exportToExcel } from '../../utils/exportHelpers';
@@ -72,6 +74,8 @@ interface PreviewRow {
   errors: string[];
   isDuplicate: boolean;
   isValid: boolean;
+  confidence?: 'high' | 'review' | 'unable';
+  confidenceFields?: Record<string, 'high' | 'review' | 'unable'>;
 }
 
 export const MemberManagement: React.FC = () => {
@@ -98,10 +102,24 @@ export const MemberManagement: React.FC = () => {
   const [importProgress, setImportProgress] = useState(0);
   const [importSummary, setImportSummary] = useState<{
     successCount: number;
+    updatedCount?: number;
+    mergedCount?: number;
     duplicateCount: number;
     failedCount: number;
     errors: any[];
   } | null>(null);
+
+  // Saved & Custom Mappings per Gym Owner
+  const [savedMapping, setSavedMapping] = useState<Record<string, string>>({});
+  const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
+  const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+  const [rawUploadRows, setRawUploadRows] = useState<any[]>([]);
+  const [duplicateStrategy, setDuplicateStrategy] = useState<'skip' | 'update' | 'merge'>('skip');
+
+  // OCR Upload States
+  const [ocrFiles, setOcrFiles] = useState<{ fileName: string; fileData: string }[]>([]);
+  const [ocrProcessing, setOcrProcessing] = useState(false);
+  const [ocrProviderName, setOcrProviderName] = useState('MockOCRProvider');
 
   // Manual Migration States
   const [showManualMigrateModal, setShowManualMigrateModal] = useState(false);
@@ -229,6 +247,17 @@ export const MemberManagement: React.FC = () => {
     }
   }, [showMigrationModal, migrationTab]);
 
+  useEffect(() => {
+    if (showMigrationModal) {
+      api.get('/members/migrate/mapping')
+        .then(res => {
+          setSavedMapping(res || {});
+          setColumnMapping(res || {});
+        })
+        .catch(err => console.error('Failed to load saved mapping:', err));
+    }
+  }, [showMigrationModal]);
+
   // Excel Sample Template Downloader
   const downloadSampleTemplate = () => {
     const headers = [
@@ -324,7 +353,12 @@ export const MemberManagement: React.FC = () => {
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json<any>(sheet);
-        processPreviewData(json);
+        
+        // Extract headers from first row
+        const headers = json.length > 0 ? Object.keys(json[0]) : [];
+        setDetectedHeaders(headers);
+        setRawUploadRows(json);
+        autoDetectMapping(headers, json);
       } catch (err: any) {
         showToast(`Failed to parse Excel file: ${err.message}`, 'error');
       }
@@ -332,29 +366,110 @@ export const MemberManagement: React.FC = () => {
     reader.readAsBinaryString(file);
   };
 
-  // Preview Data Processor (with client-side duplicate detection)
-  const processPreviewData = (rows: any[]) => {
+  // AI-Assisted Mapping Synonyms Auto-Detection Heuristics
+  const autoDetectMapping = (headers: string[], rawRows: any[]) => {
+    const newMapping: Record<string, string> = { ...savedMapping };
+    const synonyms: Record<string, string[]> = {
+      name: ['Member Name', 'Customer Name', 'Client Name', 'Name', 'name', 'customer', 'client'],
+      phone: ['Phone Number', 'Phone', 'Mobile', 'Contact No', 'Contact Number', 'Mobile Number', 'phone', 'mobile', 'contact'],
+      email: ['Email Address', 'Email', 'Mail ID', 'Mail', 'email', 'mail'],
+      gender: ['Gender', 'gender', 'sex'],
+      dob: ['Date of Birth', 'DOB', 'Birth Date', 'dob', 'birthdate'],
+      height: ['Height (cm)', 'Height', 'height'],
+      weight: ['Weight (kg)', 'Weight', 'weight'],
+      address: ['Address', 'address', 'location'],
+      emergencyContact: ['Emergency Contact', 'Emergency Phone', 'emergencyContact', 'emergency'],
+      planName: ['Membership Plan', 'Membership', 'Plan', 'Package', 'planName', 'plan', 'package'],
+      startDate: ['Membership Start Date', 'Joining Date', 'Admission Date', 'Start Date', 'startDate', 'joining', 'admission'],
+      expiryDate: ['Membership Expiry Date', 'Expiry', 'Renewal Date', 'Expiry Date', 'expiryDate', 'expiry', 'renewal'],
+      totalAmount: ['Total Plan Amount', 'Fees', 'Amount', 'totalAmount', 'fees', 'amount', 'price'],
+      amountPaid: ['Amount Paid', 'Paid', 'amountPaid', 'paid'],
+      remainingDue: ['Remaining Due', 'Balance', 'Due', 'remainingDue', 'balance', 'due'],
+      paymentStatus: ['Payment Status', 'paymentStatus', 'payStatus'],
+      notes: ['Medical Notes', 'Notes', 'notes', 'medical'],
+      status: ['Active / Inactive', 'Status', 'status']
+    };
+
+    Object.keys(synonyms).forEach((fieldName) => {
+      if (!newMapping[fieldName]) {
+        const match = headers.find(h => 
+          synonyms[fieldName].some(syn => h.toLowerCase().trim() === syn.toLowerCase().trim())
+        );
+        if (match) {
+          newMapping[fieldName] = match;
+        }
+      }
+    });
+
+    setColumnMapping(newMapping);
+    recalculatePreviewRows(rawRows, newMapping);
+  };
+
+  // Recalculate Preview Rows & Validate using the active mapping config
+  const recalculatePreviewRows = (rawRows: any[], mapping: Record<string, string>) => {
     const existingPhones = new Set(members.map(m => m.phone.trim()));
     const existingEmails = new Set(members.filter(m => m.email).map(m => m.email.trim().toLowerCase()));
 
     const processedPhones = new Set<string>();
     const processedEmails = new Set<string>();
 
-    const tempPreview: PreviewRow[] = rows.map((row, idx) => {
-      const name = row.name || row['Member Name'];
-      const phone = String(row.phone || row['Phone Number'] || '').trim();
-      const email = String(row.email || row['Email'] || '').trim().toLowerCase();
-      const gender = String(row.gender || row['Gender'] || '').trim().toLowerCase();
-      const dob = row.dob || row['Date of Birth'] || row['DOB'];
-      const height = Number(row.height || row['Height'] || row['Height (cm)']);
-      const weight = Number(row.weight || row['Weight'] || row['Weight (kg)']);
-      const planName = String(row.planName || row['Membership Plan'] || '').trim();
-      const startDate = row.startDate || row['Membership Start Date'];
-      const expiryDate = row.expiryDate || row['Membership Expiry Date'];
+    const getFieldVal = (row: any, fieldName: string, synonyms: string[]): any => {
+      const mappedKey = mapping[fieldName];
+      if (mappedKey !== undefined && mappedKey !== null && String(mappedKey).trim() !== '') {
+        const val = row[mappedKey];
+        if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+      }
+      for (const syn of synonyms) {
+        if (row[syn] !== undefined && row[syn] !== null && String(row[syn]).trim() !== '') {
+          return row[syn];
+        }
+      }
+      return undefined;
+    };
+
+    const tempPreview: PreviewRow[] = rawRows.map((row, idx) => {
+      const nameVal = getFieldVal(row, 'name', ['Member Name', 'Customer Name', 'Client Name', 'Name', 'name']);
+      const phoneVal = getFieldVal(row, 'phone', ['Phone Number', 'Phone', 'Mobile', 'Contact No', 'Contact Number', 'Mobile Number', 'phone']);
+      const emailVal = getFieldVal(row, 'email', ['Email Address', 'Email', 'Mail ID', 'Mail', 'email']);
+      const genderVal = getFieldVal(row, 'gender', ['Gender', 'gender']);
+      const dobVal = getFieldVal(row, 'dob', ['Date of Birth', 'DOB', 'Birth Date', 'dob']);
+      const heightVal = getFieldVal(row, 'height', ['Height (cm)', 'Height', 'height']);
+      const weightVal = getFieldVal(row, 'weight', ['Weight (kg)', 'Weight', 'weight']);
+      const addressVal = getFieldVal(row, 'address', ['Address', 'address']);
+      const emergencyContactVal = getFieldVal(row, 'emergencyContact', ['Emergency Contact', 'Emergency Phone', 'emergencyContact']);
+      const planNameVal = getFieldVal(row, 'planName', ['Membership Plan', 'Membership', 'Plan', 'Package', 'planName']);
+      const startDateVal = getFieldVal(row, 'startDate', ['Membership Start Date', 'Joining Date', 'Admission Date', 'Start Date', 'startDate']);
+      const expiryDateVal = getFieldVal(row, 'expiryDate', ['Membership Expiry Date', 'Expiry', 'Renewal Date', 'Expiry Date', 'expiryDate']);
+      const totalAmountVal = getFieldVal(row, 'totalAmount', ['Total Plan Amount', 'Fees', 'Amount', 'totalAmount']);
+      const amountPaidVal = getFieldVal(row, 'amountPaid', ['Amount Paid', 'Paid', 'amountPaid']);
+      const remainingDueVal = getFieldVal(row, 'remainingDue', ['Remaining Due', 'Balance', 'Due', 'remainingDue']);
+      const paymentStatusVal = getFieldVal(row, 'paymentStatus', ['Payment Status', 'paymentStatus']);
+      const notesVal = getFieldVal(row, 'notes', ['Medical Notes', 'Notes', 'notes']);
+      const statusVal = getFieldVal(row, 'status', ['Active / Inactive', 'Status', 'status']);
+
+      const name = nameVal ? String(nameVal).trim() : '';
+      const phone = phoneVal ? String(phoneVal).trim() : '';
+      const email = emailVal ? String(emailVal).trim().toLowerCase() : '';
+      const gender = genderVal ? String(genderVal).trim().toLowerCase() : '';
+      const dob = dobVal;
+      const height = heightVal ? Number(heightVal) : undefined;
+      const weight = weightVal ? Number(weightVal) : undefined;
+      const address = addressVal ? String(addressVal).trim() : '';
+      const emergencyContact = emergencyContactVal ? String(emergencyContactVal).trim() : '';
+      const planName = planNameVal ? String(planNameVal).trim() : '';
+      const startDate = startDateVal;
+      const expiryDate = expiryDateVal;
+      const totalAmount = totalAmountVal ? Number(totalAmountVal) : 0;
+      const amountPaid = amountPaidVal ? Number(amountPaidVal) : 0;
+      const remainingDue = remainingDueVal ? Number(remainingDueVal) : 0;
+      const paymentStatus = paymentStatusVal ? String(paymentStatusVal).trim().toLowerCase() : 'unpaid';
+      const notes = notesVal ? String(notesVal).trim() : '';
+      const statusStr = statusVal ? String(statusVal).trim().toLowerCase() : 'active';
 
       const rowErrors: string[] = [];
       let isDuplicate = false;
 
+      // 1. Mandatory validations
       if (!name) rowErrors.push('Name is required');
       if (!phone) {
         rowErrors.push('Phone is required');
@@ -374,45 +489,207 @@ export const MemberManagement: React.FC = () => {
         processedEmails.add(email);
       }
 
-      if (gender !== 'male' && gender !== 'female' && gender !== 'other') {
+      // 2. Format validations
+      if (gender && gender !== 'male' && gender !== 'female' && gender !== 'other') {
         rowErrors.push('Gender must be male, female, or other');
       }
-      if (!dob) {
-        rowErrors.push('Date of Birth is required');
+      if (dob && isNaN(Date.parse(String(dob)))) {
+        rowErrors.push('Invalid Date of Birth');
       }
-      if (!planName) {
-        rowErrors.push('Membership Plan is required');
+      if (startDate && isNaN(Date.parse(String(startDate)))) {
+        rowErrors.push('Invalid Start Date');
       }
-      if (!startDate) {
-        rowErrors.push('Start Date is required');
+      if (expiryDate && isNaN(Date.parse(String(expiryDate)))) {
+        rowErrors.push('Invalid Expiry Date');
       }
-      if (!expiryDate) {
-        rowErrors.push('Expiry Date is required');
-      }
-      if (isNaN(height) || height <= 0) {
+      if (height !== undefined && (isNaN(height) || height <= 0)) {
         rowErrors.push('Height must be a positive number');
       }
-      if (isNaN(weight) || weight <= 0) {
+      if (weight !== undefined && (isNaN(weight) || weight <= 0)) {
         rowErrors.push('Weight must be a positive number');
       }
 
+      // 3. Schema requirement checks
+      if (!gender) rowErrors.push('Gender is required');
+      if (!dob) rowErrors.push('Date of Birth is required');
+      if (height === undefined) rowErrors.push('Height is required');
+      if (weight === undefined) rowErrors.push('Weight is required');
+      if (!planName) rowErrors.push('Membership Plan is required');
+      if (!startDate) rowErrors.push('Start Date is required');
+      if (!expiryDate) rowErrors.push('Expiry Date is required');
+
+      const parsedData = {
+        name, phone, email, gender, dob, height, weight, address,
+        emergencyContact, planName, startDate, expiryDate, totalAmount,
+        amountPaid, remainingDue, paymentStatus, notes, status: statusStr
+      };
+
       return {
         id: `row-${idx}-${Math.random()}`,
-        data: row,
+        data: parsedData,
         errors: rowErrors,
         isDuplicate,
-        isValid: rowErrors.length === 0
+        isValid: rowErrors.length === 0,
+        confidence: row.confidence || 'high',
+        confidenceFields: row.confidenceFields || {}
       };
     });
 
     setPreviewRows(tempPreview);
   };
 
+  // Reactive Effect to recalculate rows on wizard mapping configuration change
+  useEffect(() => {
+    if (rawUploadRows.length > 0) {
+      recalculatePreviewRows(rawUploadRows, columnMapping);
+    }
+  }, [columnMapping]);
+
+  // Inline Cell Editing handler in Smart Preview Table
+  const handleCellEdit = (rowId: string, fieldName: string, value: any) => {
+    setPreviewRows(prev => prev.map(row => {
+      if (row.id !== rowId) return row;
+      const updatedData = { ...row.data, [fieldName]: value };
+
+      const rowErrors: string[] = [];
+      const name = updatedData.name || '';
+      const phone = String(updatedData.phone || '').trim();
+      const email = String(updatedData.email || '').trim().toLowerCase();
+      const gender = String(updatedData.gender || '').trim().toLowerCase();
+      const dob = updatedData.dob || '';
+      const height = updatedData.height !== undefined && updatedData.height !== '' ? Number(updatedData.height) : undefined;
+      const weight = updatedData.weight !== undefined && updatedData.weight !== '' ? Number(updatedData.weight) : undefined;
+      const planName = String(updatedData.planName || '').trim();
+      const startDate = updatedData.startDate || '';
+      const expiryDate = updatedData.expiryDate || '';
+
+      if (!name) rowErrors.push('Name is required');
+      if (!phone) rowErrors.push('Phone is required');
+      if (gender && gender !== 'male' && gender !== 'female' && gender !== 'other') {
+        rowErrors.push('Gender must be male, female, or other');
+      }
+      if (dob && isNaN(Date.parse(String(dob)))) {
+        rowErrors.push('Invalid Date of Birth');
+      }
+      if (startDate && isNaN(Date.parse(String(startDate)))) {
+        rowErrors.push('Invalid Start Date');
+      }
+      if (expiryDate && isNaN(Date.parse(String(expiryDate)))) {
+        rowErrors.push('Invalid Expiry Date');
+      }
+      if (height !== undefined && (isNaN(height) || height <= 0)) {
+        rowErrors.push('Height must be a positive number');
+      }
+      if (weight !== undefined && (isNaN(weight) || weight <= 0)) {
+        rowErrors.push('Weight must be a positive number');
+      }
+
+      if (!gender) rowErrors.push('Gender is required');
+      if (!dob) rowErrors.push('Date of Birth is required');
+      if (height === undefined) rowErrors.push('Height is required');
+      if (weight === undefined) rowErrors.push('Weight is required');
+      if (!planName) rowErrors.push('Membership Plan is required');
+      if (!startDate) rowErrors.push('Start Date is required');
+      if (!expiryDate) rowErrors.push('Expiry Date is required');
+
+      // Remove error highlights on updated cells
+      const updatedConfidenceFields = { ...row.confidenceFields };
+      if (updatedConfidenceFields[fieldName]) {
+        delete updatedConfidenceFields[fieldName];
+      }
+
+      return {
+        ...row,
+        data: updatedData,
+        errors: rowErrors,
+        isValid: rowErrors.length === 0,
+        confidenceFields: updatedConfidenceFields
+      };
+    }));
+  };
+
+  // Helper converter for base64 file scanning
+  const toBase64 = (file: File): Promise<string> => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+
+  // Photo / Scanned Register/PDF OCR Processing Upload handler
+  const handleOcrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setOcrProcessing(true);
+    setUploadFileName(`${files.length} page(s) / files`);
+    setImportSummary(null);
+
+    const fileList: any[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      try {
+        const base64 = await toBase64(f);
+        fileList.push({
+          fileName: f.name,
+          fileData: base64
+        });
+      } catch (err) {
+        console.error('Failed to convert file to base64:', err);
+      }
+    }
+
+    try {
+      const res = await api.post('/members/migrate/ocr', { files: fileList });
+      if (res.success && res.rows) {
+        setOcrProviderName(res.providerName || 'MockOCRProvider');
+        const existingPhones = new Set(members.map(m => m.phone.trim()));
+        const existingEmails = new Set(members.filter(m => m.email).map(m => m.email.trim().toLowerCase()));
+
+        const tempPreview = res.rows.map((row: any, idx: number) => {
+          const rowErrors: string[] = [];
+          if (!row.name) rowErrors.push('Name is required');
+          if (!row.phone) {
+            rowErrors.push('Phone is required');
+          } else if (existingPhones.has(row.phone.trim()) && duplicateStrategy === 'skip') {
+            rowErrors.push(`Duplicate phone number: ${row.phone}`);
+          }
+          if (row.email && existingEmails.has(row.email.trim().toLowerCase()) && duplicateStrategy === 'skip') {
+            rowErrors.push(`Duplicate email: ${row.email}`);
+          }
+          if (!row.gender) rowErrors.push('Gender is required');
+          if (!row.dob) rowErrors.push('Date of Birth is required');
+          if (row.height === undefined) rowErrors.push('Height is required');
+          if (row.weight === undefined) rowErrors.push('Weight is required');
+          if (!row.planName) rowErrors.push('Membership Plan is required');
+          if (!row.startDate) rowErrors.push('Start Date is required');
+          if (!row.expiryDate) rowErrors.push('Expiry Date is required');
+
+          return {
+            id: `ocr-${idx}-${Math.random()}`,
+            data: row,
+            errors: rowErrors,
+            isValid: rowErrors.length === 0,
+            confidence: row.confidence || 'high',
+            confidenceFields: row.confidenceFields || {}
+          };
+        });
+
+        setPreviewRows(tempPreview);
+        showToast('Register documents processed with pluggable OCR provider successfully.', 'success');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'OCR document scanning failed.', 'error');
+    } finally {
+      setOcrProcessing(false);
+    }
+  };
+
   // Trigger batch sequential imports (Sequenced Chunks of size 100)
   const triggerBatchImport = async () => {
-    const validRows = previewRows.filter(r => r.isValid && !r.isDuplicate);
-    if (validRows.length === 0) {
-      showToast('No valid, non-duplicate records to import.', 'error');
+    const hasErrors = previewRows.some(r => !r.isValid);
+    if (hasErrors) {
+      showToast('Please correct all validation errors in the preview table before importing.', 'error');
       return;
     }
 
@@ -423,20 +700,33 @@ export const MemberManagement: React.FC = () => {
     const batchSize = 100;
     let successCount = 0;
     let duplicateCount = 0;
+    let updatedCount = 0;
+    let mergedCount = 0;
     let failedCount = 0;
     const allErrors: any[] = [];
 
-    for (let i = 0; i < validRows.length; i += batchSize) {
-      const batch = validRows.slice(i, i + batchSize).map(r => r.data);
+    // Save column mapping for Gym Owner
+    try {
+      await api.post('/members/migrate/mapping', { mapping: columnMapping });
+    } catch (err) {
+      console.error('Failed to save mapping config:', err);
+    }
+
+    for (let i = 0; i < previewRows.length; i += batchSize) {
+      const batch = previewRows.slice(i, i + batchSize).map(r => r.data);
       try {
         const res = await api.post('/members/migrate/excel', {
-          fileName: uploadFileName || 'batch_import.xlsx',
-          members: batch
+          fileName: uploadFileName || 'universal_import.xlsx',
+          members: batch,
+          columnMapping,
+          duplicateStrategy
         });
         
-        successCount += res.importedCount;
-        duplicateCount += res.duplicateCount;
-        failedCount += res.failedCount;
+        successCount += res.successCount || 0;
+        updatedCount += res.updatedCount || 0;
+        mergedCount += res.mergedCount || 0;
+        duplicateCount += res.duplicateCount || 0;
+        failedCount += res.failedCount || 0;
         if (res.importHistory && res.importHistory.rowErrors) {
           allErrors.push(...res.importHistory.rowErrors);
         }
@@ -446,12 +736,14 @@ export const MemberManagement: React.FC = () => {
         allErrors.push({ row: i + 1, error: err.message || 'Batch request failed' });
       }
 
-      setImportProgress(Math.min(100, Math.round(((i + batch.length) / validRows.length) * 100)));
+      setImportProgress(Math.min(100, Math.round(((i + batch.length) / previewRows.length) * 100)));
     }
 
     setImporting(false);
     setImportSummary({
       successCount,
+      updatedCount,
+      mergedCount,
       duplicateCount,
       failedCount,
       errors: allErrors
@@ -459,7 +751,7 @@ export const MemberManagement: React.FC = () => {
 
     setPreviewRows([]);
     setUploadFileName('');
-    showToast(`Excel migration finished: ${successCount} successfully imported.`, 'success');
+    showToast(`Universal import completed successfully.`, 'success');
     loadMembersData();
   };
 
@@ -1756,49 +2048,81 @@ export const MemberManagement: React.FC = () => {
             {/* Tab: Import */}
             {migrationTab === 'import' && (
               <div className="flex-1 overflow-y-auto space-y-6 pr-2">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Left Option: Excel template and upload */}
-                  <div className="p-5 border rounded-2xl bg-muted/20 space-y-4">
-                    <h3 className="font-bold text-sm flex items-center gap-1.5">
-                      <FileSpreadsheet className="w-5 h-5 text-emerald-500" /> Excel / CSV Import
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Excel / CSV Import Option */}
+                  <div className="p-4 border rounded-2xl bg-muted/20 space-y-3">
+                    <h3 className="font-bold text-xs flex items-center gap-1.5 text-emerald-400">
+                      <FileSpreadsheet className="w-4 h-4" /> Excel / CSV Upload
                     </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Download our pre-structured dual-sheet Excel template, fill in your historical membership records, and re-upload here.
+                    <p className="text-[11px] text-muted-foreground leading-normal">
+                      Upload any Excel or CSV member roster sheet. Detects headers instantly for mapping.
                     </p>
                     <button
                       onClick={downloadSampleTemplate}
-                      className="w-full py-2 border border-emerald-500/30 bg-emerald-950/20 hover:bg-emerald-950/40 text-emerald-400 font-semibold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all"
+                      className="w-full py-1.5 border border-emerald-500/30 bg-emerald-950/20 hover:bg-emerald-950/40 text-emerald-400 font-semibold text-[10px] rounded-lg flex items-center justify-center gap-1 transition-all"
                     >
-                      <Download className="w-4 h-4" /> Download Excel Migration Template
+                      <Download className="w-3.5 h-3.5" /> Download Schema Template
                     </button>
 
-                    <div className="border border-dashed border-border/80 rounded-xl p-4 flex flex-col items-center justify-center text-center relative hover:bg-muted/10 transition-colors">
-                      <UploadCloud className="w-8 h-8 text-muted-foreground mb-2" />
-                      <span className="text-xs font-semibold text-muted-foreground">
-                        {uploadFileName ? uploadFileName : "Select or drag Excel sheet (.xlsx)"}
+                    <div className="border border-dashed border-border/80 rounded-xl p-3 flex flex-col items-center justify-center text-center relative hover:bg-muted/10 transition-colors">
+                      <UploadCloud className="w-6 h-6 text-muted-foreground mb-1" />
+                      <span className="text-[10px] font-semibold text-muted-foreground">
+                        {uploadFileName && !ocrProcessing ? uploadFileName : "Upload Excel / CSV"}
                       </span>
                       <input
                         type="file"
-                        accept=".xlsx"
+                        accept=".xlsx,.csv"
                         onChange={handleFileUpload}
                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                       />
                     </div>
                   </div>
 
-                  {/* Right Option: Manual Migration Form Button */}
-                  <div className="p-5 border rounded-2xl bg-muted/20 flex flex-col justify-between space-y-4">
-                    <div className="space-y-2">
-                      <h3 className="font-bold text-sm flex items-center gap-1.5">
-                        <Users className="w-5 h-5 text-indigo-500" /> Manual Onboarding
+                  {/* Scanned Register Paper OCR Import Option */}
+                  <div className="p-4 border rounded-2xl bg-muted/20 space-y-3">
+                    <h3 className="font-bold text-xs flex items-center gap-1.5 text-indigo-400">
+                      <Scan className="w-4 h-4" /> Paper Register OCR
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground leading-normal">
+                      Scan register notebooks, printed rosters, or photos. Pluggable OCR processes files.
+                    </p>
+                    <div className="border border-dashed border-border/80 rounded-xl p-3 flex flex-col items-center justify-center text-center relative hover:bg-muted/10 transition-colors h-[115px]">
+                      {ocrProcessing ? (
+                        <div className="flex flex-col items-center gap-1.5">
+                          <div className="w-5 h-5 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+                          <span className="text-[10px] font-semibold text-indigo-400">OCR Processing...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <UploadCloud className="w-6 h-6 text-muted-foreground mb-1" />
+                          <span className="text-[10px] font-semibold text-muted-foreground">
+                            {uploadFileName && ocrProcessing ? uploadFileName : "Scan Photos / PDF Pages"}
+                          </span>
+                          <input
+                            type="file"
+                            multiple
+                            accept="image/*,.pdf"
+                            onChange={handleOcrUpload}
+                            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                          />
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Manual Migration Option */}
+                  <div className="p-4 border rounded-2xl bg-muted/20 flex flex-col justify-between space-y-3">
+                    <div className="space-y-1.5">
+                      <h3 className="font-bold text-xs flex items-center gap-1.5 text-violet-400">
+                        <Users className="w-4 h-4" /> Manual Onboarding
                       </h3>
-                      <p className="text-xs text-muted-foreground">
-                        Need to migrate a single member manually? Onboard individual members without generating fake receipts, keeping their past balance and start dates intact.
+                      <p className="text-[11px] text-muted-foreground leading-normal">
+                        Manually migrate a single member preserving historical dates, fees, and active plan details.
                       </p>
                     </div>
                     <button
                       onClick={() => setShowManualMigrateModal(true)}
-                      className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-md"
+                      className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] rounded-lg transition-all shadow-md"
                     >
                       Onboard Single Member Manually
                     </button>
@@ -1809,7 +2133,7 @@ export const MemberManagement: React.FC = () => {
                 {importing && (
                   <div className="p-4 border border-indigo-500/30 bg-indigo-950/20 rounded-xl space-y-2">
                     <div className="flex justify-between text-xs font-bold text-indigo-400">
-                      <span>Uploading batch records sequentially...</span>
+                      <span>Importing members data...</span>
                       <span>{importProgress}%</span>
                     </div>
                     <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
@@ -1820,104 +2144,328 @@ export const MemberManagement: React.FC = () => {
 
                 {/* Import summary completion */}
                 {importSummary && (
-                  <div className="p-5 border border-emerald-500/20 bg-emerald-950/10 rounded-2xl space-y-3">
-                    <h4 className="font-bold text-sm text-emerald-400 flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> Migration Process Completed
+                  <div className="p-4 border border-emerald-500/20 bg-emerald-950/10 rounded-2xl space-y-3">
+                    <h4 className="font-bold text-xs text-emerald-400 flex items-center gap-1">
+                      <CheckCircle2 className="w-4 h-4" /> Universal Import Process Completed
                     </h4>
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="p-2 border rounded-lg bg-card">
-                        <span className="text-muted-foreground block text-[10px]">SUCCESSFULLY IMPORTED</span>
-                        <span className="text-lg font-bold text-emerald-400">{importSummary.successCount}</span>
+                    <div className="grid grid-cols-5 gap-2 text-center text-[10px]">
+                      <div className="p-1.5 border rounded-lg bg-card">
+                        <span className="text-muted-foreground block text-[8px] uppercase">Created</span>
+                        <span className="text-sm font-bold text-emerald-400">{importSummary.successCount}</span>
                       </div>
-                      <div className="p-2 border rounded-lg bg-card">
-                        <span className="text-muted-foreground block text-[10px]">DUPLICATE SKIPPED</span>
-                        <span className="text-lg font-bold text-amber-400">{importSummary.duplicateCount}</span>
+                      <div className="p-1.5 border rounded-lg bg-card">
+                        <span className="text-muted-foreground block text-[8px] uppercase">Updated</span>
+                        <span className="text-sm font-bold text-sky-400">{importSummary.updatedCount || 0}</span>
                       </div>
-                      <div className="p-2 border rounded-lg bg-card">
-                        <span className="text-muted-foreground block text-[10px]">FAILED RECORDS</span>
-                        <span className="text-lg font-bold text-rose-400">{importSummary.failedCount}</span>
+                      <div className="p-1.5 border rounded-lg bg-card">
+                        <span className="text-muted-foreground block text-[8px] uppercase">Merged</span>
+                        <span className="text-sm font-bold text-purple-400">{importSummary.mergedCount || 0}</span>
+                      </div>
+                      <div className="p-1.5 border rounded-lg bg-card">
+                        <span className="text-muted-foreground block text-[8px] uppercase">Skipped</span>
+                        <span className="text-sm font-bold text-amber-400">{importSummary.duplicateCount}</span>
+                      </div>
+                      <div className="p-1.5 border rounded-lg bg-card">
+                        <span className="text-muted-foreground block text-[8px] uppercase">Failed</span>
+                        <span className="text-sm font-bold text-rose-400">{importSummary.failedCount}</span>
                       </div>
                     </div>
                     {importSummary.errors.length > 0 && (
                       <button
                         onClick={() => downloadErrorReport(importSummary.errors)}
-                        className="py-1.5 px-4 border border-rose-500/30 hover:bg-rose-950/20 text-rose-400 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors"
+                        className="py-1 px-3 border border-rose-500/30 hover:bg-rose-950/20 text-rose-400 rounded-lg text-[10px] font-bold flex items-center gap-1 transition-colors"
                       >
-                        <AlertCircle className="w-4 h-4" /> Download Failure Error Report
+                        <AlertCircle className="w-3.5 h-3.5" /> Download Error Report
                       </button>
                     )}
                   </div>
                 )}
 
-                {/* Smart Preview table */}
+                {/* Column Mapping Wizard (renders when headers detected) */}
+                {detectedHeaders.length > 0 && (
+                  <div className="p-4 border rounded-2xl bg-muted/10 space-y-3">
+                    <div className="flex justify-between items-center pb-2 border-b">
+                      <h4 className="font-bold text-xs text-indigo-400 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 animate-pulse" /> Column Mapping Wizard
+                      </h4>
+                      <button
+                        onClick={() => autoDetectMapping(detectedHeaders, rawUploadRows)}
+                        className="flex items-center gap-1 text-[10px] text-indigo-400 font-bold hover:text-indigo-300 bg-indigo-950/30 px-2 py-1 rounded-md border border-indigo-500/20"
+                      >
+                        <Sparkles className="w-3 h-3" /> Auto-Suggest Columns
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 text-[10px]">
+                      {[
+                        { key: 'name', label: 'Member Name *' },
+                        { key: 'phone', label: 'Phone Number *' },
+                        { key: 'email', label: 'Email Address' },
+                        { key: 'gender', label: 'Gender *' },
+                        { key: 'dob', label: 'Date of Birth *' },
+                        { key: 'height', label: 'Height (cm) *' },
+                        { key: 'weight', label: 'Weight (kg) *' },
+                        { key: 'planName', label: 'Membership Plan *' },
+                        { key: 'startDate', label: 'Start Date *' },
+                        { key: 'expiryDate', label: 'Expiry Date *' },
+                        { key: 'totalAmount', label: 'Total Amount (₹)' },
+                        { key: 'amountPaid', label: 'Amount Paid (₹)' },
+                        { key: 'remainingDue', label: 'Remaining Due (₹)' },
+                        { key: 'address', label: 'Address' },
+                        { key: 'emergencyContact', label: 'Emergency Contact' },
+                        { key: 'notes', label: 'Medical Notes' }
+                      ].map(f => (
+                        <div key={f.key} className="space-y-1 p-2 border rounded-lg bg-card/40">
+                          <span className="font-semibold text-muted-foreground block truncate">{f.label}</span>
+                          <select
+                            value={columnMapping[f.key] || ''}
+                            onChange={(e) => setColumnMapping(prev => ({ ...prev, [f.key]: e.target.value }))}
+                            className="w-full text-[10px] p-1 border rounded bg-background text-foreground"
+                          >
+                            <option value="">-- Ignored --</option>
+                            {detectedHeaders.map(h => (
+                              <option key={h} value={h}>{h}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Duplicate Strategy & Smart Preview table */}
                 {previewRows.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-bold text-sm">Smart Preview Table</h4>
-                      <div className="flex gap-2 text-xs font-semibold">
-                        <span className="px-2 py-0.5 bg-muted rounded-full">Total: {previewRows.length}</span>
-                        <span className="px-2 py-0.5 bg-emerald-950/30 text-emerald-400 rounded-full">Valid: {previewRows.filter(r => r.isValid).length}</span>
-                        <span className="px-2 py-0.5 bg-amber-950/30 text-amber-400 rounded-full">Duplicates: {previewRows.filter(r => r.isDuplicate).length}</span>
-                        <span className="px-2 py-0.5 bg-rose-950/30 text-rose-400 rounded-full">Errors: {previewRows.filter(r => !r.isValid && !r.isDuplicate).length}</span>
+                  <div className="space-y-4">
+                    {/* Duplicate strategy selection */}
+                    <div className="p-3 border rounded-xl bg-card space-y-1.5">
+                      <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block">Duplicate Handling Strategy</span>
+                      <div className="flex flex-wrap gap-x-5 gap-y-1.5 text-[11px] font-semibold">
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="radio" name="dupStrategy" checked={duplicateStrategy === 'skip'} onChange={() => setDuplicateStrategy('skip')} className="text-indigo-600 focus:ring-0" />
+                          <span>Skip duplicate phone records</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="radio" name="dupStrategy" checked={duplicateStrategy === 'update'} onChange={() => setDuplicateStrategy('update')} className="text-indigo-600 focus:ring-0" />
+                          <span>Overwrite / Update profile details</span>
+                        </label>
+                        <label className="flex items-center gap-1.5 cursor-pointer">
+                          <input type="radio" name="dupStrategy" checked={duplicateStrategy === 'merge'} onChange={() => setDuplicateStrategy('merge')} className="text-indigo-600 focus:ring-0" />
+                          <span>Merge empty fields only</span>
+                        </label>
                       </div>
                     </div>
 
-                    <div className="max-h-[300px] overflow-y-auto border rounded-xl">
-                      <table className="w-full text-left border-collapse text-xs">
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-bold text-xs">Smart Preview Table</h4>
+                        {previewRows[0] && previewRows[0].id.startsWith('ocr-') && (
+                          <span className="px-1.5 py-0.5 text-[9px] font-bold bg-indigo-950/40 text-indigo-400 border border-indigo-500/20 rounded-md">
+                            Processed via Pluggable {ocrProviderName}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 text-[10px] font-bold">
+                        <span className="px-2 py-0.5 bg-muted rounded-full">Total: {previewRows.length}</span>
+                        <span className="px-2 py-0.5 bg-emerald-950/30 text-emerald-400 rounded-full">Valid: {previewRows.filter(r => r.isValid).length}</span>
+                        <span className="px-2 py-0.5 bg-amber-950/30 text-amber-400 rounded-full">Duplicates: {previewRows.filter(r => r.isDuplicate).length}</span>
+                        <span className="px-2 py-0.5 bg-rose-950/30 text-rose-400 rounded-full">Errors: {previewRows.filter(r => !r.isValid).length}</span>
+                      </div>
+                    </div>
+
+                    {/* Interactive Preview Table with inline inputs & confidence highlights */}
+                    <div className="max-h-[300px] overflow-y-auto border rounded-xl bg-card">
+                      <table className="w-full text-left border-collapse text-[10px]">
                         <thead>
-                          <tr className="border-b bg-muted/40 font-bold">
-                            <th className="p-2">Name</th>
-                            <th className="p-2">Phone</th>
-                            <th className="p-2">Plan</th>
-                            <th className="p-2">Dates</th>
-                            <th className="p-2">Validation Status / Errors</th>
+                          <tr className="border-b bg-muted/40 font-bold sticky top-0 z-10">
+                            <th className="p-2 whitespace-nowrap">Status</th>
+                            <th className="p-2 whitespace-nowrap">Member Name *</th>
+                            <th className="p-2 whitespace-nowrap">Phone *</th>
+                            <th className="p-2 whitespace-nowrap">Plan Name *</th>
+                            <th className="p-2 whitespace-nowrap">Gender *</th>
+                            <th className="p-2 whitespace-nowrap">DOB *</th>
+                            <th className="p-2 whitespace-nowrap">Height / Weight</th>
+                            <th className="p-2 whitespace-nowrap">Start / Expiry Date</th>
+                            <th className="p-2 whitespace-nowrap">Amount / Paid / Due</th>
                             <th className="p-2 text-right">Action</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y">
-                          {previewRows.map(row => (
-                            <tr key={row.id} className={`hover:bg-muted/10 ${!row.isValid ? 'bg-rose-950/10' : row.isDuplicate ? 'bg-amber-950/10' : ''}`}>
-                              <td className="p-2 font-semibold">{row.data['Member Name'] || row.data.name || 'N/A'}</td>
-                              <td className="p-2">{row.data['Phone Number'] || row.data.phone || 'N/A'}</td>
-                              <td className="p-2">{row.data['Membership Plan'] || row.data.planName || 'N/A'}</td>
-                              <td className="p-2 text-[10px] text-muted-foreground">
-                                {row.data['Membership Start Date'] || 'N/A'} to {row.data['Membership Expiry Date'] || 'N/A'}
-                              </td>
-                              <td className="p-2">
-                                {row.isValid ? (
-                                  <span className="text-emerald-400 font-bold">✓ Valid Ready</span>
-                                ) : (
-                                  <div className="text-rose-400 space-y-0.5 text-[10px]">
-                                    {row.errors.map((err, i) => (
-                                      <div key={i}>• {err}</div>
-                                    ))}
+                          {previewRows.map(row => {
+                            const getFieldStyle = (fieldName: string) => {
+                              const confidence = row.confidenceFields?.[fieldName];
+                              if (confidence === 'unable' || !row.data[fieldName]) {
+                                return 'border-rose-500/50 bg-rose-950/20 text-rose-300';
+                              }
+                              if (confidence === 'review') {
+                                return 'border-amber-500/50 bg-amber-950/20 text-amber-300';
+                              }
+                              return 'border-border focus:ring-1 focus:ring-primary';
+                            };
+
+                            return (
+                              <tr key={row.id} className={`hover:bg-muted/5 ${!row.isValid ? 'bg-rose-950/5' : row.isDuplicate ? 'bg-amber-950/5' : ''}`}>
+                                <td className="p-2">
+                                  <div className="flex flex-col gap-0.5">
+                                    {row.confidence === 'unable' ? (
+                                      <span className="px-1 py-0.5 text-[8px] font-bold bg-rose-950/40 text-rose-400 border border-rose-500/30 rounded flex items-center justify-center">🔴 ILLEGIBLE</span>
+                                    ) : row.confidence === 'review' ? (
+                                      <span className="px-1 py-0.5 text-[8px] font-bold bg-amber-950/40 text-amber-400 border border-amber-500/30 rounded flex items-center justify-center">🟡 REVIEW</span>
+                                    ) : (
+                                      <span className="px-1 py-0.5 text-[8px] font-bold bg-emerald-950/40 text-emerald-400 border border-emerald-500/30 rounded flex items-center justify-center">🟢 HIGH</span>
+                                    )}
+                                    {row.errors.length > 0 ? (
+                                      <span className="text-[8px] text-rose-400 leading-tight font-semibold block max-w-[120px] truncate" title={row.errors.join(', ')}>
+                                        {row.errors[0]}
+                                      </span>
+                                    ) : (
+                                      <span className="text-[8px] text-emerald-400 font-bold block">✓ Ready</span>
+                                    )}
                                   </div>
-                                )}
-                              </td>
-                              <td className="p-2 text-right">
-                                <button
-                                  onClick={() => setPreviewRows(prev => prev.filter(r => r.id !== row.id))}
-                                  className="text-rose-400 hover:text-rose-300 font-bold px-2 py-1 rounded hover:bg-rose-950/20"
-                                >
-                                  Remove
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    value={row.data.name || ''}
+                                    onChange={(e) => handleCellEdit(row.id, 'name', e.target.value)}
+                                    placeholder="Name"
+                                    className={`p-1 border text-xs rounded-lg bg-card w-24 ${getFieldStyle('name')}`}
+                                  />
+                                </td>
+
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    value={row.data.phone || ''}
+                                    onChange={(e) => handleCellEdit(row.id, 'phone', e.target.value)}
+                                    placeholder="Phone"
+                                    className={`p-1 border text-xs rounded-lg bg-card w-24 ${getFieldStyle('phone')}`}
+                                  />
+                                </td>
+
+                                <td className="p-2">
+                                  <input
+                                    type="text"
+                                    value={row.data.planName || ''}
+                                    onChange={(e) => handleCellEdit(row.id, 'planName', e.target.value)}
+                                    placeholder="Plan"
+                                    className={`p-1 border text-xs rounded-lg bg-card w-24 ${getFieldStyle('planName')}`}
+                                  />
+                                </td>
+
+                                <td className="p-2">
+                                  <select
+                                    value={row.data.gender || ''}
+                                    onChange={(e) => handleCellEdit(row.id, 'gender', e.target.value)}
+                                    className={`p-1 border text-xs rounded-lg bg-card w-16 ${getFieldStyle('gender')}`}
+                                  >
+                                    <option value="">--</option>
+                                    <option value="male">Male</option>
+                                    <option value="female">Female</option>
+                                    <option value="other">Other</option>
+                                  </select>
+                                </td>
+
+                                <td className="p-2">
+                                  <input
+                                    type="date"
+                                    value={row.data.dob ? row.data.dob.split('T')[0] : ''}
+                                    onChange={(e) => handleCellEdit(row.id, 'dob', e.target.value)}
+                                    className={`p-1 border text-xs rounded-lg bg-card w-24 ${getFieldStyle('dob')}`}
+                                  />
+                                </td>
+
+                                <td className="p-2">
+                                  <div className="flex gap-0.5 items-center">
+                                    <input
+                                      type="number"
+                                      placeholder="Ht"
+                                      value={row.data.height === undefined ? '' : row.data.height}
+                                      onChange={(e) => handleCellEdit(row.id, 'height', e.target.value === '' ? undefined : Number(e.target.value))}
+                                      className={`p-1 border text-xs rounded bg-card w-10 ${getFieldStyle('height')}`}
+                                    />
+                                    <input
+                                      type="number"
+                                      placeholder="Wt"
+                                      value={row.data.weight === undefined ? '' : row.data.weight}
+                                      onChange={(e) => handleCellEdit(row.id, 'weight', e.target.value === '' ? undefined : Number(e.target.value))}
+                                      className={`p-1 border text-xs rounded bg-card w-10 ${getFieldStyle('weight')}`}
+                                    />
+                                  </div>
+                                </td>
+
+                                <td className="p-2">
+                                  <div className="flex gap-0.5 items-center">
+                                    <input
+                                      type="date"
+                                      value={row.data.startDate ? row.data.startDate.split('T')[0] : ''}
+                                      onChange={(e) => handleCellEdit(row.id, 'startDate', e.target.value)}
+                                      className={`p-1 border text-xs rounded bg-card w-24 ${getFieldStyle('startDate')}`}
+                                    />
+                                    <input
+                                      type="date"
+                                      value={row.data.expiryDate ? row.data.expiryDate.split('T')[0] : ''}
+                                      onChange={(e) => handleCellEdit(row.id, 'expiryDate', e.target.value)}
+                                      className={`p-1 border text-xs rounded bg-card w-24 ${getFieldStyle('expiryDate')}`}
+                                    />
+                                  </div>
+                                </td>
+
+                                <td className="p-2">
+                                  <div className="flex gap-0.5 items-center">
+                                    <input
+                                      type="number"
+                                      placeholder="Price"
+                                      value={row.data.totalAmount === undefined ? '' : row.data.totalAmount}
+                                      onChange={(e) => handleCellEdit(row.id, 'totalAmount', e.target.value === '' ? 0 : Number(e.target.value))}
+                                      className="p-1 border text-xs rounded bg-card w-12"
+                                    />
+                                    <input
+                                      type="number"
+                                      placeholder="Paid"
+                                      value={row.data.amountPaid === undefined ? '' : row.data.amountPaid}
+                                      onChange={(e) => handleCellEdit(row.id, 'amountPaid', e.target.value === '' ? 0 : Number(e.target.value))}
+                                      className="p-1 border text-xs rounded bg-card w-12"
+                                    />
+                                    <input
+                                      type="number"
+                                      placeholder="Due"
+                                      value={row.data.remainingDue === undefined ? '' : row.data.remainingDue}
+                                      onChange={(e) => handleCellEdit(row.id, 'remainingDue', e.target.value === '' ? 0 : Number(e.target.value))}
+                                      className="p-1 border text-xs rounded bg-card w-12"
+                                    />
+                                  </div>
+                                </td>
+
+                                <td className="p-2 text-right">
+                                  <button
+                                    onClick={() => setPreviewRows(prev => prev.filter(r => r.id !== row.id))}
+                                    className="text-rose-400 hover:text-rose-300 font-bold px-2 py-1 rounded hover:bg-rose-950/20"
+                                  >
+                                    Remove
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
 
                     <div className="flex gap-2 justify-end">
                       <button
-                        onClick={() => setPreviewRows([])}
+                        onClick={() => {
+                          setPreviewRows([]);
+                          setDetectedHeaders([]);
+                          setRawUploadRows([]);
+                        }}
                         className="px-4 py-2 border rounded-xl text-xs font-semibold hover:bg-muted"
                       >
-                        Clear Sheet
+                        Clear Selection
                       </button>
                       <button
                         onClick={triggerBatchImport}
-                        disabled={importing || previewRows.filter(r => r.isValid && !r.isDuplicate).length === 0}
+                        disabled={importing || previewRows.length === 0 || previewRows.some(r => !r.isValid)}
                         className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {importing ? 'Importing...' : 'Begin Batch Import'}

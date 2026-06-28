@@ -1,10 +1,12 @@
 import { Router, Response } from 'express';
-import { Member, MembershipPlan, ProgressMetric, GymOwner, Payment, MemberActivity, ImportHistory } from '../models';
+import { Member, MembershipPlan, ProgressMetric, GymOwner, Payment, MemberActivity, ImportHistory, ImportMapping } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
 import { validateBody, createMemberSchema, updateMemberSchema } from '../middleware/validation';
 import { notificationProvider } from '../config/notifications';
 import { logMemberActivity, createNotification } from '../utils/activityLogger';
+
+import { ocrManager } from '../utils/ocr/OCRManager';
 
 const router = Router();
 
@@ -549,9 +551,37 @@ router.get('/migration/history', async (req: AuthenticatedRequest, res: Response
   }
 });
 
+// GET /migrate/mapping
+router.get('/migrate/mapping', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const mappingObj = await ImportMapping.findOne({ gymOwnerId: req.user!.id });
+    return res.json(mappingObj ? mappingObj.mapping : {});
+  } catch (err) {
+    return res.status(500).json({ message: 'Error fetching import mapping.' });
+  }
+});
+
+// POST /migrate/mapping
+router.post('/migrate/mapping', async (req: AuthenticatedRequest, res: Response) => {
+  const { mapping } = req.body;
+  if (!mapping || typeof mapping !== 'object') {
+    return res.status(400).json({ message: 'Mapping object is required.' });
+  }
+  try {
+    const mappingObj = await ImportMapping.findOneAndUpdate(
+      { gymOwnerId: req.user!.id },
+      { mapping },
+      { new: true, upsert: true }
+    );
+    return res.json({ message: 'Import mapping saved successfully.', mapping: mappingObj.mapping });
+  } catch (err) {
+    return res.status(500).json({ message: 'Error saving import mapping.' });
+  }
+});
+
 // POST /migrate/excel
 router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) => {
-  const { fileName, members } = req.body;
+  const { fileName, members, columnMapping = {}, duplicateStrategy = 'skip' } = req.body;
   if (!Array.isArray(members)) {
     return res.status(400).json({ message: 'Members data array is required.' });
   }
@@ -560,9 +590,8 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
 
   try {
     // 1. Fetch existing members for duplicate checking
-    const existingList = await Member.find({ gymOwnerId, isDeleted: false }, { phone: 1, email: 1 });
-    const existingPhones = new Set(existingList.map(m => m.phone.trim()));
-    const existingEmails = new Set(existingList.filter(m => m.email).map(m => m.email.trim().toLowerCase()));
+    const existingList = await Member.find({ gymOwnerId, isDeleted: false });
+    const existingMap = new Map(existingList.map(m => [m.phone.trim(), m]));
 
     // 2. Fetch existing plans for mapping
     const plans = await MembershipPlan.find({ gymOwnerId, isDeleted: false });
@@ -570,94 +599,163 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
 
     const membersToInsert: any[] = [];
     const errors: Array<{ row: number; name?: string; error: string }> = [];
+    
+    let successCount = 0;
+    let failedCount = 0;
     let duplicateCount = 0;
+    let updatedCount = 0;
+    let mergedCount = 0;
 
     const processedPhones = new Set<string>();
-    const processedEmails = new Set<string>();
+
+    const getFieldVal = (row: any, fieldName: string, synonyms: string[]): any => {
+      // 1. Check custom mapping first
+      const mappedKey = columnMapping[fieldName];
+      if (mappedKey !== undefined && mappedKey !== null && String(mappedKey).trim() !== '') {
+        const val = row[mappedKey];
+        if (val !== undefined && val !== null && String(val).trim() !== '') return val;
+      }
+      // 2. Check synonyms list as fallback
+      for (const syn of synonyms) {
+        if (row[syn] !== undefined && row[syn] !== null && String(row[syn]).trim() !== '') {
+          return row[syn];
+        }
+      }
+      return undefined;
+    };
 
     for (let i = 0; i < members.length; i++) {
       const row = members[i];
       const rowIndex = i + 1;
 
-      // Basic field extraction
-      const name = row.name || row['Member Name'];
-      const phone = String(row.phone || row['Phone Number'] || '').trim();
-      const email = String(row.email || row['Email'] || '').trim().toLowerCase();
-      const gender = String(row.gender || row['Gender'] || '').trim().toLowerCase();
-      const dob = row.dob || row['Date of Birth'] || row['DOB'];
-      const height = Number(row.height || row['Height'] || row['Height (cm)']);
-      const weight = Number(row.weight || row['Weight'] || row['Weight (kg)']);
-      const address = String(row.address || row['Address'] || '');
-      const emergencyContact = String(row.emergencyContact || row['Emergency Contact'] || '');
-      const planName = String(row.planName || row['Membership Plan'] || '').trim();
-      const startDate = row.startDate || row['Membership Start Date'];
-      const expiryDate = row.expiryDate || row['Membership Expiry Date'];
-      const totalAmount = Number(row.totalAmount || row['Total Plan Amount'] || 0);
-      const amountPaid = Number(row.amountPaid || row['Amount Paid'] || 0);
-      const remainingDue = Number(row.remainingDue || row['Remaining Due'] || 0);
-      const paymentStatus = String(row.paymentStatus || row['Payment Status'] || 'unpaid').trim().toLowerCase();
-      const notes = String(row.notes || row['Medical Notes'] || row['Notes'] || '');
-      const statusStr = String(row.status || row['Active / Inactive'] || 'active').trim().toLowerCase();
+      // Extract fields dynamically using columnMapping & synonyms
+      const nameVal = getFieldVal(row, 'name', ['Member Name', 'Customer Name', 'Client Name', 'Name', 'name']);
+      const phoneVal = getFieldVal(row, 'phone', ['Phone Number', 'Phone', 'Mobile', 'Contact No', 'Contact Number', 'Mobile Number', 'phone']);
+      const emailVal = getFieldVal(row, 'email', ['Email Address', 'Email', 'Mail ID', 'Mail', 'email']);
+      const genderVal = getFieldVal(row, 'gender', ['Gender', 'gender']);
+      const dobVal = getFieldVal(row, 'dob', ['Date of Birth', 'DOB', 'Birth Date', 'dob']);
+      const heightVal = getFieldVal(row, 'height', ['Height (cm)', 'Height', 'height']);
+      const weightVal = getFieldVal(row, 'weight', ['Weight (kg)', 'Weight', 'weight']);
+      const addressVal = getFieldVal(row, 'address', ['Address', 'address']);
+      const emergencyContactVal = getFieldVal(row, 'emergencyContact', ['Emergency Contact', 'Emergency Phone', 'emergencyContact']);
+      const planNameVal = getFieldVal(row, 'planName', ['Membership Plan', 'Membership', 'Plan', 'Package', 'planName']);
+      const startDateVal = getFieldVal(row, 'startDate', ['Membership Start Date', 'Joining Date', 'Admission Date', 'Start Date', 'startDate']);
+      const expiryDateVal = getFieldVal(row, 'expiryDate', ['Membership Expiry Date', 'Expiry', 'Renewal Date', 'Expiry Date', 'expiryDate']);
+      const totalAmountVal = getFieldVal(row, 'totalAmount', ['Total Plan Amount', 'Fees', 'Amount', 'totalAmount']);
+      const amountPaidVal = getFieldVal(row, 'amountPaid', ['Amount Paid', 'Paid', 'amountPaid']);
+      const remainingDueVal = getFieldVal(row, 'remainingDue', ['Remaining Due', 'Balance', 'Due', 'remainingDue']);
+      const paymentStatusVal = getFieldVal(row, 'paymentStatus', ['Payment Status', 'paymentStatus']);
+      const notesVal = getFieldVal(row, 'notes', ['Medical Notes', 'Notes', 'notes']);
+      const statusVal = getFieldVal(row, 'status', ['Active / Inactive', 'Status', 'status']);
 
-      // Validation checks
+      const name = nameVal ? String(nameVal).trim() : '';
+      const phone = phoneVal ? String(phoneVal).trim() : '';
+      const email = emailVal ? String(emailVal).trim().toLowerCase() : '';
+      const gender = genderVal ? String(genderVal).trim().toLowerCase() : '';
+      const dob = dobVal;
+      const height = heightVal ? Number(heightVal) : undefined;
+      const weight = weightVal ? Number(weightVal) : undefined;
+      const address = addressVal ? String(addressVal).trim() : '';
+      const emergencyContact = emergencyContactVal ? String(emergencyContactVal).trim() : '';
+      const planName = planNameVal ? String(planNameVal).trim() : '';
+      const startDate = startDateVal;
+      const expiryDate = expiryDateVal;
+      const totalAmount = totalAmountVal ? Number(totalAmountVal) : 0;
+      const amountPaid = amountPaidVal ? Number(amountPaidVal) : 0;
+      const remainingDue = remainingDueVal ? Number(remainingDueVal) : 0;
+      const paymentStatus = paymentStatusVal ? String(paymentStatusVal).trim().toLowerCase() : 'unpaid';
+      const notes = notesVal ? String(notesVal).trim() : '';
+      const statusStr = statusVal ? String(statusVal).trim().toLowerCase() : 'active';
+
+      // 1. Validation (Mandatory Fields)
       if (!name) {
-        errors.push({ row: rowIndex, error: 'Name is required.' });
+        errors.push({ row: rowIndex, error: 'Member Name is required.' });
+        failedCount++;
         continue;
       }
       if (!phone) {
         errors.push({ row: rowIndex, name, error: 'Phone number is required.' });
+        failedCount++;
         continue;
       }
-      if (gender !== 'male' && gender !== 'female' && gender !== 'other') {
+
+      // 2. Mongoose constraint validations
+      if (gender && gender !== 'male' && gender !== 'female' && gender !== 'other') {
         errors.push({ row: rowIndex, name, error: 'Gender must be male, female, or other.' });
+        failedCount++;
         continue;
       }
-      if (!dob || isNaN(Date.parse(dob))) {
-        errors.push({ row: rowIndex, name, error: 'Valid Date of Birth is required.' });
+      if (dob && isNaN(Date.parse(String(dob)))) {
+        errors.push({ row: rowIndex, name, error: 'Date of Birth must be a valid date.' });
+        failedCount++;
+        continue;
+      }
+      if (startDate && isNaN(Date.parse(String(startDate)))) {
+        errors.push({ row: rowIndex, name, error: 'Membership Start Date must be a valid date.' });
+        failedCount++;
+        continue;
+      }
+      if (expiryDate && isNaN(Date.parse(String(expiryDate)))) {
+        errors.push({ row: rowIndex, name, error: 'Membership Expiry Date must be a valid date.' });
+        failedCount++;
+        continue;
+      }
+      if (height !== undefined && (isNaN(height) || height <= 0)) {
+        errors.push({ row: rowIndex, name, error: 'Height must be a valid positive number.' });
+        failedCount++;
+        continue;
+      }
+      if (weight !== undefined && (isNaN(weight) || weight <= 0)) {
+        errors.push({ row: rowIndex, name, error: 'Weight must be a valid positive number.' });
+        failedCount++;
+        continue;
+      }
+
+      // Check Mongoose DB schema requirements (populates validation checks for preview table)
+      if (!gender) {
+        errors.push({ row: rowIndex, name, error: 'Gender is required.' });
+        failedCount++;
+        continue;
+      }
+      if (!dob) {
+        errors.push({ row: rowIndex, name, error: 'Date of Birth is required.' });
+        failedCount++;
+        continue;
+      }
+      if (height === undefined) {
+        errors.push({ row: rowIndex, name, error: 'Height is required.' });
+        failedCount++;
+        continue;
+      }
+      if (weight === undefined) {
+        errors.push({ row: rowIndex, name, error: 'Weight is required.' });
+        failedCount++;
         continue;
       }
       if (!planName) {
-        errors.push({ row: rowIndex, name, error: 'Membership Plan Name is required.' });
+        errors.push({ row: rowIndex, name, error: 'Membership Plan is required.' });
+        failedCount++;
         continue;
       }
-      if (!startDate || isNaN(Date.parse(startDate))) {
-        errors.push({ row: rowIndex, name, error: 'Valid Membership Start Date is required.' });
+      if (!startDate) {
+        errors.push({ row: rowIndex, name, error: 'Membership Start Date is required.' });
+        failedCount++;
         continue;
       }
-      if (!expiryDate || isNaN(Date.parse(expiryDate))) {
-        errors.push({ row: rowIndex, name, error: 'Valid Membership Expiry Date is required.' });
-        continue;
-      }
-      if (isNaN(height) || height <= 0) {
-        errors.push({ row: rowIndex, name, error: 'Height must be a valid positive number.' });
-        continue;
-      }
-      if (isNaN(weight) || weight <= 0) {
-        errors.push({ row: rowIndex, name, error: 'Weight must be a valid positive number.' });
+      if (!expiryDate) {
+        errors.push({ row: rowIndex, name, error: 'Membership Expiry Date is required.' });
+        failedCount++;
         continue;
       }
 
-      // Duplicate detection
-      if (existingPhones.has(phone) || processedPhones.has(phone)) {
-        duplicateCount++;
-        errors.push({ row: rowIndex, name, error: `Member with Phone ${phone} already exists.` });
-        continue;
-      }
-      if (email && (existingEmails.has(email) || processedEmails.has(email))) {
-        duplicateCount++;
-        errors.push({ row: rowIndex, name, error: `Member with Email ${email} already exists.` });
-        continue;
-      }
-
-      // Check plan ID map
+      // 3. Plan Resolution & Generation
       let planId;
       const planNameKey = planName.toLowerCase();
       if (planMap.has(planNameKey)) {
         planId = planMap.get(planNameKey)!._id;
       } else {
-        // Create plan dynamically
-        const startD = new Date(startDate);
-        const expiryD = new Date(expiryDate);
+        const startD = new Date(String(startDate));
+        const expiryD = new Date(String(expiryDate));
         let durationMonths = (expiryD.getFullYear() - startD.getFullYear()) * 12 + (expiryD.getMonth() - startD.getMonth());
         if (durationMonths <= 0) durationMonths = 1;
 
@@ -672,33 +770,100 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
         planId = newPlan._id;
       }
 
-      // BMI calculation
       const hM = height / 100;
       const bmiVal = hM > 0 ? parseFloat((weight / (hM * hM)).toFixed(1)) : 0;
-
-      // Unique QR code format
-      const qrCode = `GYM-${gymOwnerId.slice(-4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-      processedPhones.add(phone);
-      if (email) processedEmails.add(email);
-
-      // Status
       const isArchived = (statusStr === 'inactive' || statusStr === 'expired');
+
+      // 4. Duplicate Check & Handling
+      if (existingMap.has(phone) || processedPhones.has(phone)) {
+        if (duplicateStrategy === 'skip') {
+          duplicateCount++;
+          errors.push({ row: rowIndex, name, error: `Member with Phone ${phone} already exists (Skipped).` });
+          continue;
+        }
+
+        const existingMember = existingMap.get(phone);
+        if (existingMember) {
+          if (duplicateStrategy === 'update') {
+            existingMember.name = name;
+            existingMember.email = email;
+            existingMember.gender = gender as any;
+            existingMember.dob = new Date(String(dob));
+            existingMember.height = height;
+            existingMember.weight = weight;
+            existingMember.address = address;
+            existingMember.emergencyContact = emergencyContact;
+            existingMember.planId = planId;
+            existingMember.membershipStart = new Date(String(startDate));
+            existingMember.membershipEnd = new Date(String(expiryDate));
+            existingMember.amountPaid = amountPaid;
+            existingMember.remainingAmount = remainingDue;
+            existingMember.paymentStatus = paymentStatus as any;
+            existingMember.bmi = bmiVal;
+            existingMember.notes = notes;
+            existingMember.isArchived = isArchived;
+            existingMember.isMigrated = true;
+            existingMember.migrationMethod = 'excel';
+            existingMember.openingBalance = remainingDue;
+
+            await existingMember.save();
+            updatedCount++;
+
+            await MemberActivity.create({
+              gymOwnerId,
+              memberId: existingMember._id,
+              activityType: 'migration_updated',
+              title: 'Member Profile Updated',
+              remarks: `Profile updated during universal import. Method: Excel. Operator: ${operatorEmail}`,
+              time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+              date: new Date()
+            });
+
+          } else if (duplicateStrategy === 'merge') {
+            let mergedAny = false;
+            if (!existingMember.email && email) { existingMember.email = email; mergedAny = true; }
+            if (!existingMember.address && address) { existingMember.address = address; mergedAny = true; }
+            if (!existingMember.emergencyContact && emergencyContact) { existingMember.emergencyContact = emergencyContact; mergedAny = true; }
+            if (!existingMember.notes && notes) { existingMember.notes = notes; mergedAny = true; }
+            
+            if (mergedAny) {
+              await existingMember.save();
+              mergedCount++;
+
+              await MemberActivity.create({
+                gymOwnerId,
+                memberId: existingMember._id,
+                activityType: 'migration_merged',
+                title: 'Member Profile Merged',
+                remarks: `Profile fields merged during universal import. Method: Excel. Operator: ${operatorEmail}`,
+                time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+                date: new Date()
+              });
+            } else {
+              duplicateCount++;
+            }
+          }
+          continue;
+        }
+      }
+
+      const qrCode = `GYM-${gymOwnerId.slice(-4).toUpperCase()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+      processedPhones.add(phone);
 
       membersToInsert.push({
         gymOwnerId,
         name,
         phone,
         email: email || '',
-        gender,
-        dob: new Date(dob),
+        gender: gender as any,
+        dob: new Date(String(dob)),
         height,
         weight,
         address,
         emergencyContact,
         planId,
-        membershipStart: new Date(startDate),
-        membershipEnd: new Date(expiryDate),
+        membershipStart: new Date(String(startDate)),
+        membershipEnd: new Date(String(expiryDate)),
         amountPaid,
         remainingAmount: remainingDue,
         paymentStatus: paymentStatus === 'paid' || paymentStatus === 'partial' || paymentStatus === 'unpaid' ? paymentStatus : 'unpaid',
@@ -716,8 +881,8 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
     if (membersToInsert.length > 0) {
       const inserted = await Member.insertMany(membersToInsert);
       insertedCount = inserted.length;
+      successCount = insertedCount;
 
-      // Log activity timeline bulk records
       const activities: any[] = [];
       for (const m of inserted) {
         activities.push({
@@ -746,31 +911,72 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
       await MemberActivity.insertMany(activities);
     }
 
-    // Save import history log
     const hist = await ImportHistory.create({
       gymOwnerId,
       importedBy: operatorEmail,
-      fileName: fileName || 'excel_import',
+      fileName: fileName || 'universal_import',
       totalRecords: members.length,
-      successCount: insertedCount,
-      failedCount: errors.length,
+      successCount,
+      failedCount,
       duplicateCount,
+      updatedCount,
+      mergedCount,
       rowErrors: errors
     });
 
-    await logAudit(`Uploaded Member Migration Excel: ${fileName} (${insertedCount} succeeded, ${errors.length} failed)`, operatorEmail, req);
+    await logAudit(`Universal Member Import: ${fileName} (${successCount} created, ${updatedCount} updated, ${mergedCount} merged, ${failedCount} failed)`, operatorEmail, req);
 
     return res.json({
       success: true,
       importHistory: hist,
-      importedCount: insertedCount,
+      successCount,
+      updatedCount,
+      mergedCount,
       duplicateCount,
-      failedCount: errors.length
+      failedCount
     });
 
   } catch (err: any) {
-    console.error('Migration Excel error:', err);
-    return res.status(500).json({ message: 'Error processing excel migration.' });
+    console.error('Universal Import Error:', err);
+    return res.status(500).json({ message: 'Internal server error during universal import.' });
+  }
+});
+// POST /migrate/ocr
+router.post('/migrate/ocr', async (req: AuthenticatedRequest, res: Response) => {
+  const { files } = req.body;
+  if (!Array.isArray(files) || files.length === 0) {
+    return res.status(400).json({ message: 'No files provided for OCR scanning.' });
+  }
+
+  try {
+    const provider = ocrManager.getProvider();
+    const allExtractedRows: any[] = [];
+
+    for (const file of files) {
+      const { fileName, fileData } = file;
+      if (!fileData) continue;
+
+      const base64Content = fileData.split(';base64,').pop() || fileData;
+      const buffer = Buffer.from(base64Content, 'base64');
+
+      const rows = await provider.processImage(buffer, fileName);
+      const rowsWithOrigin = rows.map(r => ({
+        ...r,
+        originFile: fileName
+      }));
+
+      allExtractedRows.push(...rowsWithOrigin);
+    }
+
+    return res.json({
+      success: true,
+      providerName: provider.name,
+      rows: allExtractedRows
+    });
+
+  } catch (err: any) {
+    console.error('OCR Processing error:', err);
+    return res.status(500).json({ message: 'Error processing OCR document scanning.' });
   }
 });
 

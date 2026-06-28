@@ -556,6 +556,8 @@ export interface IImportHistory extends Document {
   successCount: number;
   failedCount: number;
   duplicateCount: number;
+  updatedCount: number;
+  mergedCount: number;
   rowErrors: Array<{ row: number; name?: string; error: string }>;
   createdAt: Date;
 }
@@ -568,6 +570,8 @@ const ImportHistorySchema = new Schema<IImportHistory>({
   successCount: { type: Number, required: true },
   failedCount: { type: Number, required: true },
   duplicateCount: { type: Number, required: true },
+  updatedCount: { type: Number, default: 0 },
+  mergedCount: { type: Number, default: 0 },
   rowErrors: [{
     row: { type: Number },
     name: { type: String },
@@ -576,3 +580,20 @@ const ImportHistorySchema = new Schema<IImportHistory>({
 }, { timestamps: true });
 
 export const ImportHistory = mongoose.model<IImportHistory>('ImportHistory', ImportHistorySchema);
+
+// ----------------------------------------------------
+// 18. IMPORT MAPPING SCHEMA
+// ----------------------------------------------------
+export interface IImportMapping extends Document {
+  gymOwnerId: any;
+  mapping: Record<string, string>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const ImportMappingSchema = new Schema<IImportMapping>({
+  gymOwnerId: { type: Schema.Types.ObjectId, ref: 'GymOwner', required: true, unique: true, index: true },
+  mapping: { type: Schema.Types.Map, of: String, required: true }
+}, { timestamps: true });
+
+export const ImportMapping = mongoose.model<IImportMapping>('ImportMapping', ImportMappingSchema);
