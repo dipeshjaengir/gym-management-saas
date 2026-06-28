@@ -106,40 +106,17 @@ router.get('/reminders', async (req: AuthenticatedRequest, res: Response) => {
       const gymName = owner?.branding?.gymName || owner?.gymName || 'GymLedger';
       const to = m.phone;
 
-      if (diffDays === 7) {
-        const msg = `Hello ${m.name}\n\nFriendly reminder from ${gymName}. Your membership is expiring in 7 days (on ${expiry.toLocaleDateString('en-IN')}). Please renew soon!\n\nThank you.`;
+      if (diffDays >= 0 && diffDays <= 7) {
+        const typeLabel = diffDays === 0 ? 'today' : (diffDays === 1 ? '1_day' : (diffDays === 3 ? '3_days' : (diffDays === 7 ? '7_days' : 'expiry_alert')));
+        const msg = diffDays === 0
+          ? `Hello ${m.name}\n\nYour membership at ${gymName} expires today! Please renew at the front desk to continue your workouts.\n\nThank you.`
+          : `Hello ${m.name}\n\nFriendly reminder from ${gymName}. Your membership is expiring in ${diffDays} days (on ${expiry.toLocaleDateString('en-IN')}). Please renew soon!\n\nThank you.`;
+
         reminders.push({
-          type: '7_days',
+          type: typeLabel as any,
           member: m,
-          daysDiff: 7,
-          message: `Expiring in 7 Days (${expiry.toLocaleDateString('en-IN')})`,
-          whatsappUrl: `https://wa.me/${to.replace(/\D/g, '').length === 10 ? `91${to.replace(/\D/g, '')}` : to.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
-        });
-      } else if (diffDays === 3) {
-        const msg = `Hello ${m.name}\n\nFriendly reminder from ${gymName}. Your membership is expiring in 3 days (on ${expiry.toLocaleDateString('en-IN')}). Please renew at the receptionist desk!\n\nThank you.`;
-        reminders.push({
-          type: '3_days',
-          member: m,
-          daysDiff: 3,
-          message: `Expiring in 3 Days (${expiry.toLocaleDateString('en-IN')})`,
-          whatsappUrl: `https://wa.me/${to.replace(/\D/g, '').length === 10 ? `91${to.replace(/\D/g, '')}` : to.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
-        });
-      } else if (diffDays === 1) {
-        const msg = `Hello ${m.name}\n\nURGENT reminder from ${gymName}. Your membership is expiring tomorrow (on ${expiry.toLocaleDateString('en-IN')}). Please renew your package.\n\nThank you.`;
-        reminders.push({
-          type: '1_day',
-          member: m,
-          daysDiff: 1,
-          message: `Expiring Tomorrow (${expiry.toLocaleDateString('en-IN')})`,
-          whatsappUrl: `https://wa.me/${to.replace(/\D/g, '').length === 10 ? `91${to.replace(/\D/g, '')}` : to.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
-        });
-      } else if (diffDays === 0) {
-        const msg = `Hello ${m.name}\n\nYour membership at ${gymName} expires today! Please renew at the front desk to continue your workouts.\n\nThank you.`;
-        reminders.push({
-          type: 'today',
-          member: m,
-          daysDiff: 0,
-          message: `Expires Today (${expiry.toLocaleDateString('en-IN')})`,
+          daysDiff: diffDays,
+          message: diffDays === 0 ? `Expires Today (${expiry.toLocaleDateString('en-IN')})` : `Expiring in ${diffDays} Days (${expiry.toLocaleDateString('en-IN')})`,
           whatsappUrl: `https://wa.me/${to.replace(/\D/g, '').length === 10 ? `91${to.replace(/\D/g, '')}` : to.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
         });
       }

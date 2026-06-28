@@ -629,49 +629,118 @@ export const GymOwnerDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Auto Expiry & Dues Reminders Widget */}
-      <div className="p-6 rounded-3xl bg-card border shadow-sm space-y-4">
-        <div className="flex items-center justify-between border-b pb-3">
-          <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-            <Clock className="w-4 h-4 text-primary" /> Auto Expiry &amp; Payment Reminders
-          </h3>
-          <span className="text-[10px] bg-primary/10 text-primary px-2.5 py-0.5 rounded-full font-bold uppercase">
-            {reminders.length} Pending Actions
-          </span>
+      {/* Split Reminders Panel (Dues & Expiries) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Widget A: Outstanding Payment Reminders */}
+        <div className="p-6 rounded-3xl bg-card border shadow-sm space-y-4 flex flex-col">
+          <div className="flex items-center justify-between border-b pb-3 shrink-0">
+            <h3 className="font-bold text-xs sm:text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <IndianRupee className="w-4 h-4 text-primary" /> Outstanding Payments
+            </h3>
+            <span className="text-[10px] bg-primary/10 text-primary px-2.5 py-0.5 rounded-full font-bold uppercase">
+              {reminders.filter(r => r.type === 'due').length} Pending
+            </span>
+          </div>
+
+          {loadingReminders ? (
+            <div className="flex justify-center py-12 flex-grow">
+              <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+            </div>
+          ) : reminders.filter(r => r.type === 'due').length === 0 ? (
+            <div className="flex items-center justify-center py-12 flex-grow border border-dashed rounded-2xl bg-muted/5">
+              <p className="text-center text-xs text-muted-foreground">No outstanding payments pending.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 flex-grow">
+              {reminders.filter(r => r.type === 'due').map((rem, i) => (
+                <div
+                  key={i}
+                  className="p-3.5 rounded-2xl bg-background border flex items-center justify-between gap-4 text-xs hover:border-primary/30 transition-all"
+                >
+                  <div className="space-y-1">
+                    <div className="font-bold text-foreground">{rem.member?.name}</div>
+                    <div className="text-[10px] text-muted-foreground">Phone: {rem.member?.phone}</div>
+                    <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-500/20 uppercase tracking-wide">
+                      Pending Amount: ₹{rem.member?.remainingAmount}
+                    </div>
+                  </div>
+                  <a
+                    href={rem.whatsappUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold flex items-center gap-1 shrink-0 shadow transition-colors"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" /> WhatsApp Reminder
+                  </a>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {loadingReminders ? (
-          <div className="flex justify-center py-6">
-            <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+        {/* Widget B: Membership Expiry Reminders */}
+        <div className="p-6 rounded-3xl bg-card border shadow-sm space-y-4 flex flex-col">
+          <div className="flex items-center justify-between border-b pb-3 shrink-0">
+            <h3 className="font-bold text-xs sm:text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Clock className="w-4 h-4 text-primary" /> Membership Expiries (Next 7 Days)
+            </h3>
+            <span className="text-[10px] bg-primary/10 text-primary px-2.5 py-0.5 rounded-full font-bold uppercase">
+              {reminders.filter(r => r.type !== 'due').length} Expiring
+            </span>
           </div>
-        ) : reminders.length === 0 ? (
-          <p className="text-center text-xs text-muted-foreground py-6">No pending automated alerts right now.</p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[300px] overflow-y-auto pr-1">
-            {reminders.map((rem, i) => (
-              <div
-                key={i}
-                className="p-3.5 rounded-2xl bg-background border flex items-center justify-between gap-4 text-xs hover:border-primary/30 transition-all"
-              >
-                <div className="space-y-1">
-                  <div className="font-bold text-foreground">{rem.member?.name}</div>
-                  <div className="text-[10px] text-muted-foreground">Phone: {rem.member?.phone}</div>
-                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 uppercase tracking-wide">
-                    {rem.message}
+
+          {loadingReminders ? (
+            <div className="flex justify-center py-12 flex-grow">
+              <div className="w-6 h-6 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+            </div>
+          ) : reminders.filter(r => r.type !== 'due').length === 0 ? (
+            <div className="flex items-center justify-center py-12 flex-grow border border-dashed rounded-2xl bg-muted/5">
+              <p className="text-center text-xs text-muted-foreground">No memberships expiring within the next 7 days.</p>
+            </div>
+          ) : (
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 flex-grow">
+              {reminders
+                .filter(r => r.type !== 'due')
+                .sort((a, b) => (a.daysDiff ?? 0) - (b.daysDiff ?? 0))
+                .map((rem, i) => (
+                  <div
+                    key={i}
+                    className="p-3.5 rounded-2xl bg-background border flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs hover:border-primary/30 transition-all"
+                  >
+                    <div className="space-y-1.5">
+                      <div>
+                        <span className="font-bold text-foreground text-sm">{rem.member?.name}</span>
+                        <span className="ml-2 text-[10px] text-muted-foreground">({rem.member?.phone})</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        Plan: <span className="font-semibold text-foreground">{rem.member?.planId?.name || 'General Plan'}</span> | Expiry: <span className="font-semibold text-foreground">{new Date(rem.member?.membershipEnd).toLocaleDateString('en-IN')}</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wide">
+                        Remaining: {rem.daysDiff} Days
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => navigate(`/app/members/${rem.member?._id}`)}
+                        className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-bold shadow transition-colors cursor-pointer"
+                      >
+                        Renew Plan
+                      </button>
+                      <a
+                        href={rem.whatsappUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl shadow transition-colors"
+                        title="Send WhatsApp Reminder"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </a>
+                    </div>
                   </div>
-                </div>
-                <a
-                  href={rem.whatsappUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-bold flex items-center gap-1 shrink-0 shadow transition-colors"
-                >
-                  <MessageCircle className="w-3.5 h-3.5" /> Remind
-                </a>
-              </div>
-            ))}
-          </div>
-        )}
+                ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Tabs Selector */}

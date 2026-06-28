@@ -360,8 +360,12 @@ export const MemberManagement: React.FC = () => {
         const sheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json<any>(sheet);
         
-        // Extract headers from first row
-        const headers = json.length > 0 ? Object.keys(json[0]) : [];
+        // Dynamic Excel header range extraction
+        const headerRows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1 });
+        const headers = headerRows.length > 0
+          ? headerRows[0].map(h => String(h || '').trim()).filter(h => h !== '')
+          : [];
+
         setDetectedHeaders(headers);
         setRawUploadRows(json);
         autoDetectMapping(headers, json);
@@ -372,35 +376,48 @@ export const MemberManagement: React.FC = () => {
     reader.readAsBinaryString(file);
   };
 
-  // AI-Assisted Mapping Synonyms Auto-Detection Heuristics
+  // AI-Assisted Mapping Synonyms Auto-Detection Heuristics (Exact & Substring Matches)
   const autoDetectMapping = (headers: string[], rawRows: any[]) => {
     const newMapping: Record<string, string> = { ...savedMapping };
     const synonyms: Record<string, string[]> = {
-      name: ['Member Name', 'Customer Name', 'Client Name', 'Full Name', 'Member', 'Person', 'Name', 'name', 'customer', 'client'],
-      phone: ['Phone Number', 'Phone', 'Mobile', 'Contact', 'Contact Number', 'Contact No', 'Mobile Number', 'phone', 'mobile'],
-      email: ['Email Address', 'Email', 'Mail ID', 'Mail', 'email', 'mail'],
-      gender: ['Gender', 'gender', 'sex', 'Gender Option'],
-      dob: ['Date of Birth', 'DOB', 'Birth Date', 'Birthday', 'dob', 'birthdate'],
-      height: ['Height (cm)', 'Height', 'height'],
-      weight: ['Weight (kg)', 'Weight', 'weight'],
-      address: ['Address', 'address', 'location', 'Resident Area'],
-      emergencyContact: ['Emergency Contact', 'Emergency Phone', 'emergencyContact', 'emergency'],
-      planName: ['Membership Plan', 'Membership', 'Plan', 'Subscription', 'Package', 'planName', 'plan', 'package'],
-      startDate: ['Membership Start Date', 'Joining', 'Admission Date', 'Start Date', 'Joining Date', 'startDate', 'joining', 'admission'],
+      name: ['Member Name', 'Customer Name', 'Client Name', 'Full Name', 'Member', 'Person', 'Name', 'FullName', 'name', 'customer', 'client'],
+      phone: ['Phone Number', 'Phone', 'Mobile', 'Contact', 'Contact Number', 'Contact No', 'Mobile Number', 'Phone No', 'phone', 'mobile'],
+      email: ['Email Address', 'Email', 'Mail ID', 'Mail', 'email', 'mail', 'Email ID'],
+      gender: ['Gender', 'Sex', 'Gender Option', 'Sex Option', 'gender', 'sex'],
+      dob: ['Date of Birth', 'DOB', 'Birth Date', 'Birthday', 'BirthDate', 'dob', 'birthdate'],
+      height: ['Height (cm)', 'Height', 'Ht (cm)', 'Ht', 'height', 'ht'],
+      weight: ['Weight (kg)', 'Weight', 'Wt (kg)', 'Wt', 'weight', 'wt'],
+      address: ['Address', 'Location', 'Resident Area', 'Area', 'address', 'location'],
+      emergencyContact: ['Emergency Contact', 'Emergency Phone', 'Emergency No', 'emergencyContact', 'emergency'],
+      planName: ['Membership Plan', 'Membership', 'Plan', 'Subscription', 'Package', 'Plan Package', 'planName', 'plan', 'package'],
+      startDate: ['Membership Start Date', 'Joining', 'Admission Date', 'Start Date', 'Joining Date', 'Admission', 'startDate', 'joining', 'admission'],
       expiryDate: ['Membership Expiry Date', 'Expiry', 'Renewal', 'Renewal Date', 'Expiry Date', 'expiryDate', 'expiry'],
-      totalAmount: ['Total Plan Amount', 'Fees', 'Plan Amount', 'Amount', 'totalAmount', 'fees', 'amount', 'price'],
+      totalAmount: ['Total Plan Amount', 'Fees', 'Plan Amount', 'Amount', 'Fee', 'Total Amount', 'totalAmount', 'fees', 'amount', 'price'],
       amountPaid: ['Amount Paid', 'Paid', 'Collected', 'Received', 'amountPaid', 'paid'],
-      remainingDue: ['Remaining Due', 'Balance', 'Outstanding', 'Due', 'remainingDue', 'balance', 'due'],
+      remainingDue: ['Remaining Due', 'Balance', 'Outstanding', 'Remaining', 'Due', 'Pending', 'remainingDue', 'balance', 'due'],
       paymentStatus: ['Payment Status', 'paymentStatus', 'payStatus'],
       notes: ['Medical Notes', 'Notes', 'notes', 'medical'],
-      status: ['Active / Inactive', 'Member Status', 'Status', 'status']
+      status: ['Member Status', 'Status', 'Active / Inactive', 'status']
     };
 
     Object.keys(synonyms).forEach((fieldName) => {
       if (!newMapping[fieldName]) {
-        const match = headers.find(h => 
+        // 1. Try exact match first
+        let match = headers.find(h =>
           synonyms[fieldName].some(syn => h.toLowerCase().trim() === syn.toLowerCase().trim())
         );
+
+        // 2. Fall back to partial match
+        if (!match) {
+          match = headers.find(h => {
+            const hClean = h.toLowerCase().trim();
+            return synonyms[fieldName].some(syn => {
+              const synClean = syn.toLowerCase().trim();
+              return hClean.includes(synClean) || synClean.includes(hClean);
+            });
+          });
+        }
+
         if (match) {
           newMapping[fieldName] = match;
         }
@@ -409,6 +426,17 @@ export const MemberManagement: React.FC = () => {
 
     setColumnMapping(newMapping);
     recalculatePreviewRows(rawRows, newMapping);
+  };
+
+  const getDuplicateMappings = () => {
+    const mapped = Object.entries(columnMapping).filter(([k, v]) => v !== '');
+    const colToKeys: Record<string, string[]> = {};
+    mapped.forEach(([k, v]) => {
+      if (!colToKeys[v]) colToKeys[v] = [];
+      colToKeys[v].push(k);
+    });
+    const dups = Object.entries(colToKeys).filter(([col, keys]) => keys.length > 1);
+    return dups.map(([col, keys]) => `${col} (mapped to: ${keys.join(', ')})`);
   };
 
   // Recalculate Preview Rows & Validate using the active mapping config
@@ -2271,6 +2299,67 @@ export const MemberManagement: React.FC = () => {
                 {/* Duplicate Strategy & Smart Preview table */}
                 {previewRows.length > 0 && (
                   <div className="space-y-4">
+                    {/* Dynamic Import Preview Summary Card */}
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 p-4 rounded-2xl bg-card border shadow-sm text-xs">
+                      {/* Matched Fields */}
+                      <div className="p-3 rounded-xl bg-background border flex flex-col justify-between space-y-1">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Matched Fields</span>
+                        <div className="text-lg font-extrabold text-indigo-500 dark:text-indigo-400 flex items-center gap-1.5">
+                          {Object.keys(columnMapping).filter(k => columnMapping[k]).length} Mapped
+                        </div>
+                      </div>
+
+                      {/* Unmatched Fields */}
+                      <div className="p-3 rounded-xl bg-background border flex flex-col justify-between space-y-1">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Unmatched Columns</span>
+                        <div className="text-lg font-extrabold text-amber-500">
+                          {detectedHeaders.length - Object.keys(columnMapping).filter(k => columnMapping[k]).length} Ignored
+                        </div>
+                      </div>
+
+                      {/* Missing Required */}
+                      <div className="p-3 rounded-xl bg-background border flex flex-col justify-between space-y-1">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Missing Required</span>
+                        <div className="text-xs font-bold mt-1">
+                          {['name', 'phone'].filter(k => !columnMapping[k]).length > 0 ? (
+                            <span className="text-rose-500 dark:text-rose-400">
+                              {['name', 'phone'].filter(k => !columnMapping[k]).map(m => m === 'name' ? 'Name' : 'Phone').join(', ')}
+                            </span>
+                          ) : (
+                            <span className="text-emerald-500 dark:text-emerald-400">None ✔</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Duplicate Mappings */}
+                      <div className="p-3 rounded-xl bg-background border flex flex-col justify-between space-y-1">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Duplicate Columns</span>
+                        <div className="text-xs font-bold mt-1">
+                          {getDuplicateMappings().length > 0 ? (
+                            <span className="text-rose-500 dark:text-rose-400" title={getDuplicateMappings().join(', ')}>
+                              {getDuplicateMappings().length} Found ⚠️
+                            </span>
+                          ) : (
+                            <span className="text-emerald-500 dark:text-emerald-400">None ✔</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Invalid Rows */}
+                      <div className="p-3 rounded-xl bg-background border flex flex-col justify-between space-y-1 col-span-2 md:col-span-1">
+                        <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Validation Errors</span>
+                        <div className="text-lg font-extrabold flex items-center gap-1.5">
+                          {previewRows.filter(r => !r.isValid).length > 0 ? (
+                            <span className="text-rose-500 dark:text-rose-400">
+                              {previewRows.filter(r => !r.isValid).length} Rows ❌
+                            </span>
+                          ) : (
+                            <span className="text-emerald-500 dark:text-emerald-400">0 Errors ✔</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Duplicate strategy selection */}
                     <div className="p-3 border rounded-xl bg-card space-y-1.5">
                       <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide block">Duplicate Handling Strategy</span>

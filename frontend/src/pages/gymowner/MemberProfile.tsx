@@ -110,10 +110,10 @@ const calculateBMI = (hCm: number, wKg: number) => {
 };
 
 const getBMICategory = (bmi: number) => {
-  if (bmi < 18.5) return { label: 'Underweight', color: 'bg-sky-500/10 text-sky-400 border border-sky-500/20' };
-  if (bmi < 25) return { label: 'Normal', color: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' };
-  if (bmi < 30) return { label: 'Overweight', color: 'bg-amber-500/10 text-amber-400 border border-amber-500/20' };
-  return { label: 'Obese', color: 'bg-rose-500/10 text-rose-400 border border-rose-500/20' };
+  if (bmi < 18.5) return { label: 'Underweight', color: 'bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-400 border border-sky-200 dark:border-sky-500/20' };
+  if (bmi < 25) return { label: 'Normal', color: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20' };
+  if (bmi < 30) return { label: 'Overweight', color: 'bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-500/20' };
+  return { label: 'Obese', color: 'bg-rose-50 dark:bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-500/20' };
 };
 
 export const MemberProfile: React.FC = () => {
@@ -494,15 +494,15 @@ export const MemberProfile: React.FC = () => {
                 <div className="flex flex-wrap gap-1.5 mt-1">
                   <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${
                     member.isArchived 
-                      ? 'bg-rose-950/40 text-rose-400 border-rose-500/25'
-                      : 'bg-emerald-950/40 text-emerald-400 border-emerald-500/25'
+                      ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-500/25'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/25'
                   }`}>
                     {member.isArchived ? 'Archived File' : 'Active Member'}
                   </span>
                   <span className={`px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase border ${
                     member.isMigrated 
-                      ? 'bg-blue-950/40 text-blue-400 border-blue-500/25'
-                      : 'bg-emerald-950/40 text-emerald-400 border-emerald-500/25'
+                      ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-500/25'
+                      : 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-500/25'
                   }`}>
                     {member.isMigrated ? '🔵 Migrated Member' : '🟢 Registered in GymLedger'}
                   </span>
@@ -535,22 +535,22 @@ export const MemberProfile: React.FC = () => {
                 const bmiVal = calculateBMI(member.height, member.weight);
                 const cat = getBMICategory(bmiVal);
                 return (
-                  <div className="p-3 bg-secondary/20 border border-border/30 rounded-xl mt-2">
+                  <div className="p-3 bg-muted/40 dark:bg-muted/10 border border-border/50 rounded-xl mt-2">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] uppercase font-bold text-muted-foreground">BMI Score</span>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${cat.color}`}>{cat.label}</span>
                     </div>
                     <div className="text-xl font-black text-foreground mt-1">{bmiVal}</div>
                     <div className="text-[10px] text-muted-foreground mt-1">
-                      Healthy Range: <span className="text-emerald-400 font-semibold">18.5 - 24.9</span>
+                      Healthy Range: <span className="text-emerald-600 dark:text-emerald-400 font-semibold">18.5 - 24.9</span>
                     </div>
                   </div>
                 );
               })()}
               {member.emergencyContact && (
-                <div className="p-3 bg-rose-950/20 border border-rose-900/40 rounded-xl mt-2">
-                  <div className="text-[10px] uppercase font-bold text-rose-400">Emergency Contact</div>
-                  <div className="text-sm font-semibold mt-0.5 text-rose-200">{member.emergencyContact}</div>
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 rounded-xl mt-2">
+                  <div className="text-[10px] uppercase font-bold text-rose-700 dark:text-rose-400">Emergency Contact</div>
+                  <div className="text-sm font-semibold mt-0.5 text-rose-900 dark:text-rose-200">{member.emergencyContact}</div>
                 </div>
               )}
             </div>
@@ -566,7 +566,7 @@ export const MemberProfile: React.FC = () => {
               ) : (
                 <button
                   onClick={handleArchiveProfile}
-                  className="flex-1 py-2 bg-rose-950/40 hover:bg-rose-950/60 border border-rose-900/40 text-rose-400 rounded-xl text-xs font-semibold transition-all cursor-pointer text-center"
+                  className="flex-1 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-950/60 border border-rose-200 dark:border-rose-900/40 text-rose-700 dark:text-rose-400 rounded-xl text-xs font-semibold transition-all cursor-pointer text-center"
                 >
                   Archive Profile
                 </button>
@@ -730,10 +730,10 @@ export const MemberProfile: React.FC = () => {
                       </thead>
                       <tbody className="divide-y">
                         {payments.map((p) => (
-                          <tr key={p._id} className={`hover:bg-muted/10 transition-colors ${p.isVoided ? 'opacity-40 line-through bg-rose-950/5' : ''}`}>
+                          <tr key={p._id} className={`hover:bg-muted/10 transition-colors ${p.isVoided ? 'opacity-40 line-through bg-rose-50/50 dark:bg-rose-950/10' : ''}`}>
                             <td className="p-3 font-mono font-semibold text-foreground">
                               {p.receiptNumber}
-                              {p.isVoided && <span className="ml-1 text-[9px] text-rose-400 uppercase font-extrabold">(Voided)</span>}
+                              {p.isVoided && <span className="ml-1 text-[9px] text-rose-600 dark:text-rose-400 uppercase font-extrabold">(Voided)</span>}
                             </td>
                             <td className="p-3 font-bold text-foreground">
                               ₹{p.amount}
@@ -1347,11 +1347,11 @@ export const MemberProfile: React.FC = () => {
 
                   {/* Receipt Audit History details */}
                   {(receiptDetails.originalAmount !== undefined || receiptDetails.isVoided) && (
-                    <div className="p-3 bg-rose-950/20 border border-rose-900/40 rounded-xl text-rose-300 space-y-1">
+                    <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 rounded-xl text-rose-800 dark:text-rose-300 space-y-1">
                       <div className="font-bold flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-400 shrink-0" /> Audited Transaction Log
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" /> Audited Transaction Log
                       </div>
-                      {receiptDetails.isVoided && <div className="text-[10px] font-extrabold uppercase">✓ THIS TRANSACTION IS VOIDED / CANCELLED</div>}
+                      {receiptDetails.isVoided && <div className="text-[10px] font-extrabold uppercase text-rose-700 dark:text-rose-400">✓ THIS TRANSACTION IS VOIDED / CANCELLED</div>}
                       {receiptDetails.originalAmount !== undefined && (
                         <div className="text-[10px] space-y-0.5">
                           <div>Original Amount: ₹{receiptDetails.originalAmount}</div>
