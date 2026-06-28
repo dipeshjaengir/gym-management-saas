@@ -609,6 +609,10 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
     const processedPhones = new Set<string>();
 
     const getFieldVal = (row: any, fieldName: string, synonyms: string[]): any => {
+      // 0. If already resolved as target field name directly
+      if (row[fieldName] !== undefined && row[fieldName] !== null && String(row[fieldName]).trim() !== '') {
+        return row[fieldName];
+      }
       // 1. Check custom mapping first
       const mappedKey = columnMapping[fieldName];
       if (mappedKey !== undefined && mappedKey !== null && String(mappedKey).trim() !== '') {
@@ -711,67 +715,32 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
         continue;
       }
 
-      // Check Mongoose DB schema requirements (populates validation checks for preview table)
-      if (!gender) {
-        errors.push({ row: rowIndex, name, error: 'Gender is required.' });
-        failedCount++;
-        continue;
-      }
-      if (!dob) {
-        errors.push({ row: rowIndex, name, error: 'Date of Birth is required.' });
-        failedCount++;
-        continue;
-      }
-      if (height === undefined) {
-        errors.push({ row: rowIndex, name, error: 'Height is required.' });
-        failedCount++;
-        continue;
-      }
-      if (weight === undefined) {
-        errors.push({ row: rowIndex, name, error: 'Weight is required.' });
-        failedCount++;
-        continue;
-      }
-      if (!planName) {
-        errors.push({ row: rowIndex, name, error: 'Membership Plan is required.' });
-        failedCount++;
-        continue;
-      }
-      if (!startDate) {
-        errors.push({ row: rowIndex, name, error: 'Membership Start Date is required.' });
-        failedCount++;
-        continue;
-      }
-      if (!expiryDate) {
-        errors.push({ row: rowIndex, name, error: 'Membership Expiry Date is required.' });
-        failedCount++;
-        continue;
+      // 3. Plan Resolution & Generation (Optional)
+      let planId = undefined;
+      if (planName) {
+        const planNameKey = planName.toLowerCase();
+        if (planMap.has(planNameKey)) {
+          planId = planMap.get(planNameKey)!._id;
+        } else {
+          const startD = startDate ? new Date(String(startDate)) : new Date();
+          const expiryD = expiryDate ? new Date(String(expiryDate)) : new Date(startD.getFullYear() + 1, startD.getMonth(), startD.getDate());
+          let durationMonths = (expiryD.getFullYear() - startD.getFullYear()) * 12 + (expiryD.getMonth() - startD.getMonth());
+          if (durationMonths <= 0) durationMonths = 1;
+
+          const newPlan = await MembershipPlan.create({
+            gymOwnerId,
+            name: planName,
+            price: totalAmount || 0,
+            durationMonths,
+            status: 'active'
+          });
+          planMap.set(planNameKey, newPlan);
+          planId = newPlan._id;
+        }
       }
 
-      // 3. Plan Resolution & Generation
-      let planId;
-      const planNameKey = planName.toLowerCase();
-      if (planMap.has(planNameKey)) {
-        planId = planMap.get(planNameKey)!._id;
-      } else {
-        const startD = new Date(String(startDate));
-        const expiryD = new Date(String(expiryDate));
-        let durationMonths = (expiryD.getFullYear() - startD.getFullYear()) * 12 + (expiryD.getMonth() - startD.getMonth());
-        if (durationMonths <= 0) durationMonths = 1;
-
-        const newPlan = await MembershipPlan.create({
-          gymOwnerId,
-          name: planName,
-          price: totalAmount || 0,
-          durationMonths,
-          status: 'active'
-        });
-        planMap.set(planNameKey, newPlan);
-        planId = newPlan._id;
-      }
-
-      const hM = height / 100;
-      const bmiVal = hM > 0 ? parseFloat((weight / (hM * hM)).toFixed(1)) : 0;
+      const hM = height ? height / 100 : 0;
+      const bmiVal = (hM > 0 && weight) ? parseFloat((weight / (hM * hM)).toFixed(1)) : 0;
       const isArchived = (statusStr === 'inactive' || statusStr === 'expired');
 
       // 4. Duplicate Check & Handling
@@ -787,15 +756,15 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
           if (duplicateStrategy === 'update') {
             existingMember.name = name;
             existingMember.email = email;
-            existingMember.gender = gender as any;
-            existingMember.dob = new Date(String(dob));
-            existingMember.height = height;
-            existingMember.weight = weight;
+            if (gender) existingMember.gender = gender as any;
+            if (dob) existingMember.dob = new Date(String(dob));
+            if (height !== undefined) existingMember.height = height;
+            if (weight !== undefined) existingMember.weight = weight;
             existingMember.address = address;
             existingMember.emergencyContact = emergencyContact;
-            existingMember.planId = planId;
-            existingMember.membershipStart = new Date(String(startDate));
-            existingMember.membershipEnd = new Date(String(expiryDate));
+            if (planId) existingMember.planId = planId;
+            if (startDate) existingMember.membershipStart = new Date(String(startDate));
+            if (expiryDate) existingMember.membershipEnd = new Date(String(expiryDate));
             existingMember.amountPaid = amountPaid;
             existingMember.remainingAmount = remainingDue;
             existingMember.paymentStatus = paymentStatus as any;
@@ -822,8 +791,15 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
           } else if (duplicateStrategy === 'merge') {
             let mergedAny = false;
             if (!existingMember.email && email) { existingMember.email = email; mergedAny = true; }
+            if (!existingMember.gender && gender) { existingMember.gender = gender as any; mergedAny = true; }
+            if (!existingMember.dob && dob) { existingMember.dob = new Date(String(dob)); mergedAny = true; }
+            if (!existingMember.height && height) { existingMember.height = height; mergedAny = true; }
+            if (!existingMember.weight && weight) { existingMember.weight = weight; mergedAny = true; }
             if (!existingMember.address && address) { existingMember.address = address; mergedAny = true; }
             if (!existingMember.emergencyContact && emergencyContact) { existingMember.emergencyContact = emergencyContact; mergedAny = true; }
+            if (!existingMember.planId && planId) { existingMember.planId = planId; mergedAny = true; }
+            if (!existingMember.membershipStart && startDate) { existingMember.membershipStart = new Date(String(startDate)); mergedAny = true; }
+            if (!existingMember.membershipEnd && expiryDate) { existingMember.membershipEnd = new Date(String(expiryDate)); mergedAny = true; }
             if (!existingMember.notes && notes) { existingMember.notes = notes; mergedAny = true; }
             
             if (mergedAny) {
@@ -855,15 +831,15 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
         name,
         phone,
         email: email || '',
-        gender: gender as any,
-        dob: new Date(String(dob)),
+        gender: gender || undefined,
+        dob: dob ? new Date(String(dob)) : undefined,
         height,
         weight,
         address,
         emergencyContact,
         planId,
-        membershipStart: new Date(String(startDate)),
-        membershipEnd: new Date(String(expiryDate)),
+        membershipStart: startDate ? new Date(String(startDate)) : undefined,
+        membershipEnd: expiryDate ? new Date(String(expiryDate)) : undefined,
         amountPaid,
         remainingAmount: remainingDue,
         paymentStatus: paymentStatus === 'paid' || paymentStatus === 'partial' || paymentStatus === 'unpaid' ? paymentStatus : 'unpaid',

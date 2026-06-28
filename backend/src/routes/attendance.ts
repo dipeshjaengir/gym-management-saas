@@ -33,16 +33,16 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
   if (!qrCode) return res.status(400).json({ message: 'QR Code is required.' });
 
   try {
-    // Find member by QR code
-    const member = await Member.findOne({ qrCode, gymOwnerId, isDeleted: false });
+    // Query globally first to check gym ownership scoping
+    const member = await Member.findOne({ qrCode, isDeleted: false }).populate('planId');
     if (!member) {
-      await createNotification(
-        gymOwnerId,
-        'QR Attendance Failure',
-        `Check-in failed: QR code "${qrCode}" is invalid.`,
-        'attendance'
-      );
       return res.status(404).json({ message: 'Invalid QR' });
+    }
+    if (member.gymOwnerId.toString() !== gymOwnerId.toString()) {
+      return res.status(403).json({ message: 'QR belongs to another Gym' });
+    }
+    if (member.isArchived) {
+      return res.status(403).json({ message: 'Inactive Member' });
     }
 
     // Verify subscription/membership expiration date
@@ -50,6 +50,9 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
     const todayStr = now.toISOString().split('T')[0];
     const expiry = new Date(member.membershipEnd);
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const diffTime = expiry.getTime() - todayStart.getTime();
+    const remainingDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
     if (expiry < todayStart) {
       await createNotification(
@@ -59,21 +62,38 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
         'attendance'
       );
       return res.status(403).json({
-        message: `Access Denied: Membership plan expired on ${member.membershipEnd.toISOString().split('T')[0]}.`,
-        member: { name: member.name, status: 'expired' }
+        message: 'Membership Expired',
+        member: {
+          name: member.name,
+          phone: member.phone,
+          planName: (member.planId as any)?.name || 'Generic Plan',
+          membershipEnd: member.membershipEnd.toISOString().split('T')[0],
+          remainingDays: 0,
+          gender: member.gender
+        }
       });
     }
 
-    // Verify outstanding dues (warn if partial/unpaid, but grant access)
+    // Verify outstanding dues
     let paymentWarning = '';
     if (member.paymentStatus !== 'paid') {
-      paymentWarning = `Dues Alert: Outstanding balance of ₹${member.remainingAmount} remaining.`;
+      paymentWarning = ` Dues Alert: Outstanding balance of ₹${member.remainingAmount} remaining.`;
     }
 
     // Check if attendance already recorded today
     const existing = await Attendance.findOne({ gymOwnerId, memberId: member._id, date: todayStr });
     if (existing) {
-      return res.status(400).json({ message: 'Already Checked In' });
+      return res.status(400).json({
+        message: 'Already Checked In Today',
+        member: {
+          name: member.name,
+          phone: member.phone,
+          planName: (member.planId as any)?.name || 'Generic Plan',
+          membershipEnd: member.membershipEnd.toISOString().split('T')[0],
+          remainingDays,
+          gender: member.gender
+        }
+      });
     }
 
     const owner = await GymOwner.findById(gymOwnerId);
@@ -106,11 +126,17 @@ router.post('/check-in', validateBody(checkInSchema), async (req: AuthenticatedR
       `Device: ${deviceInfo}`
     );
 
-
-
     return res.status(201).json({
-      message: `Access Granted. Welcome, ${member.name}! ${paymentWarning}`,
-      member: { name: member.name, status: 'present' },
+      message: `Access Granted. Welcome, ${member.name}!${paymentWarning}`,
+      type: 'check-in',
+      member: {
+        name: member.name,
+        phone: member.phone,
+        planName: (member.planId as any)?.name || 'Generic Plan',
+        membershipEnd: member.membershipEnd.toISOString().split('T')[0],
+        remainingDays,
+        gender: member.gender
+      },
       attendance
     });
   } catch (err) {
@@ -127,21 +153,52 @@ router.post('/check-out', validateBody(checkInSchema), async (req: Authenticated
   if (!qrCode) return res.status(400).json({ message: 'QR Code is required.' });
 
   try {
-    const member = await Member.findOne({ qrCode, gymOwnerId, isDeleted: false });
+    const member = await Member.findOne({ qrCode, isDeleted: false }).populate('planId');
     if (!member) {
       return res.status(404).json({ message: 'Invalid QR' });
+    }
+    if (member.gymOwnerId.toString() !== gymOwnerId.toString()) {
+      return res.status(403).json({ message: 'QR belongs to another Gym' });
+    }
+    if (member.isArchived) {
+      return res.status(403).json({ message: 'Inactive Member' });
     }
 
     const now = new Date();
     const todayStr = now.toISOString().split('T')[0];
+    const expiry = new Date(member.membershipEnd);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const diffTime = expiry.getTime() - todayStart.getTime();
+    const remainingDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 
     // Find today's check-in record
     const attendance = await Attendance.findOne({ gymOwnerId, memberId: member._id, date: todayStr });
     if (!attendance) {
-      return res.status(400).json({ message: 'Not Checked In Today' });
+      return res.status(400).json({
+        message: 'Not Checked In Today',
+        member: {
+          name: member.name,
+          phone: member.phone,
+          planName: (member.planId as any)?.name || 'Generic Plan',
+          membershipEnd: member.membershipEnd.toISOString().split('T')[0],
+          remainingDays,
+          gender: member.gender
+        }
+      });
     }
     if (attendance.checkOutTime) {
-      return res.status(400).json({ message: 'Already Checked Out' });
+      return res.status(400).json({
+        message: 'Already Checked Out',
+        member: {
+          name: member.name,
+          phone: member.phone,
+          planName: (member.planId as any)?.name || 'Generic Plan',
+          membershipEnd: member.membershipEnd.toISOString().split('T')[0],
+          remainingDays,
+          gender: member.gender
+        }
+      });
     }
 
     const owner = await GymOwner.findById(gymOwnerId);
@@ -185,15 +242,179 @@ router.post('/check-out', validateBody(checkInSchema), async (req: Authenticated
       `Workout Duration: ${workoutDuration}`
     );
 
-
-
     return res.json({
       message: `Access Granted. Goodbye, ${member.name}!`,
-      member: { name: member.name, status: 'checked_out' },
+      type: 'check-out',
+      member: {
+        name: member.name,
+        phone: member.phone,
+        planName: (member.planId as any)?.name || 'Generic Plan',
+        membershipEnd: member.membershipEnd.toISOString().split('T')[0],
+        remainingDays,
+        gender: member.gender
+      },
       attendance
     });
   } catch (err) {
     console.error('Scan check-out error:', err);
+    return res.status(500).json({ message: 'Internal server error.' });
+  }
+});// 2.7 POST unified scan endpoint (auto-detect check-in / check-out)
+router.post('/scan', async (req: AuthenticatedRequest, res: Response) => {
+  const { qrCode } = req.body;
+  const gymOwnerId = req.user!.id;
+
+  if (!qrCode) return res.status(400).json({ message: 'QR Code is required.' });
+
+  try {
+    const member = await Member.findOne({ qrCode, isDeleted: false }).populate('planId');
+    if (!member) {
+      return res.status(404).json({ message: 'Invalid QR' });
+    }
+    if (member.gymOwnerId.toString() !== gymOwnerId.toString()) {
+      return res.status(403).json({ message: 'QR belongs to another Gym' });
+    }
+    if (member.isArchived) {
+      return res.status(403).json({ message: 'Inactive Member' });
+    }
+
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const expiry = new Date(member.membershipEnd);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const diffTime = expiry.getTime() - todayStart.getTime();
+    const remainingDays = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+
+    if (expiry < todayStart) {
+      await createNotification(
+        gymOwnerId,
+        'QR Attendance Failure',
+        `Check-in failed for ${member.name}: Membership expired on ${member.membershipEnd.toISOString().split('T')[0]}.`,
+        'attendance'
+      );
+      return res.status(403).json({
+        message: 'Membership Expired',
+        member: {
+          name: member.name,
+          phone: member.phone,
+          planName: (member.planId as any)?.name || 'Generic Plan',
+          membershipEnd: member.membershipEnd.toISOString().split('T')[0],
+          remainingDays: 0,
+          gender: member.gender
+        }
+      });
+    }
+
+    const attendance = await Attendance.findOne({ gymOwnerId, memberId: member._id, date: todayStr });
+    const owner = await GymOwner.findById(gymOwnerId);
+    const receptionistName = owner ? owner.ownerName : 'Admin';
+    const deviceInfo = req.headers['user-agent'] || 'Unknown Device';
+    const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
+
+    if (!attendance) {
+      // Create Check-In
+      const newAttendance = await Attendance.create({
+        gymOwnerId,
+        memberId: member._id,
+        date: todayStr,
+        checkInTime: timeStr,
+        checkOutTime: '',
+        workoutDuration: '',
+        status: 'present',
+        receptionist: receptionistName,
+        qrScanTime: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        deviceInfo,
+        browserInfo: req.headers['user-agent'] || 'Unknown Browser'
+      });
+
+      await logMemberActivity(
+        gymOwnerId,
+        member._id,
+        'check_in',
+        'Checked In via QR',
+        receptionistName,
+        `Device: ${deviceInfo}`
+      );
+
+      return res.status(201).json({
+        message: `Checked In successfully. Welcome, ${member.name}!`,
+        type: 'check-in',
+        member: {
+          name: member.name,
+          phone: member.phone,
+          planName: (member.planId as any)?.name || 'Generic Plan',
+          membershipEnd: member.membershipEnd.toISOString().split('T')[0],
+          remainingDays,
+          gender: member.gender
+        },
+        attendance: newAttendance
+      });
+    } else {
+      if (attendance.checkOutTime) {
+        return res.status(400).json({
+          message: 'Already Checked Out',
+          member: {
+            name: member.name,
+            phone: member.phone,
+            planName: (member.planId as any)?.name || 'Generic Plan',
+            membershipEnd: member.membershipEnd.toISOString().split('T')[0],
+            remainingDays,
+            gender: member.gender
+          }
+        });
+      }
+
+      // Create Check-Out
+      let workoutDuration = '';
+      try {
+        const [inH, inM, inS] = attendance.checkInTime.split(':').map(Number);
+        const [outH, outM, outS] = timeStr.split(':').map(Number);
+        const inDate = new Date(2000, 0, 1, inH, inM, inS || 0);
+        const outDate = new Date(2000, 0, 1, outH, outM, outS || 0);
+        let diffMs = outDate.getTime() - inDate.getTime();
+        if (diffMs > 0) {
+          const hours = Math.floor(diffMs / (1000 * 60 * 60));
+          diffMs %= 1000 * 60 * 60;
+          const minutes = Math.floor(diffMs / (1000 * 60));
+          workoutDuration = hours > 0 ? `${hours}h ${minutes}m` : `${minutes} mins`;
+        } else {
+          workoutDuration = '0 mins';
+        }
+      } catch (e) {
+        workoutDuration = 'N/A';
+      }
+
+      attendance.checkOutTime = timeStr;
+      attendance.workoutDuration = workoutDuration;
+      attendance.status = 'checked_out';
+      await attendance.save();
+
+      await logMemberActivity(
+        gymOwnerId,
+        member._id,
+        'check_out',
+        'Checked Out via QR',
+        receptionistName,
+        `Workout Duration: ${workoutDuration}`
+      );
+
+      return res.json({
+        message: `Checked Out successfully. Goodbye, ${member.name}!`,
+        type: 'check-out',
+        member: {
+          name: member.name,
+          phone: member.phone,
+          planName: (member.planId as any)?.name || 'Generic Plan',
+          membershipEnd: member.membershipEnd.toISOString().split('T')[0],
+          remainingDays,
+          gender: member.gender
+        },
+        attendance
+      });
+    }
+  } catch (err) {
+    console.error('Unified scan error:', err);
     return res.status(500).json({ message: 'Internal server error.' });
   }
 });

@@ -648,10 +648,14 @@ export const MemberProfile: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="p-3 bg-white rounded-xl inline-block border border-slate-800 shadow-inner z-10">
-                  <div className="w-28 h-28 bg-slate-100 flex flex-col items-center justify-center gap-1.5 rounded-lg relative">
-                    <QrCode className="w-16 h-16 text-slate-900" />
-                    <span className="text-[9px] text-slate-500 font-mono font-bold tracking-wider">{member.qrCode}</span>
+                <div className="p-2.5 bg-white rounded-xl inline-block border border-slate-800 shadow-inner z-10">
+                  <div className="w-28 h-28 bg-white flex flex-col items-center justify-center gap-1.5 rounded-lg relative">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(member.qrCode)}`}
+                      alt="Member QR Code Pass"
+                      className="w-24 h-24 object-contain"
+                    />
+                    <span className="text-[8px] text-slate-500 font-mono font-bold tracking-wider mt-1">{member.qrCode}</span>
                   </div>
                 </div>
 

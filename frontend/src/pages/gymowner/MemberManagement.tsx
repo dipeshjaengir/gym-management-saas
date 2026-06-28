@@ -109,6 +109,12 @@ export const MemberManagement: React.FC = () => {
     errors: any[];
   } | null>(null);
 
+  const [importStats, setImportStats] = useState<{
+    imported: number;
+    remaining: number;
+    estimatedTime: string;
+  }>({ imported: 0, remaining: 0, estimatedTime: 'Calculating...' });
+
   // Saved & Custom Mappings per Gym Owner
   const [savedMapping, setSavedMapping] = useState<Record<string, string>>({});
   const [columnMapping, setColumnMapping] = useState<Record<string, string>>({});
@@ -370,24 +376,24 @@ export const MemberManagement: React.FC = () => {
   const autoDetectMapping = (headers: string[], rawRows: any[]) => {
     const newMapping: Record<string, string> = { ...savedMapping };
     const synonyms: Record<string, string[]> = {
-      name: ['Member Name', 'Customer Name', 'Client Name', 'Name', 'name', 'customer', 'client'],
-      phone: ['Phone Number', 'Phone', 'Mobile', 'Contact No', 'Contact Number', 'Mobile Number', 'phone', 'mobile', 'contact'],
+      name: ['Member Name', 'Customer Name', 'Client Name', 'Full Name', 'Member', 'Person', 'Name', 'name', 'customer', 'client'],
+      phone: ['Phone Number', 'Phone', 'Mobile', 'Contact', 'Contact Number', 'Contact No', 'Mobile Number', 'phone', 'mobile'],
       email: ['Email Address', 'Email', 'Mail ID', 'Mail', 'email', 'mail'],
-      gender: ['Gender', 'gender', 'sex'],
-      dob: ['Date of Birth', 'DOB', 'Birth Date', 'dob', 'birthdate'],
+      gender: ['Gender', 'gender', 'sex', 'Gender Option'],
+      dob: ['Date of Birth', 'DOB', 'Birth Date', 'Birthday', 'dob', 'birthdate'],
       height: ['Height (cm)', 'Height', 'height'],
       weight: ['Weight (kg)', 'Weight', 'weight'],
-      address: ['Address', 'address', 'location'],
+      address: ['Address', 'address', 'location', 'Resident Area'],
       emergencyContact: ['Emergency Contact', 'Emergency Phone', 'emergencyContact', 'emergency'],
-      planName: ['Membership Plan', 'Membership', 'Plan', 'Package', 'planName', 'plan', 'package'],
-      startDate: ['Membership Start Date', 'Joining Date', 'Admission Date', 'Start Date', 'startDate', 'joining', 'admission'],
-      expiryDate: ['Membership Expiry Date', 'Expiry', 'Renewal Date', 'Expiry Date', 'expiryDate', 'expiry', 'renewal'],
-      totalAmount: ['Total Plan Amount', 'Fees', 'Amount', 'totalAmount', 'fees', 'amount', 'price'],
-      amountPaid: ['Amount Paid', 'Paid', 'amountPaid', 'paid'],
-      remainingDue: ['Remaining Due', 'Balance', 'Due', 'remainingDue', 'balance', 'due'],
+      planName: ['Membership Plan', 'Membership', 'Plan', 'Subscription', 'Package', 'planName', 'plan', 'package'],
+      startDate: ['Membership Start Date', 'Joining', 'Admission Date', 'Start Date', 'Joining Date', 'startDate', 'joining', 'admission'],
+      expiryDate: ['Membership Expiry Date', 'Expiry', 'Renewal', 'Renewal Date', 'Expiry Date', 'expiryDate', 'expiry'],
+      totalAmount: ['Total Plan Amount', 'Fees', 'Plan Amount', 'Amount', 'totalAmount', 'fees', 'amount', 'price'],
+      amountPaid: ['Amount Paid', 'Paid', 'Collected', 'Received', 'amountPaid', 'paid'],
+      remainingDue: ['Remaining Due', 'Balance', 'Outstanding', 'Due', 'remainingDue', 'balance', 'due'],
       paymentStatus: ['Payment Status', 'paymentStatus', 'payStatus'],
       notes: ['Medical Notes', 'Notes', 'notes', 'medical'],
-      status: ['Active / Inactive', 'Status', 'status']
+      status: ['Active / Inactive', 'Member Status', 'Status', 'status']
     };
 
     Object.keys(synonyms).forEach((fieldName) => {
@@ -509,14 +515,6 @@ export const MemberManagement: React.FC = () => {
         rowErrors.push('Weight must be a positive number');
       }
 
-      // 3. Schema requirement checks
-      if (!gender) rowErrors.push('Gender is required');
-      if (!dob) rowErrors.push('Date of Birth is required');
-      if (height === undefined) rowErrors.push('Height is required');
-      if (weight === undefined) rowErrors.push('Weight is required');
-      if (!planName) rowErrors.push('Membership Plan is required');
-      if (!startDate) rowErrors.push('Start Date is required');
-      if (!expiryDate) rowErrors.push('Expiry Date is required');
 
       const parsedData = {
         name, phone, email, gender, dob, height, weight, address,
@@ -584,13 +582,6 @@ export const MemberManagement: React.FC = () => {
         rowErrors.push('Weight must be a positive number');
       }
 
-      if (!gender) rowErrors.push('Gender is required');
-      if (!dob) rowErrors.push('Date of Birth is required');
-      if (height === undefined) rowErrors.push('Height is required');
-      if (weight === undefined) rowErrors.push('Weight is required');
-      if (!planName) rowErrors.push('Membership Plan is required');
-      if (!startDate) rowErrors.push('Start Date is required');
-      if (!expiryDate) rowErrors.push('Expiry Date is required');
 
       // Remove error highlights on updated cells
       const updatedConfidenceFields = { ...row.confidenceFields };
@@ -696,6 +687,7 @@ export const MemberManagement: React.FC = () => {
     setImporting(true);
     setImportProgress(0);
     setImportSummary(null);
+    setImportStats({ imported: 0, remaining: previewRows.length, estimatedTime: 'Calculating...' });
 
     const batchSize = 100;
     let successCount = 0;
@@ -704,6 +696,7 @@ export const MemberManagement: React.FC = () => {
     let mergedCount = 0;
     let failedCount = 0;
     const allErrors: any[] = [];
+    const startTime = Date.now();
 
     // Save column mapping for Gym Owner
     try {
@@ -736,7 +729,26 @@ export const MemberManagement: React.FC = () => {
         allErrors.push({ row: i + 1, error: err.message || 'Batch request failed' });
       }
 
-      setImportProgress(Math.min(100, Math.round(((i + batch.length) / previewRows.length) * 100)));
+      const processedCount = Math.min(previewRows.length, i + batchSize);
+      const remaining = previewRows.length - processedCount;
+      const elapsedMs = Date.now() - startTime;
+      const avgMsPerRecord = elapsedMs / processedCount;
+      const estRemainingMs = remaining * avgMsPerRecord;
+      const estRemainingSec = Math.ceil(estRemainingMs / 1000);
+      
+      let estimatedTimeStr = 'Calculating...';
+      if (processedCount > 0) {
+        estimatedTimeStr = estRemainingSec > 60
+          ? `${Math.floor(estRemainingSec / 60)}m ${estRemainingSec % 60}s remaining`
+          : `${estRemainingSec}s remaining`;
+      }
+
+      setImportProgress(Math.min(100, Math.round((processedCount / previewRows.length) * 100)));
+      setImportStats({
+        imported: successCount + updatedCount + mergedCount,
+        remaining,
+        estimatedTime: remaining === 0 ? 'Completed' : estimatedTimeStr
+      });
     }
 
     setImporting(false);
@@ -2131,13 +2143,18 @@ export const MemberManagement: React.FC = () => {
 
                 {/* Import progress bar */}
                 {importing && (
-                  <div className="p-4 border border-indigo-500/30 bg-indigo-950/20 rounded-xl space-y-2">
-                    <div className="flex justify-between text-xs font-bold text-indigo-400">
-                      <span>Importing members data...</span>
+                  <div className="p-4 border border-indigo-500/30 bg-indigo-950/20 rounded-xl space-y-2 text-xs font-semibold">
+                    <div className="flex justify-between text-indigo-400 font-bold">
+                      <span>Importing member records...</span>
                       <span>{importProgress}%</span>
                     </div>
                     <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
                       <div className="bg-indigo-500 h-full transition-all duration-300" style={{ width: `${importProgress}%` }} />
+                    </div>
+                    <div className="flex justify-between text-[10px] text-muted-foreground pt-1">
+                      <span>Imported: <strong className="text-indigo-400">{importStats.imported}</strong></span>
+                      <span>Remaining: <strong className="text-indigo-400">{importStats.remaining}</strong></span>
+                      <span>Est. Time: <strong className="text-indigo-400">{importStats.estimatedTime}</strong></span>
                     </div>
                   </div>
                 )}
@@ -2206,14 +2223,15 @@ export const MemberManagement: React.FC = () => {
                         { key: 'height', label: 'Height (cm) *' },
                         { key: 'weight', label: 'Weight (kg) *' },
                         { key: 'planName', label: 'Membership Plan *' },
-                        { key: 'startDate', label: 'Start Date *' },
-                        { key: 'expiryDate', label: 'Expiry Date *' },
-                        { key: 'totalAmount', label: 'Total Amount (₹)' },
+                        { key: 'startDate', label: 'Membership Start Date *' },
+                        { key: 'expiryDate', label: 'Membership Expiry Date *' },
+                        { key: 'totalAmount', label: 'Total Plan Amount (₹)' },
                         { key: 'amountPaid', label: 'Amount Paid (₹)' },
                         { key: 'remainingDue', label: 'Remaining Due (₹)' },
                         { key: 'address', label: 'Address' },
                         { key: 'emergencyContact', label: 'Emergency Contact' },
-                        { key: 'notes', label: 'Medical Notes' }
+                        { key: 'notes', label: 'Medical Notes' },
+                        { key: 'status', label: 'Member Status' }
                       ].map(f => (
                         <div key={f.key} className="space-y-1 p-2 border rounded-lg bg-card/40">
                           <span className="font-semibold text-muted-foreground block truncate">{f.label}</span>
@@ -2229,6 +2247,23 @@ export const MemberManagement: React.FC = () => {
                           </select>
                         </div>
                       ))}
+                    </div>
+
+                    {/* Mapping Stats bar */}
+                    <div className="flex flex-wrap justify-between items-center gap-2 pt-2 border-t text-[10px]">
+                      <div className="flex gap-2">
+                        <span className="px-2 py-0.5 bg-indigo-950/40 text-indigo-400 border border-indigo-500/20 rounded-md">Matched Fields: {Object.keys(columnMapping).filter(k => columnMapping[k]).length}</span>
+                        <span className="px-2 py-0.5 bg-muted text-muted-foreground border rounded-md">Unmatched Fields: {Object.keys(columnMapping).filter(k => !columnMapping[k]).length}</span>
+                      </div>
+                      {['name', 'phone'].filter(k => !columnMapping[k]).length > 0 ? (
+                        <span className="px-2 py-0.5 bg-rose-950/40 text-rose-400 border border-rose-500/20 rounded-md font-bold">
+                          Missing Required: {['name', 'phone'].filter(k => !columnMapping[k]).map(m => m === 'name' ? 'Member Name' : 'Phone Number').join(', ')}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-emerald-950/40 text-emerald-400 border border-emerald-500/20 rounded-md font-bold">
+                          All Required Mapped
+                        </span>
+                      )}
                     </div>
                   </div>
                 )}
