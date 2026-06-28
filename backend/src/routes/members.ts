@@ -608,6 +608,36 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
 
     const processedPhones = new Set<string>();
 
+    const parseSheetDate = (val: any): string => {
+      if (!val) return '';
+      if (val instanceof Date) {
+        return val.toISOString().split('T')[0];
+      }
+      if (typeof val === 'number' || (!isNaN(Number(val)) && String(val).trim() !== '')) {
+        const num = Number(val);
+        if (num > 0 && num < 100000) {
+          const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        }
+      }
+      const str = String(val).trim();
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().split('T')[0];
+      }
+      const parts = str.split(/[-/]/);
+      if (parts.length === 3) {
+        if (parts[0].length === 4) {
+          return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        } else if (parts[2].length === 4) {
+          return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+      return str;
+    };
+
     const getFieldVal = (row: any, fieldName: string, synonyms: string[]): any => {
       // 0. If already resolved as target field name directly
       if (row[fieldName] !== undefined && row[fieldName] !== null && String(row[fieldName]).trim() !== '') {
@@ -633,37 +663,37 @@ router.post('/migrate/excel', async (req: AuthenticatedRequest, res: Response) =
       const rowIndex = i + 1;
 
       // Extract fields dynamically using columnMapping & synonyms
-      const nameVal = getFieldVal(row, 'name', ['Member Name', 'Customer Name', 'Client Name', 'Name', 'name']);
-      const phoneVal = getFieldVal(row, 'phone', ['Phone Number', 'Phone', 'Mobile', 'Contact No', 'Contact Number', 'Mobile Number', 'phone']);
-      const emailVal = getFieldVal(row, 'email', ['Email Address', 'Email', 'Mail ID', 'Mail', 'email']);
-      const genderVal = getFieldVal(row, 'gender', ['Gender', 'gender']);
-      const dobVal = getFieldVal(row, 'dob', ['Date of Birth', 'DOB', 'Birth Date', 'dob']);
-      const heightVal = getFieldVal(row, 'height', ['Height (cm)', 'Height', 'height']);
-      const weightVal = getFieldVal(row, 'weight', ['Weight (kg)', 'Weight', 'weight']);
-      const addressVal = getFieldVal(row, 'address', ['Address', 'address']);
-      const emergencyContactVal = getFieldVal(row, 'emergencyContact', ['Emergency Contact', 'Emergency Phone', 'emergencyContact']);
-      const planNameVal = getFieldVal(row, 'planName', ['Membership Plan', 'Membership', 'Plan', 'Package', 'planName']);
-      const startDateVal = getFieldVal(row, 'startDate', ['Membership Start Date', 'Joining Date', 'Admission Date', 'Start Date', 'startDate']);
-      const expiryDateVal = getFieldVal(row, 'expiryDate', ['Membership Expiry Date', 'Expiry', 'Renewal Date', 'Expiry Date', 'expiryDate']);
-      const totalAmountVal = getFieldVal(row, 'totalAmount', ['Total Plan Amount', 'Fees', 'Amount', 'totalAmount']);
-      const amountPaidVal = getFieldVal(row, 'amountPaid', ['Amount Paid', 'Paid', 'amountPaid']);
-      const remainingDueVal = getFieldVal(row, 'remainingDue', ['Remaining Due', 'Balance', 'Due', 'remainingDue']);
-      const paymentStatusVal = getFieldVal(row, 'paymentStatus', ['Payment Status', 'paymentStatus']);
-      const notesVal = getFieldVal(row, 'notes', ['Medical Notes', 'Notes', 'notes']);
-      const statusVal = getFieldVal(row, 'status', ['Active / Inactive', 'Status', 'status']);
+      const nameVal = getFieldVal(row, 'name', ['Member Name', 'Customer Name', 'Client Name', 'Full Name', 'Member', 'Student Name', 'Person', 'Name', 'FullName', 'name', 'customer', 'client']);
+      const phoneVal = getFieldVal(row, 'phone', ['Phone Number', 'Phone', 'Mobile', 'Contact', 'Contact Number', 'Contact No', 'Mobile Number', 'Phone No', 'Mobile No', 'phone', 'mobile']);
+      const emailVal = getFieldVal(row, 'email', ['Email Address', 'Email', 'Mail ID', 'Mail', 'email', 'mail', 'Email ID']);
+      const genderVal = getFieldVal(row, 'gender', ['Gender', 'Sex', 'Gender Option', 'Sex Option', 'gender', 'sex']);
+      const dobVal = getFieldVal(row, 'dob', ['Date of Birth', 'DOB', 'Birth Date', 'Birthday', 'BirthDate', 'Birth', 'dob', 'birthdate']);
+      const heightVal = getFieldVal(row, 'height', ['Height (cm)', 'Height', 'Ht (cm)', 'Ht', 'height', 'ht']);
+      const weightVal = getFieldVal(row, 'weight', ['Weight (kg)', 'Weight', 'Wt (kg)', 'Wt', 'weight', 'wt']);
+      const addressVal = getFieldVal(row, 'address', ['Address', 'Location', 'Resident Area', 'Area', 'address', 'location']);
+      const emergencyContactVal = getFieldVal(row, 'emergencyContact', ['Emergency Contact', 'Emergency Phone', 'Emergency No', 'emergencyContact', 'emergency']);
+      const planNameVal = getFieldVal(row, 'planName', ['Membership Plan', 'Membership', 'Plan', 'Subscription', 'Package', 'Plan Package', 'planName', 'plan', 'package']);
+      const startDateVal = getFieldVal(row, 'startDate', ['Membership Start Date', 'Joining', 'Admission Date', 'Start Date', 'Joining Date', 'Admission', 'Join Date', 'Start', 'Membership Start', 'startDate', 'joining', 'admission']);
+      const expiryDateVal = getFieldVal(row, 'expiryDate', ['Membership Expiry Date', 'Expiry', 'Renewal', 'Renewal Date', 'Expiry Date', 'Valid Till', 'End Date', 'Membership Expiry', 'expiryDate', 'expiry']);
+      const totalAmountVal = getFieldVal(row, 'totalAmount', ['Total Plan Amount', 'Fees', 'Plan Amount', 'Amount', 'Fee', 'Total Amount', 'totalAmount', 'fees', 'amount', 'price']);
+      const amountPaidVal = getFieldVal(row, 'amountPaid', ['Amount Paid', 'Paid', 'Collected', 'Received', 'amountPaid', 'paid']);
+      const remainingDueVal = getFieldVal(row, 'remainingDue', ['Remaining Due', 'Balance', 'Outstanding', 'Remaining', 'Due', 'Pending', 'remainingDue', 'balance', 'due']);
+      const paymentStatusVal = getFieldVal(row, 'paymentStatus', ['Payment Status', 'paymentStatus', 'payStatus']);
+      const notesVal = getFieldVal(row, 'notes', ['Medical Notes', 'Notes', 'notes', 'medical']);
+      const statusVal = getFieldVal(row, 'status', ['Member Status', 'Status', 'Active / Inactive', 'status']);
 
       const name = nameVal ? String(nameVal).trim() : '';
       const phone = phoneVal ? String(phoneVal).trim() : '';
       const email = emailVal ? String(emailVal).trim().toLowerCase() : '';
       const gender = genderVal ? String(genderVal).trim().toLowerCase() : '';
-      const dob = dobVal;
+      const dob = parseSheetDate(dobVal);
       const height = heightVal ? Number(heightVal) : undefined;
       const weight = weightVal ? Number(weightVal) : undefined;
       const address = addressVal ? String(addressVal).trim() : '';
       const emergencyContact = emergencyContactVal ? String(emergencyContactVal).trim() : '';
       const planName = planNameVal ? String(planNameVal).trim() : '';
-      const startDate = startDateVal;
-      const expiryDate = expiryDateVal;
+      const startDate = parseSheetDate(startDateVal);
+      const expiryDate = parseSheetDate(expiryDateVal);
       const totalAmount = totalAmountVal ? Number(totalAmountVal) : 0;
       const amountPaid = amountPaidVal ? Number(amountPaidVal) : 0;
       const remainingDue = remainingDueVal ? Number(remainingDueVal) : 0;
@@ -1074,6 +1104,130 @@ router.post('/migrate/manual', async (req: AuthenticatedRequest, res: Response) 
   } catch (err: any) {
     console.error('Manual migration error:', err);
     return res.status(500).json({ message: 'Error performing manual migration.' });
+  }
+});
+
+// POST /members/:id/renew
+router.post('/:id/renew', async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const {
+    newPlanId,
+    joiningDate,
+    membershipStart,
+    membershipEnd,
+    planPrice,
+    discount,
+    amountPaid,
+    remainingDue,
+    paymentMethod,
+    remarks
+  } = req.body;
+
+  const gymOwnerId = req.user!.id;
+  const operatorEmail = req.user!.email;
+
+  if (!newPlanId || !membershipStart || !membershipEnd) {
+    return res.status(400).json({ message: 'Missing renewal details (newPlanId, membershipStart, membershipEnd).' });
+  }
+
+  try {
+    const member = await Member.findOne({ _id: id, gymOwnerId, isDeleted: false });
+    if (!member) {
+      return res.status(404).json({ message: 'Member not found.' });
+    }
+
+    const plan = await MembershipPlan.findOne({ _id: newPlanId, gymOwnerId, isDeleted: false });
+    if (!plan) {
+      return res.status(404).json({ message: 'Membership plan not found.' });
+    }
+
+    const oldPlanId = member.planId;
+    const oldPlan = oldPlanId ? await MembershipPlan.findById(oldPlanId) : null;
+    const oldPlanName = oldPlan ? oldPlan.name : 'None';
+
+    // Update active membership details
+    member.planId = plan._id;
+    member.membershipStart = new Date(membershipStart);
+    member.membershipEnd = new Date(membershipEnd);
+    if (joiningDate) {
+      member.joiningDate = new Date(joiningDate);
+    }
+    member.amountPaid = amountPaid || 0;
+    member.remainingAmount = remainingDue || 0;
+    member.paymentStatus = (remainingDue <= 0) ? 'paid' : ((amountPaid || 0) <= 0 ? 'unpaid' : 'partial');
+
+    await member.save();
+
+    // Generate unique receipt number
+    const now = new Date();
+    const dateStr = now.getFullYear().toString() +
+      (now.getMonth() + 1).toString().padStart(2, '0') +
+      now.getDate().toString().padStart(2, '0');
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    const receiptNumber = `REC-${dateStr}-${rand}`;
+
+    // Create payment ledger record if money is collected
+    let paymentId = undefined;
+    if ((amountPaid || 0) > 0) {
+      const payment = await Payment.create({
+        gymOwnerId,
+        memberId: member._id,
+        amount: amountPaid,
+        pendingAmount: remainingDue,
+        paymentDate: now,
+        paymentMethod: paymentMethod || 'cash',
+        receiptNumber,
+        notes: remarks || `Renewal Payment for ${plan.name}`,
+        operatorName: operatorEmail,
+        isVoided: false
+      });
+      paymentId = payment._id;
+    }
+
+    // Write Activity Timeline entry
+    await MemberActivity.create({
+      gymOwnerId,
+      memberId: member._id,
+      activityType: 'plan_renewal',
+      title: 'Membership Renewed',
+      date: now,
+      time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      operator: operatorEmail,
+      remarks: remarks || `Renewed from ${oldPlanName} to ${plan.name}. Paid: ₹${amountPaid || 0}, Balance: ₹${remainingDue || 0}.`,
+      receiptNumber: receiptNumber,
+      transactionId: paymentId ? String(paymentId) : '',
+      oldAmount: oldPlan ? oldPlan.price : 0,
+      newAmount: plan.price,
+      remainingDue: remainingDue || 0,
+      paymentMethod: paymentMethod || ''
+    });
+
+    // Generate WhatsApp renewal receipt link
+    const owner = await GymOwner.findById(gymOwnerId);
+    const gymName = owner?.branding?.gymName || owner?.gymName || 'GymLedger';
+    const cleanPhone = member.phone.replace(/\D/g, '');
+    const to = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    const msg = `Hello ${member.name},\n\nYour membership at ${gymName} has been successfully renewed!\n\n` +
+      `- Plan: ${plan.name}\n` +
+      `- Duration: ${plan.durationMonths} Months\n` +
+      `- Expiry Date: ${member.membershipEnd.toLocaleDateString('en-IN')}\n` +
+      `- Amount Paid: ₹${amountPaid || 0}\n` +
+      `- Balance Due: ₹${remainingDue || 0}\n\n` +
+      `Thank you for working out with us!`;
+    
+    const whatsappUrl = `https://wa.me/${to}?text=${encodeURIComponent(msg)}`;
+
+    await logAudit(`Renewed membership for ${member.name} (Plan: ${plan.name})`, operatorEmail, req);
+
+    return res.status(200).json({
+      success: true,
+      member,
+      whatsappUrl
+    });
+
+  } catch (err: any) {
+    console.error('Membership renewal error:', err);
+    return res.status(500).json({ message: 'Error performing membership renewal.' });
   }
 });
 

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -161,22 +161,48 @@ export const MemberProfile: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'payments' | 'attendance' | 'workout' | 'diet' | 'timeline'>('payments');
   const [timeline, setTimeline] = useState<any[]>([]);
 
+  // Renewal Modal States
+  const [showRenewModal, setShowRenewModal] = useState(false);
+  const [gymPlans, setGymPlans] = useState<any[]>([]);
+  const [loadingGymPlans, setLoadingGymPlans] = useState(false);
+  const [selectedPlanId, setSelectedPlanId] = useState('');
+  const [renewJoiningDate, setRenewJoiningDate] = useState('');
+  const [renewStartDate, setRenewStartDate] = useState('');
+  const [renewExpiryDate, setRenewExpiryDate] = useState('');
+  const [renewPlanPrice, setRenewPlanPrice] = useState<number>(0);
+  const [renewDiscount, setRenewDiscount] = useState<number>(0);
+  const [renewAmountPaid, setRenewAmountPaid] = useState<number>(0);
+  const [renewPaymentMethod, setRenewPaymentMethod] = useState<'upi' | 'cash' | 'card' | 'bank_transfer'>('cash');
+  const [renewRemarks, setRenewRemarks] = useState('');
+  const [renewing, setRenewing] = useState(false);
+
+  const location = useLocation();
+
   useEffect(() => {
     if (id) {
       loadProfileData();
     }
   }, [id]);
 
+  useEffect(() => {
+    if (member && gymPlans.length > 0 && location.search.includes('renew=true')) {
+      handleOpenRenewModal();
+      // Remove query parameter so it doesn't reopen on subsequent renders
+      navigate(location.pathname, { replace: true });
+    }
+  }, [member, gymPlans, location.search]);
+
   const loadProfileData = async () => {
     setLoading(true);
     try {
-      const [mRes, payRes, attRes, wkRes, dtRes, timelineRes] = await Promise.all([
+      const [mRes, payRes, attRes, wkRes, dtRes, timelineRes, plansRes] = await Promise.all([
         api.get(`/members/${id}`),
         api.get(`/payments/member/${id}`),
         api.get(`/attendance/member/${id}`).catch(() => []),
         api.get(`/workouts/member/${id}`).catch(() => null),
         api.get(`/diets/member/${id}`).catch(() => null),
-        api.get(`/members/${id}/timeline`).catch(() => [])
+        api.get(`/members/${id}/timeline`).catch(() => []),
+        api.get('/plans').catch(() => [])
       ]);
 
       setMember(mRes);
@@ -185,10 +211,120 @@ export const MemberProfile: React.FC = () => {
       setWorkout(wkRes);
       setDiet(dtRes);
       setTimeline(timelineRes);
+      setGymPlans(plansRes.filter((p: any) => p.status === 'active' && !p.isDeleted));
     } catch (err: any) {
       showToast(err.message || 'Error loading member profile details.', 'error');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleOpenRenewModal = () => {
+    if (!member) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    const currentExpiry = member.membershipEnd ? new Date(member.membershipEnd) : null;
+    
+    let defaultStart = today;
+    if (currentExpiry && currentExpiry.getTime() > Date.now()) {
+      const nextDay = new Date(currentExpiry);
+      nextDay.setDate(nextDay.getDate() + 1);
+      defaultStart = nextDay.toISOString().split('T')[0];
+    }
+    
+    setRenewJoiningDate(member.joiningDate ? member.joiningDate.split('T')[0] : today);
+    setRenewStartDate(defaultStart);
+    
+    const matchedPlan = gymPlans.find(p => p._id === member.planId?._id);
+    if (matchedPlan) {
+      setSelectedPlanId(matchedPlan._id);
+      setRenewPlanPrice(matchedPlan.price);
+      setRenewDiscount(0);
+      setRenewAmountPaid(matchedPlan.price);
+      
+      const expDate = new Date(defaultStart);
+      expDate.setMonth(expDate.getMonth() + matchedPlan.durationMonths);
+      setRenewExpiryDate(expDate.toISOString().split('T')[0]);
+    } else {
+      setSelectedPlanId('');
+      setRenewPlanPrice(0);
+      setRenewDiscount(0);
+      setRenewAmountPaid(0);
+      setRenewExpiryDate(defaultStart);
+    }
+    
+    setRenewRemarks('');
+    setShowRenewModal(true);
+  };
+
+  const handlePlanChange = (planId: string) => {
+    setSelectedPlanId(planId);
+    const plan = gymPlans.find(p => p._id === planId);
+    if (plan) {
+      setRenewPlanPrice(plan.price);
+      setRenewDiscount(0);
+      setRenewAmountPaid(plan.price);
+      
+      const baseDate = renewStartDate ? new Date(renewStartDate) : new Date();
+      baseDate.setMonth(baseDate.getMonth() + plan.durationMonths);
+      setRenewExpiryDate(baseDate.toISOString().split('T')[0]);
+    } else {
+      setRenewPlanPrice(0);
+      setRenewDiscount(0);
+      setRenewAmountPaid(0);
+    }
+  };
+
+  const handleStartDateChange = (dateVal: string) => {
+    setRenewStartDate(dateVal);
+    const plan = gymPlans.find(p => p._id === selectedPlanId);
+    if (plan && dateVal) {
+      const baseDate = new Date(dateVal);
+      baseDate.setMonth(baseDate.getMonth() + plan.durationMonths);
+      setRenewExpiryDate(baseDate.toISOString().split('T')[0]);
+    }
+  };
+
+  const renewRemainingDue = Math.max(0, renewPlanPrice - renewDiscount - renewAmountPaid);
+
+  const handleRenewSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPlanId || !renewStartDate || !renewExpiryDate) {
+      showToast('Please select a plan and valid dates.', 'error');
+      return;
+    }
+    if (isSuspended) {
+      showToast('Write operations are disabled.', 'error');
+      return;
+    }
+
+    setRenewing(true);
+    try {
+      const res = await api.post(`/members/${id}/renew`, {
+        newPlanId: selectedPlanId,
+        joiningDate: renewJoiningDate,
+        membershipStart: renewStartDate,
+        membershipEnd: renewExpiryDate,
+        planPrice: renewPlanPrice,
+        discount: renewDiscount,
+        amountPaid: renewAmountPaid,
+        remainingDue: renewRemainingDue,
+        paymentMethod: renewPaymentMethod,
+        remarks: renewRemarks
+      });
+
+      showToast('Membership successfully renewed!', 'success');
+      setShowRenewModal(false);
+      
+      await loadProfileData();
+
+      if (res.whatsappUrl) {
+        setWhatsAppModal({ show: true, url: res.whatsappUrl, sentClicked: false });
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to renew membership.', 'error');
+    } finally {
+      setRenewing(false);
     }
   };
 
@@ -555,6 +691,15 @@ export const MemberProfile: React.FC = () => {
               )}
             </div>
 
+            {!member.isArchived && !isSuspended && (
+              <button
+                onClick={handleOpenRenewModal}
+                className="w-full py-2.5 mb-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer text-center flex items-center justify-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5 animate-spin-slow" /> Renew Membership Plan
+              </button>
+            )}
+
             <div className="pt-4 border-t flex gap-2">
               {member.isArchived ? (
                 <button
@@ -625,6 +770,15 @@ export const MemberProfile: React.FC = () => {
                 className="w-full mt-2 py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1"
               >
                 <IndianRupee className="w-4 h-4" /> Collect Remaining ₹{member.remainingAmount}
+              </button>
+            )}
+
+            {!isSuspended && (
+              <button
+                onClick={handleOpenRenewModal}
+                className="w-full mt-2 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Renew Membership Plan
               </button>
             )}
           </div>
@@ -1001,6 +1155,185 @@ export const MemberProfile: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Renew Membership Modal */}
+      {showRenewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-lg bg-card border rounded-3xl p-6 shadow-2xl relative animate-fade-in max-h-[90vh] overflow-y-auto">
+            <button
+              onClick={() => setShowRenewModal(false)}
+              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+            >
+              <XCircle className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-xl font-bold mb-1">Renew Member Plan</h2>
+            <p className="text-xs text-muted-foreground mb-4">Extend subscription packages for: <span className="font-semibold text-foreground">{member.name}</span></p>
+
+            <form onSubmit={handleRenewSubmit} className="space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-2.5 rounded-xl bg-muted/30 border">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Current Plan</span>
+                  <span className="font-bold text-foreground text-sm">{member.planId?.name || 'Deleted Plan'}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-muted/30 border">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Current Expiry</span>
+                  <span className="font-bold text-foreground text-sm">{new Date(member.membershipEnd).toLocaleDateString('en-IN')}</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Select New Plan *</label>
+                {loadingGymPlans ? (
+                  <div className="py-2 text-muted-foreground">Loading active plans...</div>
+                ) : (
+                  <select
+                    required
+                    value={selectedPlanId}
+                    onChange={(e) => handlePlanChange(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
+                  >
+                    <option value="">-- Choose Plan --</option>
+                    {gymPlans.map(p => (
+                      <option key={p._id} value={p._id}>
+                        {p.name} (₹{p.price} | {p.durationMonths} Mo)
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Joining Date</label>
+                  <input
+                    type="date"
+                    required
+                    value={renewJoiningDate}
+                    onChange={(e) => setRenewJoiningDate(e.target.value)}
+                    className="w-full p-2 border rounded-xl bg-background text-foreground"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Start Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={renewStartDate}
+                    onChange={(e) => handleStartDateChange(e.target.value)}
+                    className="w-full p-2 border rounded-xl bg-background text-foreground"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Expiry Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={renewExpiryDate}
+                    onChange={(e) => setRenewExpiryDate(e.target.value)}
+                    className="w-full p-2 border rounded-xl bg-background text-foreground"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-4 gap-3 border-t pt-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Plan Price (₹)</label>
+                  <input
+                    type="number"
+                    disabled
+                    value={renewPlanPrice}
+                    className="w-full p-2 border rounded-xl bg-muted text-muted-foreground font-semibold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Discount (₹)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={renewPlanPrice}
+                    value={renewDiscount}
+                    onChange={(e) => setRenewDiscount(Math.max(0, Number(e.target.value)))}
+                    className="w-full p-2 border rounded-xl bg-background text-foreground font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Amount Paid (₹)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    max={renewPlanPrice - renewDiscount}
+                    value={renewAmountPaid}
+                    onChange={(e) => setRenewAmountPaid(Math.max(0, Number(e.target.value)))}
+                    className="w-full p-2 border rounded-xl bg-background text-foreground font-bold text-emerald-500 dark:text-emerald-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Remaining Due (₹)</label>
+                  <input
+                    type="number"
+                    disabled
+                    value={renewRemainingDue}
+                    className="w-full p-2 border rounded-xl bg-muted text-rose-500 dark:text-rose-400 font-extrabold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Payment Method</label>
+                  <select
+                    value={renewPaymentMethod}
+                    onChange={(e) => setRenewPaymentMethod(e.target.value as any)}
+                    className="w-full p-2.5 rounded-xl border bg-background text-foreground"
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="upi">UPI / QR Code</option>
+                    <option value="card">Debit/Credit Card</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Remarks / Note</label>
+                  <input
+                    type="text"
+                    placeholder="Renewal remarks..."
+                    value={renewRemarks}
+                    onChange={(e) => setRenewRemarks(e.target.value)}
+                    className="w-full p-2.5 border rounded-xl bg-background text-foreground"
+                  />
+                </div>
+              </div>
+
+              {/* Renewal Summary Preview Card */}
+              <div className="p-3 bg-muted/40 dark:bg-muted/10 border border-border/50 rounded-xl space-y-1">
+                <div className="font-bold text-[10px] text-indigo-400 uppercase tracking-wider">Renewal Overview Preview</div>
+                <div className="text-[11px] text-muted-foreground">
+                  New membership starts on <strong className="text-foreground">{renewStartDate}</strong> and ends on <strong className="text-foreground">{renewExpiryDate}</strong>.
+                  Total collection: <strong className="text-emerald-500 font-semibold">₹{renewAmountPaid}</strong> with a balance due of <strong className="text-rose-500 font-semibold">₹{renewRemainingDue}</strong>.
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRenewModal(false)}
+                  className="flex-1 py-2.5 border border-muted hover:bg-muted text-foreground rounded-xl text-xs font-bold cursor-pointer text-center"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={renewing}
+                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center justify-center gap-1"
+                >
+                  {renewing ? 'Renewing...' : 'Confirm Renewal'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Collect Due Payment Modal */}
       {showCollectModal && (

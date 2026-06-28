@@ -69,6 +69,10 @@ export const LandingPage: React.FC = () => {
   // Active FAQ index state
   const [activeFaq, setActiveFaq] = useState<number | null>(null);
 
+  // Privacy & Terms Modal States
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
   // Checkout Modal State
   const [selectedCheckoutPlan, setSelectedCheckoutPlan] = useState<PricingPlan | null>(null);
   const [checkoutGymName, setCheckoutGymName] = useState('');
@@ -825,14 +829,28 @@ export const LandingPage: React.FC = () => {
           <div className="space-y-3">
             <h4 className="font-bold text-foreground uppercase tracking-wider text-[10px]">Company</h4>
             <ul className="space-y-2">
-              <li><span className="cursor-default">Privacy Policy</span></li>
-              <li><span className="cursor-default">Terms &amp; Conditions</span></li>
+              <li>
+                <button
+                  onClick={() => setShowPrivacyModal(true)}
+                  className="hover:text-primary transition-colors cursor-pointer text-left"
+                >
+                  Privacy Policy
+                </button>
+              </li>
+              <li>
+                <button
+                  onClick={() => setShowTermsModal(true)}
+                  className="hover:text-primary transition-colors cursor-pointer text-left"
+                >
+                  Terms &amp; Conditions
+                </button>
+              </li>
             </ul>
           </div>
           <div className="space-y-3">
             <h4 className="font-bold text-foreground uppercase tracking-wider text-[10px]">Contact Us</h4>
             <ul className="space-y-2">
-              <li><a href="mailto:support@gymledger.com" className="hover:text-primary">support@gymledger.com</a></li>
+              <li><a href="mailto:dipeshjangir010@gmail.com" className="hover:text-primary">dipeshjangir010@gmail.com</a></li>
               <li><a href="https://wa.me/917742111581" target="_blank" rel="noopener noreferrer" className="hover:text-primary flex items-center gap-1"><MessageCircle className="w-3 h-3" /> WhatsApp Live</a></li>
             </ul>
           </div>
@@ -848,6 +866,66 @@ export const LandingPage: React.FC = () => {
       </footer>
 
       {/* MODALS */}
+      {/* Privacy Policy Modal */}
+      {showPrivacyModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-lg w-full relative space-y-4 max-h-[85vh] overflow-y-auto">
+            <button
+              onClick={() => setShowPrivacyModal(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-lg font-black text-foreground">Privacy Policy</h3>
+            <div className="text-xs text-muted-foreground space-y-3 leading-relaxed">
+              <p><strong>Effective Date: June 28, 2026</strong></p>
+              <p>At GymLedger SaaS, we prioritize the confidentiality and integrity of your gym data. This Privacy Policy details how we handle the database files, user logins, and member information.</p>
+              <p><strong>1. Isolated Boundaries</strong>: All gym tenants run on strictly isolated databases. Neither other gym owners nor platform operators can view member rosters, contact details, or financial receipts without authorization.</p>
+              <p><strong>2. Member Data Privacy</strong>: Member QR codes do not store names, photos, or membership metrics in clear text. They contain only a randomized pass token verified locally on scan.</p>
+              <p><strong>3. Security Standards</strong>: Passwords are encrypted using bcrypt and database connections use Secure Sockets Layer (SSL) encryption protocols.</p>
+            </div>
+            <div className="pt-2 border-t flex justify-end">
+              <button
+                onClick={() => setShowPrivacyModal(false)}
+                className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Understood
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Terms & Conditions Modal */}
+      {showTermsModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-lg w-full relative space-y-4 max-h-[85vh] overflow-y-auto">
+            <button
+              onClick={() => setShowTermsModal(false)}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <h3 className="text-lg font-black text-foreground">Terms &amp; Conditions</h3>
+            <div className="text-xs text-muted-foreground space-y-3 leading-relaxed">
+              <p><strong>Effective Date: June 28, 2026</strong></p>
+              <p>By registering a Gym Owner console account on GymLedger, you agree to comply with these terms of use.</p>
+              <p><strong>1. Billing &amp; Subscription</strong>: Owner subscriptions are billed monthly or annually. Accounts are suspended automatically if renewal payments fail after a 7-day grace period.</p>
+              <p><strong>2. Fair Usage</strong>: File imports and barcode check-ins must comply with fair-use limits. Owners are responsible for the correctness of files uploaded to the column mapping wizard.</p>
+              <p><strong>3. Liability</strong>: GymLedger provides the software management portal "as is". We are not responsible for direct or indirect losses arising from member attendance disputes or invoice print errors.</p>
+            </div>
+            <div className="pt-2 border-t flex justify-end">
+              <button
+                onClick={() => setShowTermsModal(false)}
+                className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Accept Terms
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Exit Intent Modal */}
       {showExitModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">

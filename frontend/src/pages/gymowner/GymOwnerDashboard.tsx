@@ -721,7 +721,7 @@ export const GymOwnerDashboard: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
-                        onClick={() => navigate(`/app/members/${rem.member?._id}`)}
+                        onClick={() => navigate(`/app/members/${rem.member?._id}?renew=true`)}
                         className="px-3 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-bold shadow transition-colors cursor-pointer"
                       >
                         Renew Plan

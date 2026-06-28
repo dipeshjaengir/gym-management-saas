@@ -358,13 +358,24 @@ export const MemberManagement: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json<any>(sheet);
         
-        // Dynamic Excel header range extraction
-        const headerRows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1 });
-        const headers = headerRows.length > 0
-          ? headerRows[0].map(h => String(h || '').trim()).filter(h => h !== '')
-          : [];
+        // Scan for the first row containing at least 2 non-empty values
+        const headerRows = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' });
+        let headerRowIndex = 0;
+        let firstGoodRow: any[] = [];
+        for (let i = 0; i < headerRows.length; i++) {
+          const r = headerRows[i];
+          if (r && r.filter(cell => String(cell || '').trim() !== '').length >= 2) {
+            headerRowIndex = i;
+            firstGoodRow = r;
+            break;
+          }
+        }
+
+        const headers = firstGoodRow.map(h => String(h || '').trim()).filter(h => h !== '');
+        
+        // Parse data starting from the discovered header row index
+        const json = XLSX.utils.sheet_to_json<any>(sheet, { range: headerRowIndex });
 
         setDetectedHeaders(headers);
         setRawUploadRows(json);
@@ -380,18 +391,18 @@ export const MemberManagement: React.FC = () => {
   const autoDetectMapping = (headers: string[], rawRows: any[]) => {
     const newMapping: Record<string, string> = { ...savedMapping };
     const synonyms: Record<string, string[]> = {
-      name: ['Member Name', 'Customer Name', 'Client Name', 'Full Name', 'Member', 'Person', 'Name', 'FullName', 'name', 'customer', 'client'],
-      phone: ['Phone Number', 'Phone', 'Mobile', 'Contact', 'Contact Number', 'Contact No', 'Mobile Number', 'Phone No', 'phone', 'mobile'],
+      name: ['Member Name', 'Customer Name', 'Client Name', 'Full Name', 'Member', 'Student Name', 'Person', 'Name', 'FullName', 'name', 'customer', 'client'],
+      phone: ['Phone Number', 'Phone', 'Mobile', 'Contact', 'Contact Number', 'Contact No', 'Mobile Number', 'Phone No', 'Mobile No', 'phone', 'mobile'],
       email: ['Email Address', 'Email', 'Mail ID', 'Mail', 'email', 'mail', 'Email ID'],
       gender: ['Gender', 'Sex', 'Gender Option', 'Sex Option', 'gender', 'sex'],
-      dob: ['Date of Birth', 'DOB', 'Birth Date', 'Birthday', 'BirthDate', 'dob', 'birthdate'],
+      dob: ['Date of Birth', 'DOB', 'Birth Date', 'Birthday', 'BirthDate', 'Birth', 'dob', 'birthdate'],
       height: ['Height (cm)', 'Height', 'Ht (cm)', 'Ht', 'height', 'ht'],
       weight: ['Weight (kg)', 'Weight', 'Wt (kg)', 'Wt', 'weight', 'wt'],
       address: ['Address', 'Location', 'Resident Area', 'Area', 'address', 'location'],
       emergencyContact: ['Emergency Contact', 'Emergency Phone', 'Emergency No', 'emergencyContact', 'emergency'],
       planName: ['Membership Plan', 'Membership', 'Plan', 'Subscription', 'Package', 'Plan Package', 'planName', 'plan', 'package'],
-      startDate: ['Membership Start Date', 'Joining', 'Admission Date', 'Start Date', 'Joining Date', 'Admission', 'startDate', 'joining', 'admission'],
-      expiryDate: ['Membership Expiry Date', 'Expiry', 'Renewal', 'Renewal Date', 'Expiry Date', 'expiryDate', 'expiry'],
+      startDate: ['Membership Start Date', 'Joining', 'Admission Date', 'Start Date', 'Joining Date', 'Admission', 'Join Date', 'Start', 'Membership Start', 'startDate', 'joining', 'admission'],
+      expiryDate: ['Membership Expiry Date', 'Expiry', 'Renewal', 'Renewal Date', 'Expiry Date', 'Valid Till', 'End Date', 'Membership Expiry', 'expiryDate', 'expiry'],
       totalAmount: ['Total Plan Amount', 'Fees', 'Plan Amount', 'Amount', 'Fee', 'Total Amount', 'totalAmount', 'fees', 'amount', 'price'],
       amountPaid: ['Amount Paid', 'Paid', 'Collected', 'Received', 'amountPaid', 'paid'],
       remainingDue: ['Remaining Due', 'Balance', 'Outstanding', 'Remaining', 'Due', 'Pending', 'remainingDue', 'balance', 'due'],
@@ -447,12 +458,48 @@ export const MemberManagement: React.FC = () => {
     const processedPhones = new Set<string>();
     const processedEmails = new Set<string>();
 
+    const parseSheetDate = (val: any): string => {
+      if (!val) return '';
+      if (val instanceof Date) {
+        return val.toISOString().split('T')[0];
+      }
+      if (typeof val === 'number' || (!isNaN(Number(val)) && String(val).trim() !== '')) {
+        const num = Number(val);
+        if (num > 0 && num < 100000) {
+          const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().split('T')[0];
+          }
+        }
+      }
+      const str = String(val).trim();
+      const d = new Date(str);
+      if (!isNaN(d.getTime())) {
+        return d.toISOString().split('T')[0];
+      }
+      const parts = str.split(/[-/]/);
+      if (parts.length === 3) {
+        if (parts[0].length === 4) {
+          return `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+        } else if (parts[2].length === 4) {
+          return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+      }
+      return str;
+    };
+
     const getFieldVal = (row: any, fieldName: string, synonyms: string[]): any => {
+      // 0. Check custom mapping first
       const mappedKey = mapping[fieldName];
       if (mappedKey !== undefined && mappedKey !== null && String(mappedKey).trim() !== '') {
         const val = row[mappedKey];
         if (val !== undefined && val !== null && String(val).trim() !== '') return val;
       }
+      // 1. If column name matches fieldName directly
+      if (row[fieldName] !== undefined && row[fieldName] !== null && String(row[fieldName]).trim() !== '') {
+        return row[fieldName];
+      }
+      // 2. Check synonyms list as fallback
       for (const syn of synonyms) {
         if (row[syn] !== undefined && row[syn] !== null && String(row[syn]).trim() !== '') {
           return row[syn];
@@ -462,37 +509,37 @@ export const MemberManagement: React.FC = () => {
     };
 
     const tempPreview: PreviewRow[] = rawRows.map((row, idx) => {
-      const nameVal = getFieldVal(row, 'name', ['Member Name', 'Customer Name', 'Client Name', 'Name', 'name']);
-      const phoneVal = getFieldVal(row, 'phone', ['Phone Number', 'Phone', 'Mobile', 'Contact No', 'Contact Number', 'Mobile Number', 'phone']);
-      const emailVal = getFieldVal(row, 'email', ['Email Address', 'Email', 'Mail ID', 'Mail', 'email']);
-      const genderVal = getFieldVal(row, 'gender', ['Gender', 'gender']);
-      const dobVal = getFieldVal(row, 'dob', ['Date of Birth', 'DOB', 'Birth Date', 'dob']);
-      const heightVal = getFieldVal(row, 'height', ['Height (cm)', 'Height', 'height']);
-      const weightVal = getFieldVal(row, 'weight', ['Weight (kg)', 'Weight', 'weight']);
-      const addressVal = getFieldVal(row, 'address', ['Address', 'address']);
-      const emergencyContactVal = getFieldVal(row, 'emergencyContact', ['Emergency Contact', 'Emergency Phone', 'emergencyContact']);
-      const planNameVal = getFieldVal(row, 'planName', ['Membership Plan', 'Membership', 'Plan', 'Package', 'planName']);
-      const startDateVal = getFieldVal(row, 'startDate', ['Membership Start Date', 'Joining Date', 'Admission Date', 'Start Date', 'startDate']);
-      const expiryDateVal = getFieldVal(row, 'expiryDate', ['Membership Expiry Date', 'Expiry', 'Renewal Date', 'Expiry Date', 'expiryDate']);
-      const totalAmountVal = getFieldVal(row, 'totalAmount', ['Total Plan Amount', 'Fees', 'Amount', 'totalAmount']);
-      const amountPaidVal = getFieldVal(row, 'amountPaid', ['Amount Paid', 'Paid', 'amountPaid']);
-      const remainingDueVal = getFieldVal(row, 'remainingDue', ['Remaining Due', 'Balance', 'Due', 'remainingDue']);
-      const paymentStatusVal = getFieldVal(row, 'paymentStatus', ['Payment Status', 'paymentStatus']);
-      const notesVal = getFieldVal(row, 'notes', ['Medical Notes', 'Notes', 'notes']);
-      const statusVal = getFieldVal(row, 'status', ['Active / Inactive', 'Status', 'status']);
+      const nameVal = getFieldVal(row, 'name', ['Member Name', 'Customer Name', 'Client Name', 'Full Name', 'Member', 'Student Name', 'Person', 'Name', 'FullName', 'name', 'customer', 'client']);
+      const phoneVal = getFieldVal(row, 'phone', ['Phone Number', 'Phone', 'Mobile', 'Contact', 'Contact Number', 'Contact No', 'Mobile Number', 'Phone No', 'Mobile No', 'phone', 'mobile']);
+      const emailVal = getFieldVal(row, 'email', ['Email Address', 'Email', 'Mail ID', 'Mail', 'email', 'mail', 'Email ID']);
+      const genderVal = getFieldVal(row, 'gender', ['Gender', 'Sex', 'Gender Option', 'Sex Option', 'gender', 'sex']);
+      const dobVal = getFieldVal(row, 'dob', ['Date of Birth', 'DOB', 'Birth Date', 'Birthday', 'BirthDate', 'Birth', 'dob', 'birthdate']);
+      const heightVal = getFieldVal(row, 'height', ['Height (cm)', 'Height', 'Ht (cm)', 'Ht', 'height', 'ht']);
+      const weightVal = getFieldVal(row, 'weight', ['Weight (kg)', 'Weight', 'Wt (kg)', 'Wt', 'weight', 'wt']);
+      const addressVal = getFieldVal(row, 'address', ['Address', 'Location', 'Resident Area', 'Area', 'address', 'location']);
+      const emergencyContactVal = getFieldVal(row, 'emergencyContact', ['Emergency Contact', 'Emergency Phone', 'Emergency No', 'emergencyContact', 'emergency']);
+      const planNameVal = getFieldVal(row, 'planName', ['Membership Plan', 'Membership', 'Plan', 'Subscription', 'Package', 'Plan Package', 'planName', 'plan', 'package']);
+      const startDateVal = getFieldVal(row, 'startDate', ['Membership Start Date', 'Joining', 'Admission Date', 'Start Date', 'Joining Date', 'Admission', 'Join Date', 'Start', 'Membership Start', 'startDate', 'joining', 'admission']);
+      const expiryDateVal = getFieldVal(row, 'expiryDate', ['Membership Expiry Date', 'Expiry', 'Renewal', 'Renewal Date', 'Expiry Date', 'Valid Till', 'End Date', 'Membership Expiry', 'expiryDate', 'expiry']);
+      const totalAmountVal = getFieldVal(row, 'totalAmount', ['Total Plan Amount', 'Fees', 'Plan Amount', 'Amount', 'Fee', 'Total Amount', 'totalAmount', 'fees', 'amount', 'price']);
+      const amountPaidVal = getFieldVal(row, 'amountPaid', ['Amount Paid', 'Paid', 'Collected', 'Received', 'amountPaid', 'paid']);
+      const remainingDueVal = getFieldVal(row, 'remainingDue', ['Remaining Due', 'Balance', 'Outstanding', 'Remaining', 'Due', 'Pending', 'remainingDue', 'balance', 'due']);
+      const paymentStatusVal = getFieldVal(row, 'paymentStatus', ['Payment Status', 'paymentStatus', 'payStatus']);
+      const notesVal = getFieldVal(row, 'notes', ['Medical Notes', 'Notes', 'notes', 'medical']);
+      const statusVal = getFieldVal(row, 'status', ['Member Status', 'Status', 'Active / Inactive', 'status']);
 
       const name = nameVal ? String(nameVal).trim() : '';
       const phone = phoneVal ? String(phoneVal).trim() : '';
       const email = emailVal ? String(emailVal).trim().toLowerCase() : '';
       const gender = genderVal ? String(genderVal).trim().toLowerCase() : '';
-      const dob = dobVal;
+      const dob = parseSheetDate(dobVal);
       const height = heightVal ? Number(heightVal) : undefined;
       const weight = weightVal ? Number(weightVal) : undefined;
       const address = addressVal ? String(addressVal).trim() : '';
       const emergencyContact = emergencyContactVal ? String(emergencyContactVal).trim() : '';
       const planName = planNameVal ? String(planNameVal).trim() : '';
-      const startDate = startDateVal;
-      const expiryDate = expiryDateVal;
+      const startDate = parseSheetDate(startDateVal);
+      const expiryDate = parseSheetDate(expiryDateVal);
       const totalAmount = totalAmountVal ? Number(totalAmountVal) : 0;
       const amountPaid = amountPaidVal ? Number(amountPaidVal) : 0;
       const remainingDue = remainingDueVal ? Number(remainingDueVal) : 0;
