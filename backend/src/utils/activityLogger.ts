@@ -14,6 +14,12 @@ export async function logMemberActivity(
     newAmount?: number;
     remainingDue?: number;
     paymentMethod?: string;
+    originalPrice?: number;
+    discount?: number;
+    finalPayable?: number;
+    previousOutstanding?: number;
+    currentOutstanding?: number;
+    totalOutstanding?: number;
   }
 ) {
   try {

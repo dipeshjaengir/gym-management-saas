@@ -23,6 +23,12 @@ export function generateReceiptPDF(receipt: {
   paymentMethod: string;
   notes: string;
   operatorName?: string;
+  originalPrice?: number;
+  discount?: number;
+  finalPayable?: number;
+  previousOutstanding?: number;
+  currentOutstanding?: number;
+  totalOutstanding?: number;
   member: {
     name: string;
     phone: string;
@@ -89,22 +95,59 @@ export function generateReceiptPDF(receipt: {
   doc.line(15, 118, 195, 118);
 
   // Totals Panel
-  doc.setFont('helvetica', 'bold');
-  doc.text('Total Amount Collected:', 110, 128);
-  doc.text(`Rs. ${receipt.amount}.00`, 160, 128);
+  let currentY = 128;
+  if (receipt.originalPrice !== undefined) {
+    doc.setFont('helvetica', 'normal');
+    doc.text('Original Plan Price:', 110, currentY);
+    doc.text(`Rs. ${receipt.originalPrice}.00`, 160, currentY);
+    currentY += 7;
 
-  doc.setFont('helvetica', 'normal');
-  doc.text('Outstanding Balance Dues:', 110, 135);
-  doc.text(`Rs. ${receipt.pendingAmount}.00`, 160, 135);
+    doc.text('Discount Given:', 110, currentY);
+    doc.text(`Rs. ${receipt.discount || 0}.00`, 160, currentY);
+    currentY += 7;
+
+    doc.text('Final Payable Amount:', 110, currentY);
+    doc.text(`Rs. ${receipt.finalPayable}.00`, 160, currentY);
+    currentY += 7;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Amount Paid (Current):', 110, currentY);
+    doc.text(`Rs. ${receipt.amount}.00`, 160, currentY);
+    currentY += 7;
+
+    doc.setFont('helvetica', 'normal');
+    doc.text('Previous Outstanding:', 110, currentY);
+    doc.text(`Rs. ${receipt.previousOutstanding || 0}.00`, 160, currentY);
+    currentY += 7;
+
+    doc.text('Current Membership Due:', 110, currentY);
+    doc.text(`Rs. ${receipt.currentOutstanding || 0}.00`, 160, currentY);
+    currentY += 7;
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('Total Outstanding Due:', 110, currentY);
+    doc.text(`Rs. ${receipt.totalOutstanding || 0}.00`, 160, currentY);
+    currentY += 7;
+  } else {
+    doc.setFont('helvetica', 'bold');
+    doc.text('Total Amount Collected:', 110, currentY);
+    doc.text(`Rs. ${receipt.amount}.00`, 160, currentY);
+    currentY += 7;
+
+    doc.setFont('helvetica', 'normal');
+    doc.text('Outstanding Balance Dues:', 110, currentY);
+    doc.text(`Rs. ${receipt.pendingAmount}.00`, 160, currentY);
+    currentY += 7;
+  }
 
   if (receipt.notes) {
     doc.setFont('helvetica', 'italic');
-    doc.text(`Remarks: ${receipt.notes}`, 15, 150);
+    doc.text(`Remarks: ${receipt.notes}`, 15, currentY + 12);
   }
 
   // Footer Message
   doc.setFont('helvetica', 'bold');
-  doc.text('Thank you for working out with us!', 105, 175, { align: 'center' });
+  doc.text('Thank you for working out with us!', 105, currentY + 32, { align: 'center' });
 
   // Save the generated document
   doc.save(`receipt-${receipt.receiptNumber}.pdf`);

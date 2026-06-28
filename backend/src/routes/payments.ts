@@ -1,5 +1,5 @@
 import { Router, Response } from 'express';
-import { Payment, Member, GymOwner } from '../models';
+import { Payment, Member, GymOwner, MembershipPlan } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
 import { validateBody, createPaymentSchema } from '../middleware/validation';
@@ -51,11 +51,23 @@ router.post('/', validateBody(createPaymentSchema), async (req: AuthenticatedReq
     const owner = await GymOwner.findById(req.user!.id);
     if (!owner) return res.status(400).json({ message: 'Gym owner not found.' });
 
-    // Ensure they don't overpay
-    const newRemainingAmount = Math.max(0, member.remainingAmount - amount);
-    member.amountPaid += amount;
+    const activePlan = member.planId ? await MembershipPlan.findById(member.planId) : null;
+    const planPrice = activePlan ? activePlan.price : 0;
+
+    const oldPreviousOutstanding = member.previousOutstanding || 0;
+    const oldCurrentOutstanding = member.remainingAmount || 0;
+
+    // Apply FIFO dues collection logic
+    const prevPaid = Math.min(amount, oldPreviousOutstanding);
+    const newPreviousOutstanding = oldPreviousOutstanding - prevPaid;
+
+    const remainingPay = amount - prevPaid;
+    const newRemainingAmount = Math.max(0, oldCurrentOutstanding - remainingPay);
+
+    member.previousOutstanding = newPreviousOutstanding;
     member.remainingAmount = newRemainingAmount;
-    member.paymentStatus = member.remainingAmount <= 0 ? 'paid' : 'partial';
+    member.amountPaid += remainingPay;
+    member.paymentStatus = (newPreviousOutstanding + newRemainingAmount) <= 0 ? 'paid' : 'partial';
     
     await member.save();
 
@@ -69,12 +81,18 @@ router.post('/', validateBody(createPaymentSchema), async (req: AuthenticatedReq
       gymOwnerId: req.user!.id,
       memberId,
       amount,
-      pendingAmount: newRemainingAmount,
+      pendingAmount: newPreviousOutstanding + newRemainingAmount,
       paymentMethod,
       receiptNumber,
       notes: notes || '',
       operatorName: owner.ownerName || 'Owner',
-      isVoided: false
+      isVoided: false,
+      originalPrice: planPrice,
+      discount: member.discount || 0,
+      finalPayable: planPrice - (member.discount || 0),
+      previousOutstanding: oldPreviousOutstanding,
+      currentOutstanding: newRemainingAmount,
+      totalOutstanding: newPreviousOutstanding + newRemainingAmount
     });
 
     await logAudit(`Logged Payment receipt ${receiptNumber} (₹${amount}) for Member: ${member.name}`, owner.email, req);
@@ -90,10 +108,16 @@ router.post('/', validateBody(createPaymentSchema), async (req: AuthenticatedReq
       {
         receiptNumber,
         transactionId: payment._id,
-        oldAmount: member.remainingAmount + amount,
+        oldAmount: oldPreviousOutstanding + oldCurrentOutstanding,
         newAmount: amount,
-        remainingDue: newRemainingAmount,
-        paymentMethod
+        remainingDue: newPreviousOutstanding + newRemainingAmount,
+        paymentMethod,
+        originalPrice: planPrice,
+        discount: member.discount || 0,
+        finalPayable: planPrice - (member.discount || 0),
+        previousOutstanding: oldPreviousOutstanding,
+        currentOutstanding: newRemainingAmount,
+        totalOutstanding: newPreviousOutstanding + newRemainingAmount
       }
     );
 
@@ -282,6 +306,12 @@ router.get('/:id/receipt', async (req: AuthenticatedRequest, res: Response) => {
       updatedAmount: payment.updatedAmount,
       updatedBy: payment.updatedBy,
       updatedDate: payment.updatedDate,
+      originalPrice: payment.originalPrice,
+      discount: payment.discount,
+      finalPayable: payment.finalPayable,
+      previousOutstanding: payment.previousOutstanding,
+      currentOutstanding: payment.currentOutstanding,
+      totalOutstanding: payment.totalOutstanding,
       member: payment.memberId,
       branding: {
         logo: owner.branding?.logo || '',

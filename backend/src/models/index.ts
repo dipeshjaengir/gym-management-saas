@@ -216,6 +216,8 @@ export interface IMember extends Document {
   isMigrated: boolean;
   migrationMethod?: 'excel' | 'manual';
   openingBalance?: number;
+  discount?: number;
+  previousOutstanding?: number;
 }
 
 const MemberSchema = new Schema<IMember>({
@@ -243,7 +245,9 @@ const MemberSchema = new Schema<IMember>({
   isDeleted: { type: Boolean, default: false },
   isMigrated: { type: Boolean, default: false },
   migrationMethod: { type: String, enum: ['excel', 'manual'] },
-  openingBalance: { type: Number, default: 0 }
+  openingBalance: { type: Number, default: 0 },
+  discount: { type: Number, default: 0 },
+  previousOutstanding: { type: Number, default: 0 }
 }, { timestamps: true });
 
 export const Member = mongoose.model<IMember>('Member', MemberSchema);
@@ -267,6 +271,12 @@ export interface IPayment extends Document {
   updatedBy?: string;
   updatedDate?: Date;
   isDeleted: boolean;
+  originalPrice?: number;
+  discount?: number;
+  finalPayable?: number;
+  previousOutstanding?: number;
+  currentOutstanding?: number;
+  totalOutstanding?: number;
 }
 
 const PaymentSchema = new Schema<IPayment>({
@@ -284,7 +294,13 @@ const PaymentSchema = new Schema<IPayment>({
   updatedAmount: { type: Number },
   updatedBy: { type: String },
   updatedDate: { type: Date },
-  isDeleted: { type: Boolean, default: false }
+  isDeleted: { type: Boolean, default: false },
+  originalPrice: { type: Number, default: 0 },
+  discount: { type: Number, default: 0 },
+  finalPayable: { type: Number, default: 0 },
+  previousOutstanding: { type: Number, default: 0 },
+  currentOutstanding: { type: Number, default: 0 },
+  totalOutstanding: { type: Number, default: 0 }
 }, { timestamps: true });
 
 export const Payment = mongoose.model<IPayment>('Payment', PaymentSchema);
@@ -501,6 +517,12 @@ export interface IMemberActivity extends Document {
   newAmount?: number;
   remainingDue?: number;
   paymentMethod?: string;
+  originalPrice?: number;
+  discount?: number;
+  finalPayable?: number;
+  previousOutstanding?: number;
+  currentOutstanding?: number;
+  totalOutstanding?: number;
 }
 
 const MemberActivitySchema = new Schema<IMemberActivity>({
@@ -517,7 +539,13 @@ const MemberActivitySchema = new Schema<IMemberActivity>({
   oldAmount: { type: Number },
   newAmount: { type: Number },
   remainingDue: { type: Number },
-  paymentMethod: { type: String, default: '' }
+  paymentMethod: { type: String, default: '' },
+  originalPrice: { type: Number, default: 0 },
+  discount: { type: Number, default: 0 },
+  finalPayable: { type: Number, default: 0 },
+  previousOutstanding: { type: Number, default: 0 },
+  currentOutstanding: { type: Number, default: 0 },
+  totalOutstanding: { type: Number, default: 0 }
 }, { timestamps: true });
 
 export const MemberActivity = mongoose.model<IMemberActivity>('MemberActivity', MemberActivitySchema);

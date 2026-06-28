@@ -66,6 +66,8 @@ interface Member {
   isMigrated?: boolean;
   migrationMethod?: 'excel' | 'manual';
   openingBalance?: number;
+  discount?: number;
+  previousOutstanding?: number;
 }
 
 interface Payment {
@@ -170,7 +172,7 @@ export const MemberProfile: React.FC = () => {
   const [renewStartDate, setRenewStartDate] = useState('');
   const [renewExpiryDate, setRenewExpiryDate] = useState('');
   const [renewPlanPrice, setRenewPlanPrice] = useState<number>(0);
-  const [renewDiscount, setRenewDiscount] = useState<number>(0);
+  const [renewDiscount, setRenewDiscount] = useState<number | ''>('');
   const [renewAmountPaid, setRenewAmountPaid] = useState<number>(0);
   const [renewPaymentMethod, setRenewPaymentMethod] = useState<'upi' | 'cash' | 'card' | 'bank_transfer'>('cash');
   const [renewRemarks, setRenewRemarks] = useState('');
@@ -239,7 +241,7 @@ export const MemberProfile: React.FC = () => {
     if (matchedPlan) {
       setSelectedPlanId(matchedPlan._id);
       setRenewPlanPrice(matchedPlan.price);
-      setRenewDiscount(0);
+      setRenewDiscount('');
       setRenewAmountPaid(matchedPlan.price);
       
       const expDate = new Date(defaultStart);
@@ -248,7 +250,7 @@ export const MemberProfile: React.FC = () => {
     } else {
       setSelectedPlanId('');
       setRenewPlanPrice(0);
-      setRenewDiscount(0);
+      setRenewDiscount('');
       setRenewAmountPaid(0);
       setRenewExpiryDate(defaultStart);
     }
@@ -262,7 +264,7 @@ export const MemberProfile: React.FC = () => {
     const plan = gymPlans.find(p => p._id === planId);
     if (plan) {
       setRenewPlanPrice(plan.price);
-      setRenewDiscount(0);
+      setRenewDiscount('');
       setRenewAmountPaid(plan.price);
       
       const baseDate = renewStartDate ? new Date(renewStartDate) : new Date();
@@ -270,7 +272,7 @@ export const MemberProfile: React.FC = () => {
       setRenewExpiryDate(baseDate.toISOString().split('T')[0]);
     } else {
       setRenewPlanPrice(0);
-      setRenewDiscount(0);
+      setRenewDiscount('');
       setRenewAmountPaid(0);
     }
   };
@@ -285,7 +287,7 @@ export const MemberProfile: React.FC = () => {
     }
   };
 
-  const renewRemainingDue = Math.max(0, renewPlanPrice - renewDiscount - renewAmountPaid);
+  const renewRemainingDue = Math.max(0, renewPlanPrice - Number(renewDiscount || 0) - renewAmountPaid);
 
   const handleRenewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -306,7 +308,7 @@ export const MemberProfile: React.FC = () => {
         membershipStart: renewStartDate,
         membershipEnd: renewExpiryDate,
         planPrice: renewPlanPrice,
-        discount: renewDiscount,
+        discount: Number(renewDiscount || 0),
         amountPaid: renewAmountPaid,
         remainingDue: renewRemainingDue,
         paymentMethod: renewPaymentMethod,
@@ -370,7 +372,8 @@ export const MemberProfile: React.FC = () => {
       showToast('Please enter a valid payment amount.', 'error');
       return;
     }
-    if (member && Number(collectAmount) > member.remainingAmount) {
+    const totalDue = member ? (member.remainingAmount + (member.previousOutstanding || 0)) : 0;
+    if (member && Number(collectAmount) > totalDue) {
       showToast('Payment amount exceeds outstanding dues balance.', 'error');
       return;
     }
@@ -749,27 +752,43 @@ export const MemberProfile: React.FC = () => {
 
             <div className="pt-2 flex flex-col gap-2">
               <div className="flex justify-between items-center text-xs">
-                <span className="text-muted-foreground">Plan Total Price:</span>
+                <span className="text-muted-foreground">Original Price:</span>
                 <span className="font-semibold text-foreground">₹{member.planId?.price || 0}</span>
               </div>
               <div className="flex justify-between items-center text-xs">
-                <span className="text-muted-foreground">Total Paid:</span>
+                <span className="text-muted-foreground">Discount:</span>
+                <span className="font-semibold text-amber-500">₹{member.discount || 0}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-muted-foreground">Final Payable:</span>
+                <span className="font-semibold text-foreground">₹{(member.planId?.price || 0) - (member.discount || 0)}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-muted-foreground">Paid (Current Plan):</span>
                 <span className="font-semibold text-emerald-400">₹{member.amountPaid}</span>
               </div>
-              <div className="flex justify-between items-center text-sm pt-2 border-t font-bold">
-                <span>Outstanding Due:</span>
-                <span className={member.remainingAmount > 0 ? 'text-rose-400' : 'text-emerald-400'}>
-                  ₹{member.remainingAmount}
+              <div className="flex justify-between items-center text-xs pt-1 border-t border-border/30">
+                <span className="text-muted-foreground">Current Plan Due:</span>
+                <span className="font-semibold text-rose-400">₹{member.remainingAmount}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-muted-foreground">Previous Outstanding:</span>
+                <span className="font-semibold text-rose-400">₹{member.previousOutstanding || 0}</span>
+              </div>
+              <div className="flex justify-between items-center text-sm pt-2 border-t font-black">
+                <span>Total Outstanding:</span>
+                <span className={(member.remainingAmount + (member.previousOutstanding || 0)) > 0 ? 'text-rose-400' : 'text-emerald-400'}>
+                  ₹{(member.previousOutstanding || 0) + member.remainingAmount}
                 </span>
               </div>
             </div>
 
-            {member.remainingAmount > 0 && !isSuspended && (
+            {(member.remainingAmount + (member.previousOutstanding || 0)) > 0 && !isSuspended && (
               <button
                 onClick={() => { setShowCollectModal(true); setCollectStep(1); }}
                 className="w-full mt-2 py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer flex items-center justify-center gap-1"
               >
-                <IndianRupee className="w-4 h-4" /> Collect Remaining ₹{member.remainingAmount}
+                <IndianRupee className="w-4 h-4" /> Collect Remaining ₹{(member.previousOutstanding || 0) + member.remainingAmount}
               </button>
             )}
 
@@ -1130,18 +1149,31 @@ export const MemberProfile: React.FC = () => {
                             <p className="text-xs text-muted-foreground leading-relaxed">{item.remarks}</p>
 
                             {/* Extra transaction info */}
-                            {(item.receiptNumber || item.paymentMethod || item.remainingDue !== undefined) && (
-                              <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 mt-2 border-t border-border/30 text-[10px] text-muted-foreground font-medium">
-                                {item.receiptNumber && (
-                                  <span>Receipt: <strong className="text-foreground font-mono">{item.receiptNumber}</strong></span>
-                                )}
-                                {item.paymentMethod && (
-                                  <span className="uppercase">Method: <strong className="text-foreground">{item.paymentMethod}</strong></span>
-                                )}
-                                {item.remainingDue !== undefined && (
-                                  <span>Outstanding Dues: <strong className="text-foreground">₹{item.remainingDue}</strong></span>
-                                )}
-                                <span>Operator: <strong className="text-foreground">{item.operator || 'Admin'}</strong></span>
+                            {(item.receiptNumber || item.paymentMethod || item.remainingDue !== undefined || item.originalPrice !== undefined) && (
+                              <div className="pt-2 mt-2 border-t border-border/30 text-[10px] text-muted-foreground font-medium space-y-1">
+                                {item.originalPrice !== undefined ? (
+                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-muted-foreground mb-1.5 p-2 bg-muted/20 border border-border/40 rounded-xl">
+                                    <div>Original Price: <strong className="text-foreground">₹{item.originalPrice}</strong></div>
+                                    <div>Discount: <strong className="text-amber-500 font-bold">₹{item.discount || 0}</strong></div>
+                                    <div>Final Payable: <strong className="text-foreground">₹{item.finalPayable}</strong></div>
+                                    <div>Amount Paid: <strong className="text-emerald-400 font-semibold">₹{item.newAmount || 0}</strong></div>
+                                    <div>Previous Outstanding: <strong className="text-rose-400">₹{item.previousOutstanding || 0}</strong></div>
+                                    <div>Current Due: <strong className="text-rose-400">₹{item.currentOutstanding || 0}</strong></div>
+                                    <div className="col-span-2 font-bold text-[10px]">Total Outstanding: <strong className="text-rose-500 font-black">₹{item.totalOutstanding || 0}</strong></div>
+                                  </div>
+                                ) : null}
+                                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                                  {item.receiptNumber && (
+                                    <span>Receipt: <strong className="text-foreground font-mono">{item.receiptNumber}</strong></span>
+                                  )}
+                                  {item.paymentMethod && (
+                                    <span className="uppercase">Method: <strong className="text-foreground">{item.paymentMethod}</strong></span>
+                                  )}
+                                  {item.remainingDue !== undefined && item.originalPrice === undefined && (
+                                    <span>Outstanding Dues: <strong className="text-foreground">₹{item.remainingDue}</strong></span>
+                                  )}
+                                  <span>Operator: <strong className="text-foreground">{item.operator || 'Admin'}</strong></span>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -1252,8 +1284,9 @@ export const MemberProfile: React.FC = () => {
                     type="number"
                     min={0}
                     max={renewPlanPrice}
+                    placeholder="Enter Discount (Optional)"
                     value={renewDiscount}
-                    onChange={(e) => setRenewDiscount(Math.max(0, Number(e.target.value)))}
+                    onChange={(e) => setRenewDiscount(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
                     className="w-full p-2 border rounded-xl bg-background text-foreground font-bold"
                   />
                 </div>
@@ -1262,7 +1295,7 @@ export const MemberProfile: React.FC = () => {
                   <input
                     type="number"
                     min={0}
-                    max={renewPlanPrice - renewDiscount}
+                    max={renewPlanPrice - Number(renewDiscount || 0)}
                     value={renewAmountPaid}
                     onChange={(e) => setRenewAmountPaid(Math.max(0, Number(e.target.value)))}
                     className="w-full p-2 border rounded-xl bg-background text-foreground font-bold text-emerald-500 dark:text-emerald-400"
@@ -1366,12 +1399,20 @@ export const MemberProfile: React.FC = () => {
                     <span className="font-bold text-foreground">₹{member.planId?.price || (member.amountPaid + member.remainingAmount)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Amount Already Paid:</span>
+                    <span>Amount Already Paid (Current Plan):</span>
                     <span className="font-bold text-emerald-400">₹{member.amountPaid}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span>Current Plan Due:</span>
+                    <span className="font-bold text-rose-400">₹{member.remainingAmount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Previous Outstanding Due:</span>
+                    <span className="font-bold text-rose-400">₹{member.previousOutstanding || 0}</span>
+                  </div>
                   <div className="flex justify-between border-t border-muted/20 pt-2 text-sm">
-                    <span className="font-semibold">Current Remaining Due:</span>
-                    <span className="font-black text-rose-400">₹{member.remainingAmount}</span>
+                    <span className="font-semibold">Total Outstanding Due:</span>
+                    <span className="font-black text-rose-400">₹{member.remainingAmount + (member.previousOutstanding || 0)}</span>
                   </div>
                 </div>
 
@@ -1381,7 +1422,7 @@ export const MemberProfile: React.FC = () => {
                     type="number"
                     required
                     min={1}
-                    max={member.remainingAmount}
+                    max={member.remainingAmount + (member.previousOutstanding || 0)}
                     placeholder="Enter amount to collect..."
                     value={collectAmount}
                     onChange={(e) => setCollectAmount(e.target.value === '' ? '' : Number(e.target.value))}
@@ -1390,7 +1431,7 @@ export const MemberProfile: React.FC = () => {
                   {collectAmount !== '' && Number(collectAmount) > 0 && (
                     <div className="flex justify-between text-[10px] font-bold text-amber-400 mt-2">
                       <span>Remaining After Collection:</span>
-                      <span>₹{Math.max(0, member.remainingAmount - Number(collectAmount))}</span>
+                      <span>₹{Math.max(0, (member.remainingAmount + (member.previousOutstanding || 0)) - Number(collectAmount))}</span>
                     </div>
                   )}
                 </div>
@@ -1406,7 +1447,7 @@ export const MemberProfile: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setCollectStep(2)}
-                    disabled={collectAmount === '' || collectAmount <= 0 || collectAmount > member.remainingAmount}
+                    disabled={collectAmount === '' || collectAmount <= 0 || collectAmount > (member.remainingAmount + (member.previousOutstanding || 0))}
                     className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Next: Payment Method
@@ -1487,7 +1528,7 @@ export const MemberProfile: React.FC = () => {
                   </div>
                   <div className="flex justify-between border-t border-muted/20 pt-2 text-xs font-bold">
                     <span className="text-muted-foreground">Remaining Dues After:</span>
-                    <span className="text-rose-400">₹{Math.max(0, member.remainingAmount - Number(collectAmount))}</span>
+                    <span className="text-rose-400">₹{Math.max(0, (member.remainingAmount + (member.previousOutstanding || 0)) - Number(collectAmount))}</span>
                   </div>
                 </div>
 
@@ -1709,9 +1750,23 @@ export const MemberProfile: React.FC = () => {
                   </div>
 
                   {/* Balances */}
-                  <div className="space-y-1 text-right pt-2">
-                    <div className="text-sm font-black text-foreground">Total Paid: ₹{receiptDetails.amount}</div>
-                    <div className="text-muted-foreground">Outstanding Dues Balance: ₹{receiptDetails.pendingAmount}</div>
+                  <div className="space-y-1.5 text-right pt-3 border-t border-border/40 text-xs text-muted-foreground">
+                    {receiptDetails.originalPrice !== undefined ? (
+                      <>
+                        <div>Original Plan Price: <span className="font-bold text-foreground">₹{receiptDetails.originalPrice}</span></div>
+                        <div>Discount Given: <span className="font-bold text-amber-500">₹{receiptDetails.discount || 0}</span></div>
+                        <div>Final Payable Amount: <span className="font-bold text-foreground">₹{receiptDetails.finalPayable}</span></div>
+                        <div className="text-sm font-black text-foreground">Amount Paid (Current): ₹{receiptDetails.amount}</div>
+                        <div>Previous Outstanding: <span className="font-bold text-rose-500/80 dark:text-rose-400/80">₹{receiptDetails.previousOutstanding || 0}</span></div>
+                        <div>Current Membership Due: <span className="font-bold text-rose-500/80 dark:text-rose-400/80">₹{receiptDetails.currentOutstanding || 0}</span></div>
+                        <div className="text-sm font-black text-rose-500 dark:text-rose-400">Total Outstanding Due: ₹{receiptDetails.totalOutstanding || 0}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-sm font-black text-foreground">Total Paid: ₹{receiptDetails.amount}</div>
+                        <div className="text-muted-foreground">Outstanding Dues Balance: ₹{receiptDetails.pendingAmount}</div>
+                      </>
+                    )}
                   </div>
 
                   {/* Notes */}

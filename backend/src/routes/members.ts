@@ -1145,6 +1145,11 @@ router.post('/:id/renew', async (req: AuthenticatedRequest, res: Response) => {
     const oldPlan = oldPlanId ? await MembershipPlan.findById(oldPlanId) : null;
     const oldPlanName = oldPlan ? oldPlan.name : 'None';
 
+    const oldTotalOutstanding = (member.remainingAmount || 0) + (member.previousOutstanding || 0);
+    const planPriceVal = plan.price || 0;
+    const discountVal = discount || 0;
+    const finalPayableVal = planPriceVal - discountVal;
+
     // Update active membership details
     member.planId = plan._id;
     member.membershipStart = new Date(membershipStart);
@@ -1152,9 +1157,10 @@ router.post('/:id/renew', async (req: AuthenticatedRequest, res: Response) => {
     if (joiningDate) {
       member.joiningDate = new Date(joiningDate);
     }
-    member.amountPaid = amountPaid || 0;
+    member.discount = discountVal;
+    member.previousOutstanding = oldTotalOutstanding;
     member.remainingAmount = remainingDue || 0;
-    member.paymentStatus = (remainingDue <= 0) ? 'paid' : ((amountPaid || 0) <= 0 ? 'unpaid' : 'partial');
+    member.paymentStatus = (oldTotalOutstanding + (remainingDue || 0)) <= 0 ? 'paid' : 'partial';
 
     await member.save();
 
@@ -1173,13 +1179,19 @@ router.post('/:id/renew', async (req: AuthenticatedRequest, res: Response) => {
         gymOwnerId,
         memberId: member._id,
         amount: amountPaid,
-        pendingAmount: remainingDue,
+        pendingAmount: oldTotalOutstanding + (remainingDue || 0),
         paymentDate: now,
         paymentMethod: paymentMethod || 'cash',
         receiptNumber,
         notes: remarks || `Renewal Payment for ${plan.name}`,
         operatorName: operatorEmail,
-        isVoided: false
+        isVoided: false,
+        originalPrice: planPriceVal,
+        discount: discountVal,
+        finalPayable: finalPayableVal,
+        previousOutstanding: oldTotalOutstanding,
+        currentOutstanding: remainingDue || 0,
+        totalOutstanding: oldTotalOutstanding + (remainingDue || 0)
       });
       paymentId = payment._id;
     }
@@ -1193,13 +1205,19 @@ router.post('/:id/renew', async (req: AuthenticatedRequest, res: Response) => {
       date: now,
       time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       operator: operatorEmail,
-      remarks: remarks || `Renewed from ${oldPlanName} to ${plan.name}. Paid: ₹${amountPaid || 0}, Balance: ₹${remainingDue || 0}.`,
+      remarks: remarks || `Renewed from ${oldPlanName} to ${plan.name}. Original Price: ₹${planPriceVal}, Discount: ₹${discountVal}, Final Payable: ₹${finalPayableVal}, Amount Paid: ₹${amountPaid || 0}, Previous Outstanding: ₹${oldTotalOutstanding}, Current Outstanding: ₹${remainingDue || 0}, Total Outstanding: ₹${oldTotalOutstanding + (remainingDue || 0)}.`,
       receiptNumber: receiptNumber,
       transactionId: paymentId ? String(paymentId) : '',
       oldAmount: oldPlan ? oldPlan.price : 0,
       newAmount: plan.price,
       remainingDue: remainingDue || 0,
-      paymentMethod: paymentMethod || ''
+      paymentMethod: paymentMethod || '',
+      originalPrice: planPriceVal,
+      discount: discountVal,
+      finalPayable: finalPayableVal,
+      previousOutstanding: oldTotalOutstanding,
+      currentOutstanding: remainingDue || 0,
+      totalOutstanding: oldTotalOutstanding + (remainingDue || 0)
     });
 
     // Generate WhatsApp renewal receipt link
@@ -1207,12 +1225,19 @@ router.post('/:id/renew', async (req: AuthenticatedRequest, res: Response) => {
     const gymName = owner?.branding?.gymName || owner?.gymName || 'GymLedger';
     const cleanPhone = member.phone.replace(/\D/g, '');
     const to = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
+    
     const msg = `Hello ${member.name},\n\nYour membership at ${gymName} has been successfully renewed!\n\n` +
       `- Plan: ${plan.name}\n` +
       `- Duration: ${plan.durationMonths} Months\n` +
-      `- Expiry Date: ${member.membershipEnd.toLocaleDateString('en-IN')}\n` +
+      `- Expiry Date: ${member.membershipEnd.toLocaleDateString('en-IN')}\n\n` +
+      `*Receipt Details:*\n` +
+      `- Original Plan Price: ₹${planPriceVal}\n` +
+      `- Discount Given: ₹${discountVal}\n` +
+      `- Final Payable Amount: ₹${finalPayableVal}\n` +
       `- Amount Paid: ₹${amountPaid || 0}\n` +
-      `- Balance Due: ₹${remainingDue || 0}\n\n` +
+      `- Previous Outstanding: ₹${oldTotalOutstanding}\n` +
+      `- Current Membership Due: ₹${remainingDue || 0}\n` +
+      `- Total Outstanding Due: ₹${oldTotalOutstanding + (remainingDue || 0)}\n\n` +
       `Thank you for working out with us!`;
     
     const whatsappUrl = `https://wa.me/${to}?text=${encodeURIComponent(msg)}`;
