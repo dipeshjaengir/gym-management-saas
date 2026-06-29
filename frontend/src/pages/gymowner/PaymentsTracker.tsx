@@ -21,6 +21,7 @@ interface Member {
   name: string;
   phone: string;
   remainingAmount: number;
+  previousOutstanding?: number;
 }
 
 interface Payment {
@@ -358,14 +359,14 @@ export const PaymentsTracker: React.FC = () => {
                   onChange={(e) => {
                     setSelectedMemberId(e.target.value);
                     const memberObj = members.find((m) => m._id === e.target.value);
-                    if (memberObj) setAmount(memberObj.remainingAmount);
+                    if (memberObj) setAmount(memberObj.remainingAmount + (memberObj.previousOutstanding || 0));
                   }}
                   className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
                 >
                   <option value="">-- Choose Member with Dues --</option>
-                  {members.map((m) => (
+                  {members.filter(m => (m.remainingAmount + (m.previousOutstanding || 0)) > 0).map((m) => (
                     <option key={m._id} value={m._id}>
-                      {m.name} (Pending: ₹{m.remainingAmount})
+                      {m.name} (Pending: ₹{m.remainingAmount + (m.previousOutstanding || 0)})
                     </option>
                   ))}
                 </select>

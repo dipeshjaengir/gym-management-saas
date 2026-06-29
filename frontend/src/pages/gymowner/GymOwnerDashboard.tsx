@@ -682,10 +682,10 @@ export const GymOwnerDashboard: React.FC = () => {
         <div className="p-6 rounded-3xl bg-card border shadow-sm space-y-4 flex flex-col">
           <div className="flex items-center justify-between border-b pb-3 shrink-0">
             <h3 className="font-bold text-xs sm:text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <Clock className="w-4 h-4 text-primary" /> Membership Expiries (Next 7 Days)
+              <Clock className="w-4 h-4 text-primary" /> Membership Expiries &amp; Overdues
             </h3>
             <span className="text-[10px] bg-primary/10 text-primary px-2.5 py-0.5 rounded-full font-bold uppercase">
-              {reminders.filter(r => r.type !== 'due').length} Expiring
+              {reminders.filter(r => r.type !== 'due').length} Alerts
             </span>
           </div>
 
@@ -695,7 +695,7 @@ export const GymOwnerDashboard: React.FC = () => {
             </div>
           ) : reminders.filter(r => r.type !== 'due').length === 0 ? (
             <div className="flex items-center justify-center py-12 flex-grow border border-dashed rounded-2xl bg-muted/5">
-              <p className="text-center text-xs text-muted-foreground">No memberships expiring within the next 7 days.</p>
+              <p className="text-center text-xs text-muted-foreground">No expiring or expired memberships tracked.</p>
             </div>
           ) : (
             <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1 flex-grow">
@@ -715,8 +715,18 @@ export const GymOwnerDashboard: React.FC = () => {
                       <div className="text-[10px] text-muted-foreground">
                         Plan: <span className="font-semibold text-foreground">{rem.member?.planId?.name || 'General Plan'}</span> | Expiry: <span className="font-semibold text-foreground">{new Date(rem.member?.membershipEnd).toLocaleDateString('en-IN')}</span>
                       </div>
-                      <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 uppercase tracking-wide">
-                        Remaining: {rem.daysDiff} Days
+                      <div className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold border uppercase tracking-wide ${
+                        rem.daysDiff < 0
+                          ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25 font-extrabold'
+                          : rem.daysDiff === 0
+                          ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30 font-black animate-pulse'
+                          : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                      }`}>
+                        {rem.daysDiff < 0
+                          ? `Expired ${Math.abs(rem.daysDiff)} Days Ago`
+                          : rem.daysDiff === 0
+                          ? 'Expires Today'
+                          : `Remaining: ${rem.daysDiff} Days`}
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">

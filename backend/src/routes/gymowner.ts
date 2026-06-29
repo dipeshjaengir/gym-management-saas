@@ -85,28 +85,30 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
     const oneDay = 24 * 60 * 60 * 1000;
 
     members.forEach(member => {
-      const end = new Date(member.membershipEnd);
       const join = new Date(member.joiningDate);
       
-      const isExpired = end < todayStart;
-      
-      if (isExpired) {
-        expiredMembers++;
-        alreadyExpiredCount++;
-      } else {
-        activeMembers++;
+      if (member.membershipEnd) {
+        const end = new Date(member.membershipEnd);
+        const isExpired = end < todayStart;
         
-        const diffTime = end.getTime() - todayStart.getTime();
-        const diffDays = Math.ceil(diffTime / oneDay);
-        
-        if (diffDays === 0) {
-          expiringTodayCount++;
-        } else if (diffDays >= 1 && diffDays <= 3) {
-          expiringWithin3DaysCount++;
-        } else if (diffDays >= 4 && diffDays <= 7) {
-          expiringWithin7DaysCount++;
-        } else if (diffDays >= 8 && diffDays <= 15) {
-          expiringWithin15DaysCount++;
+        if (isExpired) {
+          expiredMembers++;
+          alreadyExpiredCount++;
+        } else {
+          activeMembers++;
+          
+          const diffTime = end.getTime() - todayStart.getTime();
+          const diffDays = Math.ceil(diffTime / oneDay);
+          
+          if (diffDays === 0) {
+            expiringTodayCount++;
+          } else if (diffDays >= 1 && diffDays <= 3) {
+            expiringWithin3DaysCount++;
+          } else if (diffDays >= 4 && diffDays <= 7) {
+            expiringWithin7DaysCount++;
+          } else if (diffDays >= 8 && diffDays <= 15) {
+            expiringWithin15DaysCount++;
+          }
         }
       }
 
@@ -124,8 +126,9 @@ router.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
       }
 
       // Check Outstanding Dues
-      if (member.remainingAmount > 0) {
-        totalPendingAmount += member.remainingAmount;
+      const memberTotalOutstanding = (member.remainingAmount || 0) + (member.previousOutstanding || 0);
+      if (memberTotalOutstanding > 0) {
+        totalPendingAmount += memberTotalOutstanding;
         outstandingDuesCount++;
       }
     });

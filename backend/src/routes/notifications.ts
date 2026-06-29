@@ -98,6 +98,8 @@ router.get('/reminders', async (req: AuthenticatedRequest, res: Response) => {
     }[] = [];
 
     for (const m of members) {
+      if (!m.membershipEnd) continue;
+
       const expiry = new Date(m.membershipEnd);
       const diffTime = expiry.getTime() - todayStart.getTime();
       const diffDays = Math.ceil(diffTime / oneDay);
@@ -106,27 +108,40 @@ router.get('/reminders', async (req: AuthenticatedRequest, res: Response) => {
       const gymName = owner?.branding?.gymName || owner?.gymName || 'GymLedger';
       const to = m.phone;
 
-      if (diffDays >= 0 && diffDays <= 7) {
-        const typeLabel = diffDays === 0 ? 'today' : (diffDays === 1 ? '1_day' : (diffDays === 3 ? '3_days' : (diffDays === 7 ? '7_days' : 'expiry_alert')));
-        const msg = diffDays === 0
-          ? `Hello ${m.name}\n\nYour membership at ${gymName} expires today! Please renew at the front desk to continue your workouts.\n\nThank you.`
-          : `Hello ${m.name}\n\nFriendly reminder from ${gymName}. Your membership is expiring in ${diffDays} days (on ${expiry.toLocaleDateString('en-IN')}). Please renew soon!\n\nThank you.`;
+      if (diffDays <= 7) {
+        let typeLabel = 'expiry_alert';
+        let msg = '';
+        let message = '';
+        if (diffDays < 0) {
+          typeLabel = 'expired';
+          msg = `Hello ${m.name}\n\nFriendly reminder from ${gymName}. Your membership expired ${Math.abs(diffDays)} days ago (on ${expiry.toLocaleDateString('en-IN')}). Please renew at the front desk to continue your workouts.\n\nThank you.`;
+          message = `Expired ${Math.abs(diffDays)} Days Ago (${expiry.toLocaleDateString('en-IN')})`;
+        } else if (diffDays === 0) {
+          typeLabel = 'today';
+          msg = `Hello ${m.name}\n\nYour membership at ${gymName} expires today! Please renew at the front desk to continue your workouts.\n\nThank you.`;
+          message = `Expires Today (${expiry.toLocaleDateString('en-IN')})`;
+        } else {
+          typeLabel = diffDays === 1 ? '1_day' : (diffDays === 3 ? '3_days' : (diffDays === 7 ? '7_days' : 'expiry_alert'));
+          msg = `Hello ${m.name}\n\nFriendly reminder from ${gymName}. Your membership is expiring in ${diffDays} days (on ${expiry.toLocaleDateString('en-IN')}). Please renew soon!\n\nThank you.`;
+          message = `Expiring in ${diffDays} Days (${expiry.toLocaleDateString('en-IN')})`;
+        }
 
         reminders.push({
           type: typeLabel as any,
           member: m,
           daysDiff: diffDays,
-          message: diffDays === 0 ? `Expires Today (${expiry.toLocaleDateString('en-IN')})` : `Expiring in ${diffDays} Days (${expiry.toLocaleDateString('en-IN')})`,
+          message,
           whatsappUrl: `https://wa.me/${to.replace(/\D/g, '').length === 10 ? `91${to.replace(/\D/g, '')}` : to.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
         });
       }
 
-      if (m.remainingAmount > 0) {
-        const msg = `Hello ${m.name}\n\nPayment Reminder from ${gymName}.\n\nYou have an outstanding due of ₹${m.remainingAmount} for your membership plan (${m.planId?.name || 'General'}). Please clear it as soon as possible.\n\nThank you.`;
+      const totalOutstandingVal = (m.remainingAmount || 0) + (m.previousOutstanding || 0);
+      if (totalOutstandingVal > 0) {
+        const msg = `Hello ${m.name}\n\nPayment Reminder from ${gymName}.\n\nYou have a total outstanding due of ₹${totalOutstandingVal} for your membership. Please clear it as soon as possible.\n\nThank you.`;
         reminders.push({
           type: 'due',
           member: m,
-          message: `Outstanding Dues: ₹${m.remainingAmount}`,
+          message: `Outstanding Dues: ₹${totalOutstandingVal}`,
           whatsappUrl: `https://wa.me/${to.replace(/\D/g, '').length === 10 ? `91${to.replace(/\D/g, '')}` : to.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`
         });
       }

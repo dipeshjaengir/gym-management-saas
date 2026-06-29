@@ -28,6 +28,8 @@ interface Member {
   membershipStart: string;
   membershipEnd: string;
   lastPaymentDate?: string;
+  previousOutstanding?: number;
+  discount?: number;
   planId?: {
     name: string;
     price: number;
@@ -69,11 +71,11 @@ export const PendingRecoveryDashboard: React.FC = () => {
     try {
       // 1. Fetch all members and filter client-side to find outstanding dues
       const allMembers = await api.get('/members');
-      const duesOnly = allMembers.filter((m: Member) => m.remainingAmount > 0);
+      const duesOnly = allMembers.filter((m: Member) => (m.remainingAmount + (m.previousOutstanding || 0)) > 0);
       setMembers(duesOnly);
 
       // 2. Calculate metrics client-side from duesOnly to prevent backend mismatches
-      const totalPendingAmount = duesOnly.reduce((sum: number, m: Member) => sum + m.remainingAmount, 0);
+      const totalPendingAmount = duesOnly.reduce((sum: number, m: Member) => sum + m.remainingAmount + (m.previousOutstanding || 0), 0);
       const outstandingDuesCount = duesOnly.length;
 
       const today = new Date();
@@ -86,6 +88,7 @@ export const PendingRecoveryDashboard: React.FC = () => {
       let alreadyExpired = 0;
 
       duesOnly.forEach((m: Member) => {
+        if (!m.membershipEnd) return;
         const expiry = new Date(m.membershipEnd);
         if (expiry < todayStart) {
           alreadyExpired++;
@@ -114,11 +117,12 @@ export const PendingRecoveryDashboard: React.FC = () => {
     const formattedPhone = member.phone.replace(/[^0-9]/g, '');
     const gymName = user?.branding?.gymName || user?.gymName || 'GymLedger';
     const planName = member.planId?.name || 'Gym Membership';
+    const totalDues = member.remainingAmount + (member.previousOutstanding || 0);
     
     // Construct prefilled message for recovery
     const text = encodeURIComponent(
       `Hello ${member.name}, this is a friendly reminder from ${gymName} Gym.\n\n` +
-      `Your account has outstanding balance dues of ₹${member.remainingAmount} for the ${planName} plan.\n` +
+      `Your account has outstanding balance dues of ₹${totalDues} for the ${planName} plan.\n` +
       `Please settle the pending amount at the gym desk or online to keep your access active. Thank you!`
     );
 
@@ -156,13 +160,17 @@ export const PendingRecoveryDashboard: React.FC = () => {
       'Member Name': m.name,
       'Phone': m.phone,
       'Email': m.email || 'N/A',
-      'Remaining Due': m.remainingAmount,
-      'Total Paid': m.amountPaid,
-      'Plan Price': m.planId?.price || 0,
+      'Original Price': m.planId?.price || 0,
+      'Discount': m.discount || 0,
+      'Final Payable': (m.planId?.price || 0) - (m.discount || 0),
+      'Amount Paid': m.amountPaid,
+      'Current Membership Due': m.remainingAmount,
+      'Previous Outstanding': m.previousOutstanding || 0,
+      'Total Outstanding': m.remainingAmount + (m.previousOutstanding || 0),
       'Plan Name': m.planId?.name || 'N/A',
-      'Membership Expiry': new Date(m.membershipEnd).toLocaleDateString('en-IN'),
+      'Membership Expiry': m.membershipEnd ? new Date(m.membershipEnd).toLocaleDateString('en-IN') : 'N/A',
       'Last Payment Date': m.lastPaymentDate ? new Date(m.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A',
-      'Days Overdue': getDaysOverdue(m.membershipEnd)
+      'Days Overdue': m.membershipEnd ? getDaysOverdue(m.membershipEnd) : 0
     }));
     exportToCSV(data, 'pending_dues_recovery');
   };
@@ -290,17 +298,21 @@ export const PendingRecoveryDashboard: React.FC = () => {
                   >
                     {member.name}
                   </button>
-                  <span className="text-xs font-extrabold text-rose-400">Dues: ₹{member.remainingAmount}</span>
+                  <span className="text-xs font-black text-rose-500">Total Due: ₹{member.remainingAmount + (member.previousOutstanding || 0)}</span>
                 </div>
                 
                 <div className="space-y-1 text-xs text-muted-foreground">
                   <div>Phone: <span className="text-foreground">{member.phone}</span></div>
                   <div>Plan: <span className="text-foreground">{member.planId?.name || 'General Membership'}</span></div>
-                  <div>Price: <span className="text-foreground">₹{member.planId?.price || (member.amountPaid + member.remainingAmount)}</span></div>
-                  <div>Paid: <span className="text-foreground">₹{member.amountPaid}</span></div>
+                  <div>Original Price: <span className="text-foreground">₹{member.planId?.price || 0}</span></div>
+                  <div>Discount: <span className="text-amber-500">₹{member.discount || 0}</span></div>
+                  <div>Final Payable: <span className="text-foreground">₹{(member.planId?.price || 0) - (member.discount || 0)}</span></div>
+                  <div>Paid (Current): <span className="text-foreground">₹{member.amountPaid}</span></div>
+                  <div>Current Plan Due: <span className="text-rose-400">₹{member.remainingAmount}</span></div>
+                  <div>Previous Due: <span className="text-rose-400">₹{member.previousOutstanding || 0}</span></div>
                   <div>Last Paid: <span className="text-foreground">{member.lastPaymentDate ? new Date(member.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A'}</span></div>
-                  <div>Ends: <span className="text-foreground">{new Date(member.membershipEnd).toLocaleDateString('en-IN')}</span></div>
-                  <div>Days Overdue: <span className="text-rose-400 font-bold">{getDaysOverdue(member.membershipEnd)} Days</span></div>
+                  <div>Ends: <span className="text-foreground">{member.membershipEnd ? new Date(member.membershipEnd).toLocaleDateString('en-IN') : 'N/A'}</span></div>
+                  <div>Days Overdue: <span className="text-rose-400 font-bold">{member.membershipEnd ? `${getDaysOverdue(member.membershipEnd)} Days` : 'N/A'}</span></div>
                 </div>
 
                 <div className="pt-2">
@@ -322,11 +334,11 @@ export const PendingRecoveryDashboard: React.FC = () => {
                 <tr className="border-b bg-muted/30">
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Member Name</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Phone Number</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Membership Plan</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Total Plan Price</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Plan Name</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Original / Disc / Payable</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Amount Paid</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Remaining Due</th>
-                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Last Payment Date</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Plan Due / Prev Due</th>
+                  <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Total Outstanding</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase">Days Overdue</th>
                   <th className="p-4 text-xs font-semibold text-muted-foreground uppercase text-right">Actions</th>
                 </tr>
@@ -344,14 +356,18 @@ export const PendingRecoveryDashboard: React.FC = () => {
                     </td>
                     <td className="p-4">{member.phone}</td>
                     <td className="p-4 font-semibold">{member.planId?.name || 'Custom Plan'}</td>
-                    <td className="p-4">₹{member.planId?.price || (member.amountPaid + member.remainingAmount)}</td>
+                    <td className="p-4">
+                      <span className="font-semibold">₹{member.planId?.price || 0}</span> / <span className="text-amber-500 font-semibold">₹{member.discount || 0}</span> = <span className="font-bold">₹{(member.planId?.price || 0) - (member.discount || 0)}</span>
+                    </td>
                     <td className="p-4">₹{member.amountPaid}</td>
-                    <td className="p-4 font-bold text-rose-400">₹{member.remainingAmount}</td>
-                    <td className="p-4 text-xs text-muted-foreground">
-                      {member.lastPaymentDate ? new Date(member.lastPaymentDate).toLocaleDateString('en-IN') : 'N/A'}
+                    <td className="p-4 font-semibold text-rose-500/80 dark:text-rose-400/80">
+                      ₹{member.remainingAmount} / ₹{member.previousOutstanding || 0}
+                    </td>
+                    <td className="p-4 font-bold text-rose-500">
+                      ₹{member.remainingAmount + (member.previousOutstanding || 0)}
                     </td>
                     <td className="p-4 text-xs font-bold text-rose-400">
-                      {getDaysOverdue(member.membershipEnd)} Days
+                      {member.membershipEnd ? `${getDaysOverdue(member.membershipEnd)} Days` : 'N/A'}
                     </td>
                     <td className="p-4 text-right">
                       <button

@@ -56,6 +56,7 @@ interface Member {
   isArchived: boolean;
   emergencyContact?: string;
   notes?: string;
+  previousOutstanding?: number;
 }
 
 interface ProgressLog {
@@ -1252,7 +1253,7 @@ export const MemberManagement: React.FC = () => {
         'Plan Name': m.planId?.name || 'Deleted Plan',
         'Start Date': new Date(m.membershipStart).toLocaleDateString('en-IN'),
         'Expiry Date': new Date(m.membershipEnd).toLocaleDateString('en-IN'),
-        'Outstanding Dues (INR)': m.remainingAmount,
+        'Outstanding Dues (INR)': m.remainingAmount + (m.previousOutstanding || 0),
         'Membership Status': !isExpired ? 'Active' : 'Expired',
         'Access QR Code': m.qrCode
       };
@@ -1375,7 +1376,7 @@ export const MemberManagement: React.FC = () => {
                   <div className="space-y-1 text-xs text-muted-foreground">
                     <div>Phone: <span className="text-foreground">{member.phone}</span></div>
                     <div>Plan: <span className="text-foreground">{member.planId?.name || 'Deleted Plan'}</span></div>
-                    <div>Remaining: <span className="text-rose-400 font-bold">₹{member.remainingAmount}</span></div>
+                    <div>Remaining: <span className="text-rose-400 font-bold">₹{member.remainingAmount + (member.previousOutstanding || 0)}</span></div>
                   </div>
 
                   <div className="flex gap-2 pt-2 border-t">
@@ -1448,7 +1449,7 @@ export const MemberManagement: React.FC = () => {
                       </td>
                       <td className="p-4 font-semibold text-primary">{member.planId?.name || 'Deleted Plan'}</td>
                       <td className="p-4">
-                        <div className="font-bold text-rose-400">₹{member.remainingAmount} Balance</div>
+                        <div className="font-bold text-rose-400">₹{member.remainingAmount + (member.previousOutstanding || 0)} Balance</div>
                         <div className="text-xs text-muted-foreground">Expires {new Date(member.membershipEnd).toLocaleDateString('en-IN')}</div>
                       </td>
                       <td className="p-4">
