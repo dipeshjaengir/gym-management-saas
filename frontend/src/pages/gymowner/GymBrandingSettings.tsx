@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { Settings, Save, Dumbbell, Globe, Phone, Palette } from 'lucide-react';
+import { Settings, Save, Dumbbell, Globe, Phone, Palette, Info, CheckCircle2, XCircle } from 'lucide-react';
+import { APP_VERSION } from '../../utils/version';
 
 export const GymBrandingSettings: React.FC = () => {
   const { user, updateUserBranding } = useAuth();
@@ -14,6 +15,9 @@ export const GymBrandingSettings: React.FC = () => {
   const [contactNumber, setContactNumber] = useState('');
   const [whatsAppNumber, setWhatsAppNumber] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const [backendConnected, setBackendConnected] = useState<boolean | null>(null);
+  const [dbConnected, setDbConnected] = useState<boolean | null>(null);
 
   useEffect(() => {
     async function loadBranding() {
@@ -29,6 +33,23 @@ export const GymBrandingSettings: React.FC = () => {
       }
     }
     loadBranding();
+
+    async function checkHealth() {
+      try {
+        const health = await api.get('/health');
+        setBackendConnected(health.status === 'healthy');
+      } catch (err) {
+        setBackendConnected(false);
+      }
+
+      try {
+        const dbHealth = await api.get('/health/db');
+        setDbConnected(dbHealth.status === 'healthy');
+      } catch (err) {
+        setDbConnected(false);
+      }
+    }
+    checkHealth();
   }, [showToast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,7 +79,7 @@ export const GymBrandingSettings: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-4xl">
       {/* Title */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Gym Branding &amp; Profile</h1>
@@ -140,35 +161,97 @@ export const GymBrandingSettings: React.FC = () => {
           </form>
         </div>
 
-        {/* Live Preview Panel */}
-        <div className="p-6 rounded-2xl bg-card border shadow-sm flex flex-col items-center justify-center text-center space-y-4">
-          <h2 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 self-start">
-            <Palette className="w-3.5 h-3.5 text-primary" /> Live Branding Preview
-          </h2>
+        {/* Live Preview Panel & About App Panel */}
+        <div className="space-y-6 md:col-span-1">
+          <div className="p-6 rounded-2xl bg-card border shadow-sm flex flex-col items-center justify-center text-center space-y-4">
+            <h2 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 self-start">
+              <Palette className="w-3.5 h-3.5 text-primary" /> Live Branding Preview
+            </h2>
 
-          <div className="w-20 h-20 rounded-full border bg-background/50 flex items-center justify-center overflow-hidden">
-            {gymLogo ? (
-              <img src={gymLogo} alt="Gym Logo" className="w-full h-full object-cover" />
-            ) : (
-              <Dumbbell className="w-8 h-8 text-primary" />
-            )}
-          </div>
-
-          <div className="space-y-1">
-            <div className="font-bold text-base text-foreground">{gymName || 'Iron Forge Gym'}</div>
-            <div className="text-[10px] text-muted-foreground font-medium max-w-xs">{address || 'No address set'}</div>
-          </div>
-
-          <div className="w-full pt-4 border-t space-y-2 text-xs text-left">
-            <div className="flex items-center gap-2">
-              <Phone className="w-3.5 h-3.5 text-primary" />
-              <span className="text-muted-foreground">Office:</span>
-              <span className="font-semibold text-foreground">{contactNumber || 'N/A'}</span>
+            <div className="w-20 h-20 rounded-full border bg-background/50 flex items-center justify-center overflow-hidden">
+              {gymLogo ? (
+                <img src={gymLogo} alt="Gym Logo" className="w-full h-full object-cover" />
+              ) : (
+                <Dumbbell className="w-8 h-8 text-primary" />
+              )}
             </div>
-            <div className="flex items-center gap-2">
-              <Globe className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="text-muted-foreground">WhatsApp:</span>
-              <span className="font-semibold text-foreground">{whatsAppNumber || 'N/A'}</span>
+
+            <div className="space-y-1">
+              <div className="font-bold text-base text-foreground">{gymName || 'Iron Forge Gym'}</div>
+              <div className="text-[10px] text-muted-foreground font-medium max-w-xs">{address || 'No address set'}</div>
+            </div>
+
+            <div className="w-full pt-4 border-t space-y-2 text-xs text-left">
+              <div className="flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5 text-primary" />
+                <span className="text-muted-foreground">Office:</span>
+                <span className="font-semibold text-foreground">{contactNumber || 'N/A'}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="text-muted-foreground">WhatsApp:</span>
+                <span className="font-semibold text-foreground">{whatsAppNumber || 'N/A'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* About App Panel */}
+          <div className="p-6 rounded-2xl bg-card border shadow-sm flex flex-col space-y-4">
+            <h2 className="font-semibold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 text-primary" /> About GymLedger App
+            </h2>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <div className="font-bold text-foreground">GymLedger Android</div>
+                <div className="text-muted-foreground flex justify-between mt-1">
+                  <span>Version:</span>
+                  <span className="font-semibold text-foreground">{APP_VERSION.version}</span>
+                </div>
+                <div className="text-muted-foreground flex justify-between mt-0.5">
+                  <span>Build:</span>
+                  <span className="font-semibold text-foreground">{APP_VERSION.build}</span>
+                </div>
+              </div>
+
+              <div className="border-t border-border/60 pt-2.5">
+                <div className="text-muted-foreground flex justify-between">
+                  <span>Website Version:</span>
+                  <span className="font-semibold text-foreground">{APP_VERSION.websiteVersion}</span>
+                </div>
+                <div className="text-muted-foreground flex justify-between mt-0.5">
+                  <span>API Version:</span>
+                  <span className="font-semibold text-foreground">{APP_VERSION.apiVersion}</span>
+                </div>
+              </div>
+
+              <div className="border-t border-border/60 pt-2.5 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Backend Status:</span>
+                  {backendConnected === null ? (
+                    <span className="text-muted-foreground animate-pulse text-[10px]">Checking...</span>
+                  ) : backendConnected ? (
+                    <span className="font-semibold text-emerald-400 flex items-center gap-0.5 text-[10px]">Connected <CheckCircle2 className="w-3 h-3 text-emerald-400" /></span>
+                  ) : (
+                    <span className="font-semibold text-rose-500 flex items-center gap-0.5 text-[10px]">Disconnected <XCircle className="w-3 h-3 text-rose-500" /></span>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Database Status:</span>
+                  {dbConnected === null ? (
+                    <span className="text-muted-foreground animate-pulse text-[10px]">Checking...</span>
+                  ) : dbConnected ? (
+                    <span className="font-semibold text-emerald-400 flex items-center gap-0.5 text-[10px]">Connected <CheckCircle2 className="w-3 h-3 text-emerald-400" /></span>
+                  ) : (
+                    <span className="font-semibold text-rose-500 flex items-center gap-0.5 text-[10px]">Disconnected <XCircle className="w-3 h-3 text-rose-500" /></span>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-t border-border/60 pt-2.5 text-[10px] text-muted-foreground text-center">
+                {APP_VERSION.copyright} GymLedger
+              </div>
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
 import { Users, PieChart, FileText, Settings } from 'lucide-react';
+import { APP_VERSION } from '../utils/version';
 
 export const Layout: React.FC = () => {
   const { isAuthenticated, loading, user } = useAuth();
@@ -59,12 +60,12 @@ export const Layout: React.FC = () => {
             <Outlet />
           </div>
           <footer className="mt-8 pt-4 border-t border-border/40 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1">
-            <p>&copy; 2026 GymLedger SaaS Gym Management.</p>
+            <p>{APP_VERSION.copyright} SaaS Gym Management.</p>
             <p>
               Designed & Developed by{' '}
               <span className="text-[#F59E0B] font-semibold">Dipesh Jangir</span>
             </p>
-            <p className="text-[10px] opacity-75 mt-0.5">Version 1.0</p>
+            <p className="text-[10px] opacity-75 mt-0.5">Version {APP_VERSION.version} (Build {APP_VERSION.build})</p>
           </footer>
         </main>
       </div>

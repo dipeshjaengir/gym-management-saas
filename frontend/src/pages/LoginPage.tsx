@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { Eye, EyeOff, Lock, Mail, PhoneCall } from 'lucide-react';
 import { Logo } from '../components/Logo';
+import { APP_VERSION } from '../utils/version';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -163,12 +164,12 @@ export const LoginPage: React.FC = () => {
         )}
       </div>
       <footer className="mt-8 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1">
-        <p>&copy; 2026 GymLedger SaaS Gym Management.</p>
+        <p>{APP_VERSION.copyright} SaaS Gym Management.</p>
         <p>
           Designed & Developed by{' '}
           <span className="text-[#F59E0B] font-semibold">Dipesh Jangir</span>
         </p>
-        <p className="text-[10px] opacity-75 mt-0.5">Version 1.0</p>
+        <p className="text-[10px] opacity-75 mt-0.5">Version {APP_VERSION.version} (Build {APP_VERSION.build})</p>
       </footer>
     </div>
   );

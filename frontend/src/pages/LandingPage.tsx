@@ -6,6 +6,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import { ResponsiveModal } from '../components/ResponsiveModal';
+import { APP_VERSION, mapPlanToEnum } from '../utils/version';
 import {
 
   Dumbbell,
@@ -118,27 +119,40 @@ export const LandingPage: React.FC = () => {
       showToast('Please fill out all fields.', 'error');
       return;
     }
+    const phoneRegex = /^\d{10}$/;
+    if (!phoneRegex.test(demoPhone)) {
+      showToast('Phone number must be exactly 10 digits.', 'error');
+      return;
+    }
+
+    const selectedPlanObj = plans.find(p => p.id === demoPlan);
+    const interestedPlanEnum = selectedPlanObj ? mapPlanToEnum(selectedPlanObj.durationMonths) : undefined;
+
     setSubmittingDemo(true);
     try {
       const res = await api.post('/public/leads', {
         name: demoName,
         phone: demoPhone,
         city: demoCity,
-        interestedPlan: demoPlan || undefined,
+        interestedPlan: interestedPlanEnum || undefined,
         source: 'website'
       });
       showToast(res.message || 'Demo request logged!', 'success');
       
-      const planObj = plans.find(p => p.id === demoPlan);
-      const planName = planObj ? planObj.name : 'Gym Management SaaS';
       const text = encodeURIComponent(`Hello, I want to book a live demo for GymLedger Gym SaaS. My Gym is located in ${demoCity}.`);
       window.open(`https://wa.me/917742111581?text=${text}`, '_blank');
       
       setDemoName('');
       setDemoPhone('');
       setDemoCity('');
+      setDemoPlan('');
     } catch (err: any) {
-      showToast(err.message || 'Failed to submit demo request.', 'error');
+      if (err.data?.errors && Array.isArray(err.data.errors)) {
+        const msg = err.data.errors.map((e: any) => `${e.field}: ${e.message}`).join(', ');
+        showToast(`Validation Error: ${msg}`, 'error');
+      } else {
+        showToast(err.message || 'Failed to submit demo request.', 'error');
+      }
     } finally {
       setSubmittingDemo(false);
     }
@@ -163,6 +177,22 @@ export const LandingPage: React.FC = () => {
     }
     if (trialPassword.length < 6) {
       showToast('Password must be at least 6 characters long.', 'error');
+      return;
+    }
+    if (!/[a-z]/.test(trialPassword)) {
+      showToast('Password must contain at least one lowercase letter.', 'error');
+      return;
+    }
+    if (!/[A-Z]/.test(trialPassword)) {
+      showToast('Password must contain at least one uppercase letter.', 'error');
+      return;
+    }
+    if (!/[0-9]/.test(trialPassword)) {
+      showToast('Password must contain at least one number.', 'error');
+      return;
+    }
+    if (!/[^a-zA-Z0-9]/.test(trialPassword)) {
+      showToast('Password must contain at least one special character.', 'error');
       return;
     }
     if (trialPassword !== trialConfirmPassword) {
@@ -193,7 +223,12 @@ export const LandingPage: React.FC = () => {
       setTrialPassword('');
       setTrialConfirmPassword('');
     } catch (err: any) {
-      showToast(err.message || 'Failed to sign up for free trial.', 'error');
+      if (err.data?.errors && Array.isArray(err.data.errors)) {
+        const msg = err.data.errors.map((e: any) => `${e.field}: ${e.message}`).join(', ');
+        showToast(`Validation Error: ${msg}`, 'error');
+      } else {
+        showToast(err.message || 'Failed to submit free trial request.', 'error');
+      }
     } finally {
       setSubmittingTrial(false);
     }
@@ -273,6 +308,9 @@ export const LandingPage: React.FC = () => {
             <a href="#interactive-tour" className="hover:text-primary transition-all">Guided Tour</a>
             <a href="#pricing" className="hover:text-primary transition-all">Pricing</a>
             <a href="#faq" className="hover:text-primary transition-all">FAQ</a>
+            <button onClick={() => navigate('/download-app')} className="hover:text-primary transition-all font-medium cursor-pointer">
+              Download App
+            </button>
           </nav>
 
           <div className="flex items-center gap-3">
@@ -818,6 +856,7 @@ export const LandingPage: React.FC = () => {
               <li><a href="#features" className="hover:text-primary transition-colors">Core Console</a></li>
               <li><a href="#interactive-tour" className="hover:text-primary transition-colors">Guided Tour</a></li>
               <li><a href="#pricing" className="hover:text-primary transition-colors">Pricing Options</a></li>
+              <li><button onClick={() => navigate('/download-app')} className="hover:text-primary transition-colors cursor-pointer text-left">Android App</button></li>
             </ul>
           </div>
           <div className="space-y-3">
@@ -858,12 +897,12 @@ export const LandingPage: React.FC = () => {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1 border-t border-border pt-6">
-          <p>&copy; 2026 GymLedger SaaS Gym Management.</p>
+          <p>{APP_VERSION.copyright} SaaS Gym Management.</p>
           <p>
             Designed & Developed by{' '}
             <span className="text-[#F59E0B] font-semibold">Dipesh Jangir</span>
           </p>
-          <p className="text-[10px] opacity-75 mt-0.5">Version 1.0</p>
+          <p className="text-[10px] opacity-75 mt-0.5">Version {APP_VERSION.version} (Build {APP_VERSION.build})</p>
         </div>
       </footer>
 
@@ -955,209 +994,215 @@ export const LandingPage: React.FC = () => {
       </ResponsiveModal>
 
       {/* Free Trial Signup Modal */}
-      <ResponsiveModal
-        isOpen={showTrialModal}
-        onClose={() => setShowTrialModal(false)}
-        title="Start 7-Day Free Trial"
-        subtitle="Get instant access to your gym console. No credit card required."
-        maxWidthClass="max-w-md"
-        footer={
-          <button
-            type="submit"
-            form="trial-signup-form"
-            disabled={submittingTrial}
-            className="w-full h-11 rounded-xl font-bold bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer disabled:opacity-50"
-          >
-            {submittingTrial ? 'Configuring Portal...' : 'Start Trial Now'} <ArrowRight className="w-4 h-4" />
-          </button>
-        }
-      >
-        <form id="trial-signup-form" onSubmit={handleTrialSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym / Studio Name</label>
-            <input
-              type="text"
-              required
-              value={trialGymName}
-              onChange={(e) => setTrialGymName(e.target.value)}
-              placeholder="e.g. GymLedger Club"
-              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Name</label>
-            <input
-              type="text"
-              required
-              value={trialOwnerName}
-              onChange={(e) => setTrialOwnerName(e.target.value)}
-              placeholder="e.g. Rahul Sharma"
-              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Number (WhatsApp)</label>
-            <input
-              type="tel"
-              required
-              value={trialPhone}
-              onChange={(e) => setTrialPhone(e.target.value)}
-              placeholder="e.g. 9876543210"
-              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
-            <input
-              type="email"
-              required
-              value={trialEmail}
-              onChange={(e) => setTrialEmail(e.target.value)}
-              placeholder="e.g. contact@gymledger.com"
-              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Password</label>
-            <input
-              type="password"
-              required
-              value={trialPassword}
-              onChange={(e) => setTrialPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Confirm Password</label>
-            <input
-              type="password"
-              required
-              value={trialConfirmPassword}
-              onChange={(e) => setTrialConfirmPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-            />
-          </div>
-        </form>
-      </ResponsiveModal>
-
-      {/* Checkout Modal */}
-      <ResponsiveModal
-        isOpen={!!selectedCheckoutPlan}
-        onClose={() => {
-          setSelectedCheckoutPlan(null);
-          setCheckoutGymName('');
-          setCheckoutOwnerName('');
-          setCheckoutCoupon('');
-          setDiscountApplied(null);
-        }}
-        title="Purchase Plan via WhatsApp"
-        subtitle="Complete setup details to generate your purchase link."
-        maxWidthClass="max-w-md"
-        footer={
-          selectedCheckoutPlan && (
+      <form onSubmit={handleTrialSubmit}>
+        <ResponsiveModal
+          isOpen={showTrialModal}
+          onClose={() => setShowTrialModal(false)}
+          title="Start 7-Day Free Trial"
+          subtitle="Get instant access to your gym console. No credit card required."
+          maxWidthClass="max-w-md"
+          footer={
             <button
-              onClick={handleWhatsAppCheckout}
-              className="w-full h-11 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/95 text-xs text-center transition-all flex items-center justify-center gap-2 cursor-pointer"
+              type="submit"
+              disabled={submittingTrial}
+              className="w-full h-11 rounded-xl font-bold bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer disabled:opacity-50"
             >
-              Confirm &amp; Buy via WhatsApp <PhoneCall className="w-4 h-4" />
+              {submittingTrial ? 'Configuring Portal...' : 'Start Trial Now'} <ArrowRight className="w-4 h-4" />
             </button>
-          )
-        }
-      >
-        {selectedCheckoutPlan && (
+          }
+        >
           <div className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Name</label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym / Studio Name</label>
               <input
                 type="text"
                 required
-                value={checkoutGymName}
-                onChange={(e) => setCheckoutGymName(e.target.value)}
+                value={trialGymName}
+                onChange={(e) => setTrialGymName(e.target.value)}
                 placeholder="e.g. GymLedger Club"
                 className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Full Name</label>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Name</label>
               <input
                 type="text"
                 required
-                value={checkoutOwnerName}
-                onChange={(e) => setCheckoutOwnerName(e.target.value)}
+                value={trialOwnerName}
+                onChange={(e) => setTrialOwnerName(e.target.value)}
                 placeholder="e.g. Rahul Sharma"
                 className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Applied Coupon</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={checkoutCoupon}
-                  onChange={(e) => setCheckoutCoupon(e.target.value.toUpperCase())}
-                  placeholder="WELCOME10"
-                  className="flex-grow h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
-                />
-                <button
-                  type="button"
-                  onClick={handleValidateCoupon}
-                  disabled={validatingCoupon}
-                  className="px-4 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:bg-primary/90 cursor-pointer min-h-[44px]"
-                >
-                  {validatingCoupon ? '...' : 'Apply'}
-                </button>
-              </div>
-              {discountApplied && (
-                <p className="text-xs text-emerald-400 font-bold mt-1.5 animate-pulse">
-                  ✓ Coupon Applied! Discount: {discountApplied.discountType === 'percentage' ? `${discountApplied.discountValue}% OFF` : `₹${discountApplied.discountValue} OFF`}
-                </p>
-              )}
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Number (WhatsApp)</label>
+              <input
+                type="tel"
+                required
+                value={trialPhone}
+                onChange={(e) => setTrialPhone(e.target.value)}
+                placeholder="e.g. 9876543210"
+                className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+              />
             </div>
 
-            <div className="border-t border-muted/30 pt-4 space-y-2 text-xs">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Plan Price</span>
-                <span>₹{selectedCheckoutPlan.price}</span>
-              </div>
-              {discountApplied && (
-                <div className="flex justify-between text-xs text-emerald-400 font-medium animate-fade-in">
-                  <span>Discount</span>
-                  <span>
-                    -₹
-                    {discountApplied.discountType === 'percentage'
-                      ? Math.round(selectedCheckoutPlan.price * (discountApplied.discountValue / 100))
-                      : discountApplied.discountValue}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between font-bold text-sm text-foreground border-t border-muted/20 pt-2">
-                <span>Total Amount</span>
-                <span>
-                  ₹
-                  {discountApplied
-                    ? Math.max(
-                        0,
-                        selectedCheckoutPlan.price -
-                          (discountApplied.discountType === 'percentage'
-                            ? Math.round(selectedCheckoutPlan.price * (discountApplied.discountValue / 100))
-                            : discountApplied.discountValue)
-                      )
-                    : selectedCheckoutPlan.price}
-                </span>
-              </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
+              <input
+                type="email"
+                required
+                value={trialEmail}
+                onChange={(e) => setTrialEmail(e.target.value)}
+                placeholder="e.g. contact@gymledger.com"
+                className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Password</label>
+              <input
+                type="password"
+                required
+                value={trialPassword}
+                onChange={(e) => setTrialPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Password must be at least 6 characters and include a mix of uppercase, lowercase, numbers, and special characters.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Confirm Password</label>
+              <input
+                type="password"
+                required
+                value={trialConfirmPassword}
+                onChange={(e) => setTrialConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+              />
             </div>
           </div>
-        )}
-      </ResponsiveModal>
+        </ResponsiveModal>
+      </form>
+
+      {/* Checkout Modal */}
+      <form onSubmit={(e) => { e.preventDefault(); handleWhatsAppCheckout(); }}>
+        <ResponsiveModal
+          isOpen={!!selectedCheckoutPlan}
+          onClose={() => {
+            setSelectedCheckoutPlan(null);
+            setCheckoutGymName('');
+            setCheckoutOwnerName('');
+            setCheckoutCoupon('');
+            setDiscountApplied(null);
+          }}
+          title="Purchase Plan via WhatsApp"
+          subtitle="Complete setup details to generate your purchase link."
+          maxWidthClass="max-w-md"
+          footer={
+            selectedCheckoutPlan && (
+              <button
+                type="submit"
+                className="w-full h-11 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/95 text-xs text-center transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                Confirm &amp; Buy via WhatsApp <PhoneCall className="w-4 h-4" />
+              </button>
+            )
+          }
+        >
+          {selectedCheckoutPlan && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Name</label>
+                <input
+                  type="text"
+                  required
+                  value={checkoutGymName}
+                  onChange={(e) => setCheckoutGymName(e.target.value)}
+                  placeholder="e.g. GymLedger Club"
+                  className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Full Name</label>
+                <input
+                  type="text"
+                  required
+                  value={checkoutOwnerName}
+                  onChange={(e) => setCheckoutOwnerName(e.target.value)}
+                  placeholder="e.g. Rahul Sharma"
+                  className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Applied Coupon</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={checkoutCoupon}
+                    onChange={(e) => setCheckoutCoupon(e.target.value.toUpperCase())}
+                    placeholder="WELCOME10"
+                    className="flex-grow h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleValidateCoupon}
+                    disabled={validatingCoupon}
+                    className="px-4 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:bg-primary/90 cursor-pointer min-h-[44px]"
+                  >
+                    {validatingCoupon ? '...' : 'Apply'}
+                  </button>
+                </div>
+                {discountApplied && (
+                  <p className="text-xs text-emerald-400 font-bold mt-1.5 animate-pulse">
+                    ✓ Coupon Applied! Discount: {discountApplied.discountType === 'percentage' ? `${discountApplied.discountValue}% OFF` : `₹${discountApplied.discountValue} OFF`}
+                  </p>
+                )}
+              </div>
+
+              <div className="border-t border-muted/30 pt-4 space-y-2 text-xs">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Plan Price</span>
+                  <span>₹{selectedCheckoutPlan.price}</span>
+                </div>
+                {discountApplied && (
+                  <div className="flex justify-between text-xs text-emerald-400 font-medium animate-fade-in">
+                    <span>Discount</span>
+                    <span>
+                      -₹
+                      {discountApplied.discountType === 'percentage'
+                        ? Math.round(selectedCheckoutPlan.price * (discountApplied.discountValue / 100))
+                        : discountApplied.discountValue}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between font-bold text-sm text-foreground border-t border-muted/20 pt-2">
+                  <span>Total Amount</span>
+                  <span>
+                    ₹
+                    {discountApplied
+                      ? Math.max(
+                          0,
+                          selectedCheckoutPlan.price -
+                            (discountApplied.discountType === 'percentage'
+                              ? Math.round(selectedCheckoutPlan.price * (discountApplied.discountValue / 100))
+                              : discountApplied.discountValue)
+                        )
+                      : selectedCheckoutPlan.price}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </ResponsiveModal>
+      </form>
     </div>
   );
 };

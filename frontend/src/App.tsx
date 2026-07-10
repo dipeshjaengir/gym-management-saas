@@ -1,14 +1,16 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { NotificationProvider } from './contexts/NotificationContext';
 import { Layout } from './components/Layout';
+import { App as CapApp } from '@capacitor/app';
 
 // Pages
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { ActivateAccountPage } from './pages/ActivateAccountPage';
+import { DownloadAppPage } from './pages/DownloadAppPage';
 
 // Super Admin Pages
 import { SuperAdminDashboard } from './pages/superadmin/SuperAdminDashboard';
@@ -49,17 +51,51 @@ const RoleGuard: React.FC<{ allowed: 'super_admin' | 'gym_owner'; children: Reac
   return <>{children}</>;
 };
 
+const MobileBackListener: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  React.useEffect(() => {
+    let backListener: any;
+    
+    async function setupBackListener() {
+      backListener = await CapApp.addListener('backButton', () => {
+        if (location.pathname === '/' || location.pathname === '/login' || location.pathname === '/app') {
+          CapApp.exitApp();
+        } else {
+          navigate(-1);
+        }
+      });
+    }
+
+    // Check if we are running in Capacitor native container
+    if ((window as any).Capacitor?.isNative) {
+      setupBackListener();
+    }
+
+    return () => {
+      if (backListener) {
+        backListener.remove();
+      }
+    };
+  }, [location, navigate]);
+
+  return null;
+};
+
 export const App: React.FC = () => {
   return (
     <ThemeProvider>
       <NotificationProvider>
         <AuthProvider>
           <BrowserRouter>
+            <MobileBackListener />
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/activate-account" element={<ActivateAccountPage />} />
+              <Route path="/download-app" element={<DownloadAppPage />} />
 
               {/* Authenticated Dashboard Routes */}
               <Route path="/app" element={<Layout />}>
