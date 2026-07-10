@@ -5,7 +5,9 @@ import { useNotification } from '../contexts/NotificationContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
+import { ResponsiveModal } from '../components/ResponsiveModal';
 import {
+
   Dumbbell,
   ShieldAlert,
   Users,
@@ -867,332 +869,295 @@ export const LandingPage: React.FC = () => {
 
       {/* MODALS */}
       {/* Privacy Policy Modal */}
-      {showPrivacyModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-lg w-full relative space-y-4 max-h-[85vh] overflow-y-auto">
-            <button
-              onClick={() => setShowPrivacyModal(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-lg font-black text-foreground">Privacy Policy</h3>
-            <div className="text-xs text-muted-foreground space-y-3 leading-relaxed">
-              <p><strong>Effective Date: June 28, 2026</strong></p>
-              <p>At GymLedger SaaS, we prioritize the confidentiality and integrity of your gym data. This Privacy Policy details how we handle the database files, user logins, and member information.</p>
-              <p><strong>1. Isolated Boundaries</strong>: All gym tenants run on strictly isolated databases. Neither other gym owners nor platform operators can view member rosters, contact details, or financial receipts without authorization.</p>
-              <p><strong>2. Member Data Privacy</strong>: Member QR codes do not store names, photos, or membership metrics in clear text. They contain only a randomized pass token verified locally on scan.</p>
-              <p><strong>3. Security Standards</strong>: Passwords are encrypted using bcrypt and database connections use Secure Sockets Layer (SSL) encryption protocols.</p>
-            </div>
-            <div className="pt-2 border-t flex justify-end">
-              <button
-                onClick={() => setShowPrivacyModal(false)}
-                className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl cursor-pointer"
-              >
-                Understood
-              </button>
-            </div>
-          </div>
+      <ResponsiveModal
+        isOpen={showPrivacyModal}
+        onClose={() => setShowPrivacyModal(false)}
+        title="Privacy Policy"
+        maxWidthClass="max-w-lg"
+        footer={
+          <button
+            onClick={() => setShowPrivacyModal(false)}
+            className="w-full h-11 bg-primary text-primary-foreground font-bold text-xs rounded-xl cursor-pointer"
+          >
+            Understood
+          </button>
+        }
+      >
+        <div className="text-xs text-muted-foreground space-y-3 leading-relaxed">
+          <p><strong>Effective Date: June 28, 2026</strong></p>
+          <p>At GymLedger SaaS, we prioritize the confidentiality and integrity of your gym data. This Privacy Policy details how we handle the database files, user logins, and member information.</p>
+          <p><strong>1. Isolated Boundaries</strong>: All gym tenants run on strictly isolated databases. Neither other gym owners nor platform operators can view member rosters, contact details, or financial receipts without authorization.</p>
+          <p><strong>2. Member Data Privacy</strong>: Member QR codes do not store names, photos, or membership metrics in clear text. They contain only a randomized pass token verified locally on scan.</p>
+          <p><strong>3. Security Standards</strong>: Passwords are encrypted using bcrypt and database connections use Secure Sockets Layer (SSL) encryption protocols.</p>
         </div>
-      )}
+      </ResponsiveModal>
 
       {/* Terms & Conditions Modal */}
-      {showTermsModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-lg w-full relative space-y-4 max-h-[85vh] overflow-y-auto">
-            <button
-              onClick={() => setShowTermsModal(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="text-lg font-black text-foreground">Terms &amp; Conditions</h3>
-            <div className="text-xs text-muted-foreground space-y-3 leading-relaxed">
-              <p><strong>Effective Date: June 28, 2026</strong></p>
-              <p>By registering a Gym Owner console account on GymLedger, you agree to comply with these terms of use.</p>
-              <p><strong>1. Billing &amp; Subscription</strong>: Owner subscriptions are billed monthly or annually. Accounts are suspended automatically if renewal payments fail after a 7-day grace period.</p>
-              <p><strong>2. Fair Usage</strong>: File imports and barcode check-ins must comply with fair-use limits. Owners are responsible for the correctness of files uploaded to the column mapping wizard.</p>
-              <p><strong>3. Liability</strong>: GymLedger provides the software management portal "as is". We are not responsible for direct or indirect losses arising from member attendance disputes or invoice print errors.</p>
-            </div>
-            <div className="pt-2 border-t flex justify-end">
-              <button
-                onClick={() => setShowTermsModal(false)}
-                className="px-4 py-2 bg-primary text-primary-foreground font-bold text-xs rounded-xl cursor-pointer"
-              >
-                Accept Terms
-              </button>
-            </div>
-          </div>
+      <ResponsiveModal
+        isOpen={showTermsModal}
+        onClose={() => setShowTermsModal(false)}
+        title="Terms &amp; Conditions"
+        maxWidthClass="max-w-lg"
+        footer={
+          <button
+            onClick={() => setShowTermsModal(false)}
+            className="w-full h-11 bg-primary text-primary-foreground font-bold text-xs rounded-xl cursor-pointer"
+          >
+            Accept Terms
+          </button>
+        }
+      >
+        <div className="text-xs text-muted-foreground space-y-3 leading-relaxed">
+          <p><strong>Effective Date: June 28, 2026</strong></p>
+          <p>By registering a Gym Owner console account on GymLedger, you agree to comply with these terms of use.</p>
+          <p><strong>1. Billing &amp; Subscription</strong>: Owner subscriptions are billed monthly or annually. Accounts are suspended automatically if renewal payments fail after a 7-day grace period.</p>
+          <p><strong>2. Fair Usage</strong>: File imports and barcode check-ins must comply with fair-use limits. Owners are responsible for the correctness of files uploaded to the column mapping wizard.</p>
+          <p><strong>3. Liability</strong>: GymLedger provides the software management portal "as is". We are not responsible for direct or indirect losses arising from member attendance disputes or invoice print errors.</p>
         </div>
-      )}
+      </ResponsiveModal>
 
       {/* Exit Intent Modal */}
-      {showExitModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-muted/50 p-8 rounded-3xl max-w-md w-full relative space-y-6">
+      <ResponsiveModal
+        isOpen={showExitModal}
+        onClose={() => setShowExitModal(false)}
+        title="Before you go..."
+        maxWidthClass="max-w-md"
+        footer={
+          <div className="flex gap-3 w-full">
+            <button
+              onClick={() => {
+                setShowExitModal(false);
+                setShowTrialModal(true);
+              }}
+              className="flex-1 h-11 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/95 text-xs text-center transition-all cursor-pointer"
+            >
+              Claim Free Trial
+            </button>
             <button
               onClick={() => setShowExitModal(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all"
+              className="flex-1 h-11 rounded-xl font-semibold bg-transparent border border-muted hover:bg-muted text-xs text-center transition-all text-foreground cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              No Thanks
             </button>
-            <div className="text-center space-y-3">
-              <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-400 tracking-wide uppercase">
-                Special Offer ⚠️
-              </span>
-              <h3 className="text-2xl font-bold text-foreground">Before you go...</h3>
-              <p className="text-xs text-muted-foreground">
-                Get instant access to member portals, scan simulators, dues trackers, and billing calculators. Start your 7 days free trial right now — no payment details required!
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowExitModal(false);
-                  setShowTrialModal(true);
-                }}
-                className="flex-1 py-3 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/95 text-xs text-center transition-all"
-              >
-                Claim Free Trial
-              </button>
-              <button
-                onClick={() => setShowExitModal(false)}
-                className="flex-1 py-3 rounded-xl font-semibold bg-transparent border border-muted hover:bg-muted text-xs text-center transition-all text-foreground"
-              >
-                No Thanks
-              </button>
-            </div>
           </div>
+        }
+      >
+        <div className="text-center space-y-3">
+          <div className="flex justify-center">
+            <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-rose-500/10 border border-rose-500/20 text-rose-500 dark:text-rose-450 tracking-wide uppercase">
+              Special Offer ⚠️
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Get instant access to member rosters, scan simulators, dues trackers, and billing calculators. Start your 7 days free trial right now — no payment details required!
+          </p>
         </div>
-      )}
+      </ResponsiveModal>
 
       {/* Free Trial Signup Modal */}
-      {showTrialModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-md w-full relative max-h-[90vh] overflow-y-auto">
-            <button
-              onClick={() => {
-                setShowTrialModal(false);
-              }}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="space-y-6">
-              <div className="text-center space-y-1">
-                <h3 className="text-2xl font-bold text-foreground">Start 7-Day Free Trial</h3>
-                <p className="text-xs text-muted-foreground">
-                  Get instant access to your gym console. No credit card required.
-                </p>
-              </div>
-
-              <form onSubmit={handleTrialSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym / Studio Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={trialGymName}
-                    onChange={(e) => setTrialGymName(e.target.value)}
-                    placeholder="e.g. GymLedger Club"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={trialOwnerName}
-                    onChange={(e) => setTrialOwnerName(e.target.value)}
-                    placeholder="e.g. Rahul Sharma"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Number (WhatsApp)</label>
-                  <input
-                    type="tel"
-                    required
-                    value={trialPhone}
-                    onChange={(e) => setTrialPhone(e.target.value)}
-                    placeholder="e.g. 9876543210"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={trialEmail}
-                    onChange={(e) => setTrialEmail(e.target.value)}
-                    placeholder="e.g. contact@gymledger.com"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Password</label>
-                  <input
-                    type="password"
-                    required
-                    value={trialPassword}
-                    onChange={(e) => setTrialPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Confirm Password</label>
-                  <input
-                    type="password"
-                    required
-                    value={trialConfirmPassword}
-                    onChange={(e) => setTrialConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={submittingTrial}
-                  className="w-full mt-4 py-3 rounded-xl font-bold bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-md"
-                >
-                  {submittingTrial ? 'Configuring Portal...' : 'Start Trial Now'} <ArrowRight className="w-4 h-4" />
-                </button>
-              </form>
-            </div>
+      <ResponsiveModal
+        isOpen={showTrialModal}
+        onClose={() => setShowTrialModal(false)}
+        title="Start 7-Day Free Trial"
+        subtitle="Get instant access to your gym console. No credit card required."
+        maxWidthClass="max-w-md"
+        footer={
+          <button
+            type="submit"
+            form="trial-signup-form"
+            disabled={submittingTrial}
+            className="w-full h-11 rounded-xl font-bold bg-gradient-to-r from-primary to-secondary text-white hover:opacity-90 transition-all flex items-center justify-center gap-2 text-sm shadow-md cursor-pointer disabled:opacity-50"
+          >
+            {submittingTrial ? 'Configuring Portal...' : 'Start Trial Now'} <ArrowRight className="w-4 h-4" />
+          </button>
+        }
+      >
+        <form id="trial-signup-form" onSubmit={handleTrialSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym / Studio Name</label>
+            <input
+              type="text"
+              required
+              value={trialGymName}
+              onChange={(e) => setTrialGymName(e.target.value)}
+              placeholder="e.g. GymLedger Club"
+              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+            />
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Name</label>
+            <input
+              type="text"
+              required
+              value={trialOwnerName}
+              onChange={(e) => setTrialOwnerName(e.target.value)}
+              placeholder="e.g. Rahul Sharma"
+              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Number (WhatsApp)</label>
+            <input
+              type="tel"
+              required
+              value={trialPhone}
+              onChange={(e) => setTrialPhone(e.target.value)}
+              placeholder="e.g. 9876543210"
+              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
+            <input
+              type="email"
+              required
+              value={trialEmail}
+              onChange={(e) => setTrialEmail(e.target.value)}
+              placeholder="e.g. contact@gymledger.com"
+              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Password</label>
+            <input
+              type="password"
+              required
+              value={trialPassword}
+              onChange={(e) => setTrialPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Confirm Password</label>
+            <input
+              type="password"
+              required
+              value={trialConfirmPassword}
+              onChange={(e) => setTrialConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+            />
+          </div>
+        </form>
+      </ResponsiveModal>
 
       {/* Checkout Modal */}
-      {selectedCheckoutPlan && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-md w-full relative">
+      <ResponsiveModal
+        isOpen={!!selectedCheckoutPlan}
+        onClose={() => {
+          setSelectedCheckoutPlan(null);
+          setCheckoutGymName('');
+          setCheckoutOwnerName('');
+          setCheckoutCoupon('');
+          setDiscountApplied(null);
+        }}
+        title="Purchase Plan via WhatsApp"
+        subtitle="Complete setup details to generate your purchase link."
+        maxWidthClass="max-w-md"
+        footer={
+          selectedCheckoutPlan && (
             <button
-              onClick={() => {
-                setSelectedCheckoutPlan(null);
-                setCheckoutGymName('');
-                setCheckoutOwnerName('');
-                setCheckoutCoupon('');
-                setDiscountApplied(null);
-              }}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-white transition-all hover:bg-muted p-1 rounded-lg"
+              onClick={handleWhatsAppCheckout}
+              className="w-full h-11 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/95 text-xs text-center transition-all flex items-center justify-center gap-2 cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              Confirm &amp; Buy via WhatsApp <PhoneCall className="w-4 h-4" />
             </button>
+          )
+        }
+      >
+        {selectedCheckoutPlan && (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Name</label>
+              <input
+                type="text"
+                required
+                value={checkoutGymName}
+                onChange={(e) => setCheckoutGymName(e.target.value)}
+                placeholder="e.g. GymLedger Club"
+                className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+              />
+            </div>
 
-            <div className="space-y-6">
-              <div className="text-center space-y-1">
-                <h3 className="text-xl font-bold text-foreground">Purchase Plan via WhatsApp</h3>
-                <p className="text-xs text-muted-foreground">
-                  Complete setup details to generate your purchase link.
-                </p>
-              </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Full Name</label>
+              <input
+                type="text"
+                required
+                value={checkoutOwnerName}
+                onChange={(e) => setCheckoutOwnerName(e.target.value)}
+                placeholder="e.g. Rahul Sharma"
+                className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+              />
+            </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={checkoutGymName}
-                    onChange={(e) => setCheckoutGymName(e.target.value)}
-                    placeholder="e.g. GymLedger Club"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Owner Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={checkoutOwnerName}
-                    onChange={(e) => setCheckoutOwnerName(e.target.value)}
-                    placeholder="e.g. Rahul Sharma"
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Applied Coupon</label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={checkoutCoupon}
-                      onChange={(e) => setCheckoutCoupon(e.target.value.toUpperCase())}
-                      placeholder="e.g. WELCOME10"
-                      className="flex-grow px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleValidateCoupon}
-                      disabled={validatingCoupon}
-                      className="px-4 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:bg-primary/90"
-                    >
-                      {validatingCoupon ? '...' : 'Apply'}
-                    </button>
-                  </div>
-                  {discountApplied && (
-                    <p className="text-xs text-emerald-400 font-bold mt-1.5">
-                      ✓ Coupon Applied! Discount: {discountApplied.discountType === 'percentage' ? `${discountApplied.discountValue}% OFF` : `₹${discountApplied.discountValue} OFF`}
-                    </p>
-                  )}
-                </div>
-
-                <div className="border-t border-muted/30 pt-4 space-y-2">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Plan Price</span>
-                    <span>₹{selectedCheckoutPlan.price}</span>
-                  </div>
-                  {discountApplied && (
-                    <div className="flex justify-between text-xs text-emerald-400">
-                      <span>Discount</span>
-                      <span>
-                        -₹
-                        {discountApplied.discountType === 'percentage'
-                          ? Math.round(selectedCheckoutPlan.price * (discountApplied.discountValue / 100))
-                          : discountApplied.discountValue}
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex justify-between font-bold text-sm text-foreground border-t border-muted/20 pt-2">
-                    <span>Total Amount</span>
-                    <span>
-                      ₹
-                      {discountApplied
-                        ? Math.max(
-                            0,
-                            selectedCheckoutPlan.price -
-                              (discountApplied.discountType === 'percentage'
-                                ? Math.round(selectedCheckoutPlan.price * (discountApplied.discountValue / 100))
-                                : discountApplied.discountValue)
-                          )
-                        : selectedCheckoutPlan.price}
-                    </span>
-                  </div>
-                </div>
-
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Applied Coupon</label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={checkoutCoupon}
+                  onChange={(e) => setCheckoutCoupon(e.target.value.toUpperCase())}
+                  placeholder="WELCOME10"
+                  className="flex-grow h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none uppercase font-bold text-center tracking-wider"
+                />
                 <button
-                  onClick={handleWhatsAppCheckout}
-                  className="w-full mt-2 py-3 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/95 text-xs text-center transition-all flex items-center justify-center gap-2"
+                  type="button"
+                  onClick={handleValidateCoupon}
+                  disabled={validatingCoupon}
+                  className="px-4 bg-primary text-primary-foreground font-bold rounded-xl text-xs hover:bg-primary/90 cursor-pointer min-h-[44px]"
                 >
-                  Confirm & Buy via WhatsApp <PhoneCall className="w-4 h-4" />
+                  {validatingCoupon ? '...' : 'Apply'}
                 </button>
+              </div>
+              {discountApplied && (
+                <p className="text-xs text-emerald-400 font-bold mt-1.5 animate-pulse">
+                  ✓ Coupon Applied! Discount: {discountApplied.discountType === 'percentage' ? `${discountApplied.discountValue}% OFF` : `₹${discountApplied.discountValue} OFF`}
+                </p>
+              )}
+            </div>
+
+            <div className="border-t border-muted/30 pt-4 space-y-2 text-xs">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Plan Price</span>
+                <span>₹{selectedCheckoutPlan.price}</span>
+              </div>
+              {discountApplied && (
+                <div className="flex justify-between text-xs text-emerald-400 font-medium animate-fade-in">
+                  <span>Discount</span>
+                  <span>
+                    -₹
+                    {discountApplied.discountType === 'percentage'
+                      ? Math.round(selectedCheckoutPlan.price * (discountApplied.discountValue / 100))
+                      : discountApplied.discountValue}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between font-bold text-sm text-foreground border-t border-muted/20 pt-2">
+                <span>Total Amount</span>
+                <span>
+                  ₹
+                  {discountApplied
+                    ? Math.max(
+                        0,
+                        selectedCheckoutPlan.price -
+                          (discountApplied.discountType === 'percentage'
+                            ? Math.round(selectedCheckoutPlan.price * (discountApplied.discountValue / 100))
+                            : discountApplied.discountValue)
+                      )
+                    : selectedCheckoutPlan.price}
+                </span>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </ResponsiveModal>
     </div>
   );
 };

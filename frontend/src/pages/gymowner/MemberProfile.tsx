@@ -4,6 +4,7 @@ import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { generateReceiptPDF } from '../../utils/exportHelpers';
+import { ResponsiveModal } from '../../components/ResponsiveModal';
 import {
   ArrowLeft,
   User,
@@ -1188,641 +1189,619 @@ export const MemberProfile: React.FC = () => {
         </div>
       </div>
 
-      {/* Renew Membership Modal */}
-      {showRenewModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-card border rounded-3xl p-6 shadow-2xl relative animate-fade-in max-h-[90vh] overflow-y-auto">
+      {/* Renew Member Modal */}
+      <ResponsiveModal
+        isOpen={showRenewModal}
+        onClose={() => setShowRenewModal(false)}
+        title="Renew Member Plan"
+        subtitle={`Extend subscription packages for: ${member.name}`}
+        maxWidthClass="max-w-lg"
+        footer={
+          <>
             <button
+              type="button"
               onClick={() => setShowRenewModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+              className="flex-1 h-11 border border-muted hover:bg-muted text-foreground rounded-xl text-sm font-bold cursor-pointer text-center"
             >
-              <XCircle className="w-5 h-5" />
+              Cancel
             </button>
-
-            <h2 className="text-xl font-bold mb-1">Renew Member Plan</h2>
-            <p className="text-xs text-muted-foreground mb-4">Extend subscription packages for: <span className="font-semibold text-foreground">{member.name}</span></p>
-
-            <form onSubmit={handleRenewSubmit} className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-2.5 rounded-xl bg-muted/30 border">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Current Plan</span>
-                  <span className="font-bold text-foreground text-sm">{member.planId?.name || 'Deleted Plan'}</span>
-                </div>
-                <div className="p-2.5 rounded-xl bg-muted/30 border">
-                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Current Expiry</span>
-                  <span className="font-bold text-foreground text-sm">{new Date(member.membershipEnd).toLocaleDateString('en-IN')}</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Select New Plan *</label>
-                {loadingGymPlans ? (
-                  <div className="py-2 text-muted-foreground">Loading active plans...</div>
-                ) : (
-                  <select
-                    required
-                    value={selectedPlanId}
-                    onChange={(e) => handlePlanChange(e.target.value)}
-                    className="w-full p-2.5 rounded-xl border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
-                  >
-                    <option value="">-- Choose Plan --</option>
-                    {gymPlans.map(p => (
-                      <option key={p._id} value={p._id}>
-                        {p.name} (₹{p.price} | {p.durationMonths} Mo)
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Joining Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={renewJoiningDate}
-                    onChange={(e) => setRenewJoiningDate(e.target.value)}
-                    className="w-full p-2 border rounded-xl bg-background text-foreground"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Start Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={renewStartDate}
-                    onChange={(e) => handleStartDateChange(e.target.value)}
-                    className="w-full p-2 border rounded-xl bg-background text-foreground"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Expiry Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={renewExpiryDate}
-                    onChange={(e) => setRenewExpiryDate(e.target.value)}
-                    className="w-full p-2 border rounded-xl bg-background text-foreground"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-4 gap-3 border-t pt-4">
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Plan Price (₹)</label>
-                  <input
-                    type="number"
-                    disabled
-                    value={renewPlanPrice}
-                    className="w-full p-2 border rounded-xl bg-muted text-muted-foreground font-semibold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Discount (₹)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={renewPlanPrice}
-                    placeholder="Enter Discount (Optional)"
-                    value={renewDiscount}
-                    onChange={(e) => setRenewDiscount(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
-                    className="w-full p-2 border rounded-xl bg-background text-foreground font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Amount Paid (₹)</label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={renewPlanPrice - Number(renewDiscount || 0)}
-                    value={renewAmountPaid}
-                    onChange={(e) => setRenewAmountPaid(Math.max(0, Number(e.target.value)))}
-                    className="w-full p-2 border rounded-xl bg-background text-foreground font-bold text-emerald-500 dark:text-emerald-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Remaining Due (₹)</label>
-                  <input
-                    type="number"
-                    disabled
-                    value={renewRemainingDue}
-                    className="w-full p-2 border rounded-xl bg-muted text-rose-500 dark:text-rose-400 font-extrabold"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Payment Method</label>
-                  <select
-                    value={renewPaymentMethod}
-                    onChange={(e) => setRenewPaymentMethod(e.target.value as any)}
-                    className="w-full p-2.5 rounded-xl border bg-background text-foreground"
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="upi">UPI / QR Code</option>
-                    <option value="card">Debit/Credit Card</option>
-                    <option value="bank_transfer">Bank Transfer</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-muted-foreground uppercase mb-1">Remarks / Note</label>
-                  <input
-                    type="text"
-                    placeholder="Renewal remarks..."
-                    value={renewRemarks}
-                    onChange={(e) => setRenewRemarks(e.target.value)}
-                    className="w-full p-2.5 border rounded-xl bg-background text-foreground"
-                  />
-                </div>
-              </div>
-
-              {/* Renewal Summary Preview Card */}
-              <div className="p-3 bg-muted/40 dark:bg-muted/10 border border-border/50 rounded-xl space-y-1">
-                <div className="font-bold text-[10px] text-indigo-400 uppercase tracking-wider">Renewal Overview Preview</div>
-                <div className="text-[11px] text-muted-foreground">
-                  New membership starts on <strong className="text-foreground">{renewStartDate}</strong> and ends on <strong className="text-foreground">{renewExpiryDate}</strong>.
-                  Total collection: <strong className="text-emerald-500 font-semibold">₹{renewAmountPaid}</strong> with a balance due of <strong className="text-rose-500 font-semibold">₹{renewRemainingDue}</strong>.
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowRenewModal(false)}
-                  className="flex-1 py-2.5 border border-muted hover:bg-muted text-foreground rounded-xl text-xs font-bold cursor-pointer text-center"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={renewing}
-                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer flex items-center justify-center gap-1"
-                >
-                  {renewing ? 'Renewing...' : 'Confirm Renewal'}
-                </button>
-              </div>
-            </form>
+            <button
+              type="submit"
+              form="renew-member-form"
+              disabled={renewing}
+              className="flex-1 h-11 bg-indigo-650 hover:bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-md cursor-pointer flex items-center justify-center gap-1 disabled:opacity-50"
+            >
+              {renewing ? 'Renewing...' : 'Confirm Renewal'}
+            </button>
+          </>
+        }
+      >
+        <form id="renew-member-form" onSubmit={handleRenewSubmit} className="space-y-4 text-xs sm:text-sm">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="p-2.5 rounded-xl bg-muted/30 border">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground block">Current Plan</span>
+              <span className="font-bold text-foreground text-sm">{member.planId?.name || 'Deleted Plan'}</span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-muted/30 border">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground block">Current Expiry</span>
+              <span className="font-bold text-foreground text-sm">{new Date(member.membershipEnd).toLocaleDateString('en-IN')}</span>
+            </div>
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block text-[10px] sm:text-xs font-bold text-muted-foreground uppercase mb-1">Select New Plan *</label>
+            {loadingGymPlans ? (
+              <div className="py-2 text-muted-foreground">Loading active plans...</div>
+            ) : (
+              <select
+                required
+                value={selectedPlanId}
+                onChange={(e) => handlePlanChange(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-foreground focus:ring-1 focus:ring-primary focus:outline-none"
+              >
+                <option value="">-- Choose Plan --</option>
+                {gymPlans.map(p => (
+                  <option key={p._id} value={p._id}>
+                    {p.name} (₹{p.price} | {p.durationMonths} Mo)
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-muted-foreground uppercase mb-1">Joining Date</label>
+              <input
+                type="date"
+                required
+                value={renewJoiningDate}
+                onChange={(e) => setRenewJoiningDate(e.target.value)}
+                className="w-full h-11 px-3 border rounded-xl bg-background text-foreground"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-muted-foreground uppercase mb-1">Start Date *</label>
+              <input
+                type="date"
+                required
+                value={renewStartDate}
+                onChange={(e) => handleStartDateChange(e.target.value)}
+                className="w-full h-11 px-3 border rounded-xl bg-background text-foreground"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-muted-foreground uppercase mb-1">Expiry Date *</label>
+              <input
+                type="date"
+                required
+                value={renewExpiryDate}
+                onChange={(e) => setRenewExpiryDate(e.target.value)}
+                className="w-full h-11 px-3 border rounded-xl bg-background text-foreground"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 border-t border-border/80 pt-4">
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-muted-foreground uppercase mb-1">Plan Price (₹)</label>
+              <input
+                type="number"
+                disabled
+                value={renewPlanPrice}
+                className="w-full h-11 px-3 border rounded-xl bg-muted text-muted-foreground font-semibold"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-muted-foreground uppercase mb-1">Discount (₹)</label>
+              <input
+                type="number"
+                min={0}
+                max={renewPlanPrice}
+                placeholder="0"
+                value={renewDiscount}
+                onChange={(e) => setRenewDiscount(e.target.value === '' ? '' : Math.max(0, Number(e.target.value)))}
+                className="w-full h-11 px-3 border rounded-xl bg-background text-foreground font-bold"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-muted-foreground uppercase mb-1">Amount Paid (₹)</label>
+              <input
+                type="number"
+                min={0}
+                max={renewPlanPrice - Number(renewDiscount || 0)}
+                value={renewAmountPaid}
+                onChange={(e) => setRenewAmountPaid(Math.max(0, Number(e.target.value)))}
+                className="w-full h-11 px-3 border rounded-xl bg-background text-foreground font-bold text-emerald-500 dark:text-emerald-400"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-muted-foreground uppercase mb-1">Remaining Due (₹)</label>
+              <input
+                type="number"
+                disabled
+                value={renewRemainingDue}
+                className="w-full h-11 px-3 border rounded-xl bg-muted text-rose-500 dark:text-rose-400 font-extrabold"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-muted-foreground uppercase mb-1">Payment Method</label>
+              <select
+                value={renewPaymentMethod}
+                onChange={(e) => setRenewPaymentMethod(e.target.value as any)}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-foreground"
+              >
+                <option value="cash">Cash</option>
+                <option value="upi">UPI / QR Code</option>
+                <option value="card">Debit/Credit Card</option>
+                <option value="bank_transfer">Bank Transfer</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[10px] sm:text-xs font-bold text-muted-foreground uppercase mb-1">Remarks / Note</label>
+              <input
+                type="text"
+                placeholder="Remarks..."
+                value={renewRemarks}
+                onChange={(e) => setRenewRemarks(e.target.value)}
+                className="w-full h-11 px-4 border rounded-xl bg-background text-foreground"
+              />
+            </div>
+          </div>
+
+          {/* Renewal Summary Preview Card */}
+          <div className="p-3 bg-muted/40 dark:bg-muted/10 border border-border/50 rounded-xl space-y-1">
+            <div className="font-bold text-[10px] text-indigo-400 uppercase tracking-wider">Renewal Overview Preview</div>
+            <div className="text-[11px] sm:text-xs text-muted-foreground">
+              New membership starts on <strong className="text-foreground">{renewStartDate}</strong> and ends on <strong className="text-foreground">{renewExpiryDate}</strong>.
+              Total collection: <strong className="text-emerald-500 font-semibold">₹{renewAmountPaid}</strong> with a balance due of <strong className="text-rose-500 font-semibold">₹{renewRemainingDue}</strong>.
+            </div>
+          </div>
+        </form>
+      </ResponsiveModal>
 
       {/* Collect Due Payment Modal */}
-      {showCollectModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-card border rounded-3xl p-6 shadow-2xl relative animate-fade-in">
-            <button
-              onClick={() => setShowCollectModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
-            >
-              <XCircle className="w-5 h-5" />
-            </button>
+      <ResponsiveModal
+        isOpen={showCollectModal}
+        onClose={() => setShowCollectModal(false)}
+        title="Log Outstanding Payment"
+        subtitle={`Settle dues for member: ${member.name}`}
+        maxWidthClass="max-w-md"
+        footer={
+          collectStep === 1 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowCollectModal(false)}
+                className="flex-1 h-11 border hover:bg-muted rounded-xl text-sm font-semibold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => setCollectStep(2)}
+                disabled={collectAmount === '' || collectAmount <= 0 || collectAmount > (member.remainingAmount + (member.previousOutstanding || 0))}
+                className="flex-1 h-11 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </>
+          ) : collectStep === 2 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setCollectStep(1)}
+                className="flex-1 h-11 border hover:bg-muted rounded-xl text-sm font-semibold cursor-pointer"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => setCollectStep(3)}
+                className="flex-1 h-11 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold shadow-md cursor-pointer"
+              >
+                Next: Preview
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => setCollectStep(2)}
+                className="flex-1 h-11 border hover:bg-muted rounded-xl text-sm font-semibold cursor-pointer"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={() => handleCollectDues()}
+                disabled={collecting}
+                className="flex-grow h-11 bg-emerald-650 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-md cursor-pointer disabled:opacity-50"
+              >
+                {collecting ? 'Processing...' : 'Confirm & Save'}
+              </button>
+            </>
+          )
+        }
+      >
+        {/* Step Indicators */}
+        <div className="flex items-center justify-between mb-6 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+          <span className={collectStep === 1 ? "text-primary" : ""}>1. Balance Review</span>
+          <span className="h-px bg-muted flex-grow mx-2" />
+          <span className={collectStep === 2 ? "text-primary" : ""}>2. Payment Method</span>
+          <span className="h-px bg-muted flex-grow mx-2" />
+          <span className={collectStep === 3 ? "text-primary" : ""}>3. Confirm Receipt</span>
+        </div>
 
-            <h2 className="text-xl font-bold mb-1">Log Outstanding Payment</h2>
-            <p className="text-xs text-muted-foreground mb-4">Settle dues for member: <span className="font-semibold text-foreground">{member.name}</span></p>
-
-            {/* Step Indicators */}
-            <div className="flex items-center justify-between mb-6 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              <span className={collectStep === 1 ? "text-primary" : ""}>1. Balance Review</span>
-              <span className="h-px bg-muted flex-grow mx-2" />
-              <span className={collectStep === 2 ? "text-primary" : ""}>2. Payment Method</span>
-              <span className="h-px bg-muted flex-grow mx-2" />
-              <span className={collectStep === 3 ? "text-primary" : ""}>3. Confirm Receipt</span>
+        {collectStep === 1 && (
+          <div className="space-y-4 text-xs sm:text-sm">
+            <div className="p-4 rounded-2xl bg-muted/20 border text-xs space-y-2">
+              <div className="flex justify-between">
+                <span>Plan Price:</span>
+                <span className="font-bold text-foreground">₹{member.planId?.price || (member.amountPaid + member.remainingAmount)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Amount Already Paid (Current Plan):</span>
+                <span className="font-bold text-emerald-400">₹{member.amountPaid}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Current Plan Due:</span>
+                <span className="font-bold text-rose-400">₹{member.remainingAmount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Previous Outstanding Due:</span>
+                <span className="font-bold text-rose-400">₹{member.previousOutstanding || 0}</span>
+              </div>
+              <div className="flex justify-between border-t border-muted/20 pt-2 text-sm">
+                <span className="font-semibold">Total Outstanding Due:</span>
+                <span className="font-black text-rose-400">₹{member.remainingAmount + (member.previousOutstanding || 0)}</span>
+              </div>
             </div>
 
-            {collectStep === 1 && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-muted/20 border text-xs space-y-2">
-                  <div className="flex justify-between">
-                    <span>Plan Price:</span>
-                    <span className="font-bold text-foreground">₹{member.planId?.price || (member.amountPaid + member.remainingAmount)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Amount Already Paid (Current Plan):</span>
-                    <span className="font-bold text-emerald-400">₹{member.amountPaid}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Current Plan Due:</span>
-                    <span className="font-bold text-rose-400">₹{member.remainingAmount}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Previous Outstanding Due:</span>
-                    <span className="font-bold text-rose-400">₹{member.previousOutstanding || 0}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-muted/20 pt-2 text-sm">
-                    <span className="font-semibold">Total Outstanding Due:</span>
-                    <span className="font-black text-rose-400">₹{member.remainingAmount + (member.previousOutstanding || 0)}</span>
-                  </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Amount to Collect (₹)</label>
+              <input
+                type="number"
+                required
+                min={1}
+                max={member.remainingAmount + (member.previousOutstanding || 0)}
+                placeholder="Enter amount..."
+                value={collectAmount}
+                onChange={(e) => setCollectAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+              {collectAmount !== '' && Number(collectAmount) > 0 && (
+                <div className="flex justify-between text-[10px] font-bold text-amber-400 mt-2">
+                  <span>Remaining After Collection:</span>
+                  <span>₹{Math.max(0, (member.remainingAmount + (member.previousOutstanding || 0)) - Number(collectAmount))}</span>
                 </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Amount to Collect (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    min={1}
-                    max={member.remainingAmount + (member.previousOutstanding || 0)}
-                    placeholder="Enter amount to collect..."
-                    value={collectAmount}
-                    onChange={(e) => setCollectAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                  {collectAmount !== '' && Number(collectAmount) > 0 && (
-                    <div className="flex justify-between text-[10px] font-bold text-amber-400 mt-2">
-                      <span>Remaining After Collection:</span>
-                      <span>₹{Math.max(0, (member.remainingAmount + (member.previousOutstanding || 0)) - Number(collectAmount))}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCollectModal(false)}
-                    className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCollectStep(2)}
-                    disabled={collectAmount === '' || collectAmount <= 0 || collectAmount > (member.remainingAmount + (member.previousOutstanding || 0))}
-                    className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Next: Payment Method
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {collectStep === 2 && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Select Payment Method</label>
-                  <select
-                    value={collectMethod}
-                    onChange={(e) => setCollectMethod(e.target.value as any)}
-                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
-                  >
-                    <option value="cash">Cash Payment</option>
-                    <option value="upi">UPI / QR Code Scan</option>
-                    <option value="card">Credit/Debit Card</option>
-                    <option value="bank_transfer">Bank Wire Transfer</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Payment Notes / Remarks</label>
-                  <input
-                    type="text"
-                    value={collectNotes}
-                    onChange={(e) => setCollectNotes(e.target.value)}
-                    placeholder="e.g. Settle remaining installment"
-                    className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setCollectStep(1)}
-                    className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCollectStep(3)}
-                    className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold shadow-md cursor-pointer"
-                  >
-                    Next: Preview
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {collectStep === 3 && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-muted/20 border text-xs space-y-3">
-                  <div className="text-center font-bold text-sm border-b pb-2 mb-2">Receipt Preview Details</div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Member:</span>
-                    <span className="font-bold text-foreground">{member.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Membership Plan:</span>
-                    <span className="font-bold text-foreground">{member.planId?.name || 'Custom Plan'}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-muted/10 pt-2">
-                    <span className="text-muted-foreground">Amount to Collect:</span>
-                    <span className="font-bold text-primary">₹{collectAmount}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Payment Method:</span>
-                    <span className="font-bold text-foreground uppercase">{collectMethod}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Notes:</span>
-                    <span className="font-medium text-foreground italic">{collectNotes || 'N/A'}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-muted/20 pt-2 text-xs font-bold">
-                    <span className="text-muted-foreground">Remaining Dues After:</span>
-                    <span className="text-rose-400">₹{Math.max(0, (member.remainingAmount + (member.previousOutstanding || 0)) - Number(collectAmount))}</span>
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setCollectStep(2)}
-                    className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
-                  >
-                    Back
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleCollectDues()}
-                    disabled={collecting}
-                    className="flex-grow py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
-                  >
-                    {collecting ? 'Processing...' : 'Confirm & Save'}
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {collectStep === 2 && (
+          <div className="space-y-4 text-xs sm:text-sm">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Select Payment Method</label>
+              <select
+                value={collectMethod}
+                onChange={(e) => setCollectMethod(e.target.value as any)}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              >
+                <option value="cash">Cash Payment</option>
+                <option value="upi">UPI / QR Code Scan</option>
+                <option value="card">Credit/Debit Card</option>
+                <option value="bank_transfer">Bank Wire Transfer</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Payment Notes / Remarks</label>
+              <input
+                type="text"
+                value={collectNotes}
+                onChange={(e) => setCollectNotes(e.target.value)}
+                placeholder="e.g. Settle remaining installment"
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
+          </div>
+        )}
+
+        {collectStep === 3 && (
+          <div className="space-y-4 text-xs sm:text-sm">
+            <div className="p-4 rounded-2xl bg-muted/20 border text-xs space-y-3">
+              <div className="text-center font-bold text-sm border-b pb-2 mb-2">Receipt Preview Details</div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Member:</span>
+                <span className="font-bold text-foreground">{member.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Membership Plan:</span>
+                <span className="font-bold text-foreground">{member.planId?.name || 'Custom Plan'}</span>
+              </div>
+              <div className="flex justify-between border-t border-muted/10 pt-2">
+                <span className="text-muted-foreground">Amount to Collect:</span>
+                <span className="font-bold text-primary">₹{collectAmount}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Payment Method:</span>
+                <span className="font-bold text-foreground uppercase">{collectMethod}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Notes:</span>
+                <span className="font-medium text-foreground italic">{collectNotes || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between border-t border-muted/20 pt-2 text-xs font-bold">
+                <span className="text-muted-foreground">Remaining Dues After:</span>
+                <span className="text-rose-400">₹{Math.max(0, (member.remainingAmount + (member.previousOutstanding || 0)) - Number(collectAmount))}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </ResponsiveModal>
 
       {/* WhatsApp Status Indicator Modal */}
-      {whatsAppModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-card border rounded-3xl p-6 shadow-2xl relative text-center space-y-4">
-            <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-full inline-block">
-              <MessageCircle className="w-8 h-8" />
+      <ResponsiveModal
+        isOpen={whatsAppModal.show}
+        onClose={() => setWhatsAppModal({ show: false, url: '', sentClicked: false })}
+        title="WhatsApp Delivery Trace"
+        maxWidthClass="max-w-sm"
+        footer={
+          <div className="flex flex-col gap-2 w-full">
+            <a
+              href={whatsAppModal.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setWhatsAppModal(prev => ({ ...prev, sentClicked: true }))}
+              className="w-full h-11 bg-emerald-650 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <MessageCircle className="w-4 h-4" /> Send Payment Notification
+            </a>
+            <button
+              onClick={() => setWhatsAppModal({ show: false, url: '', sentClicked: false })}
+              className="w-full h-11 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl text-xs transition-colors cursor-pointer"
+            >
+              Close Trace
+            </button>
+          </div>
+        }
+      >
+        <div className="text-center space-y-4">
+          <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-full inline-block">
+            <MessageCircle className="w-8 h-8" />
+          </div>
+
+          <div className="text-left space-y-3 p-4 bg-muted/30 border border-border rounded-2xl">
+            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+              <Check className="w-4 h-4" /> <span>Generated: WhatsApp link generated successfully</span>
             </div>
-
-            <h3 className="text-lg font-bold text-foreground text-center">WhatsApp Delivery Trace</h3>
-
-            <div className="text-left space-y-3 p-4 bg-muted/30 border rounded-2xl">
-              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
-                <Check className="w-4 h-4" /> <span>Generated: WhatsApp link generated successfully</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
-                {whatsAppModal.sentClicked ? (
-                  <Check className="w-4 h-4" />
-                ) : (
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping ml-1 mr-0.5" />
-                )}
-                <span>Sent: {whatsAppModal.sentClicked ? 'Message Sent successfully' : 'Waiting for Click-to-Chat execution'}</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <AlertCircle className="w-4 h-4 text-muted-foreground/60" />
-                <span>Opened: Not supported (Requires live Gateway configurations)</span>
-              </div>
+            <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400">
+              {whatsAppModal.sentClicked ? (
+                <Check className="w-4 h-4" />
+              ) : (
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping ml-1 mr-0.5" />
+              )}
+              <span>Sent: {whatsAppModal.sentClicked ? 'Message Sent successfully' : 'Waiting for Click-to-Chat execution'}</span>
             </div>
-
-            <div className="flex flex-col gap-2 pt-2">
-              <a
-                href={whatsAppModal.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setWhatsAppModal(prev => ({ ...prev, sentClicked: true }))}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <MessageCircle className="w-4 h-4" /> Send Payment Notification
-              </a>
-              <button
-                onClick={() => setWhatsAppModal({ show: false, url: '', sentClicked: false })}
-                className="w-full py-2.5 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl text-xs transition-colors cursor-pointer"
-              >
-                Close Trace
-              </button>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <AlertCircle className="w-4 h-4 text-muted-foreground/60" />
+              <span>Opened: Not supported (Requires live Gateway configurations)</span>
             </div>
           </div>
         </div>
-      )}
+      </ResponsiveModal>
 
       {/* Edit Payment Modal */}
-      {showEditPaymentModal && editPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-card border rounded-3xl p-6 shadow-2xl relative">
+      <ResponsiveModal
+        isOpen={showEditPaymentModal && !!editPayment}
+        onClose={() => {
+          setShowEditPaymentModal(false);
+          setEditPayment(null);
+        }}
+        title="Modify Payment Ledger Item"
+        subtitle={editPayment ? `Editing transaction: ${editPayment.receiptNumber}` : ''}
+        maxWidthClass="max-w-md"
+        footer={
+          <>
             <button
+              type="button"
               onClick={() => {
                 setShowEditPaymentModal(false);
                 setEditPayment(null);
               }}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+              className="flex-1 h-11 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
             >
-              <XCircle className="w-5 h-5" />
+              Cancel
             </button>
-
-            <h2 className="text-xl font-bold mb-1">Modify Payment Ledger Item</h2>
-            <p className="text-xs text-muted-foreground mb-4">Editing transaction: <span className="font-semibold text-foreground">{editPayment.receiptNumber}</span></p>
-
-            <form onSubmit={handleEditPaymentSubmit} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">New Amount Collected (₹)</label>
-                <input
-                  type="number"
-                  required
-                  min={1}
-                  value={editPaymentAmount}
-                  onChange={(e) => setEditPaymentAmount(Number(e.target.value))}
-                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Audit Log Notes / Reasons</label>
-                <input
-                  type="text"
-                  required
-                  value={editPaymentNotes}
-                  onChange={(e) => setEditPaymentNotes(e.target.value)}
-                  placeholder="e.g. Correct typo error from ₹10000 to ₹1000"
-                  className="w-full px-4 py-2.5 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowEditPaymentModal(false);
-                    setEditPayment(null);
-                  }}
-                  className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-semibold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={updatingPayment}
-                  className="flex-1 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold shadow-md cursor-pointer"
-                >
-                  {updatingPayment ? 'Updating...' : 'Save Audit Changes'}
-                </button>
-              </div>
-            </form>
+            <button
+              type="submit"
+              form="edit-payment-form"
+              disabled={updatingPayment}
+              className="flex-1 h-11 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold shadow-md cursor-pointer disabled:opacity-50"
+            >
+              {updatingPayment ? 'Updating...' : 'Save Audit Changes'}
+            </button>
+          </>
+        }
+      >
+        <form id="edit-payment-form" onSubmit={handleEditPaymentSubmit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">New Amount Collected (₹)</label>
+            <input
+              type="number"
+              required
+              min={1}
+              value={editPaymentAmount}
+              onChange={(e) => setEditPaymentAmount(Number(e.target.value))}
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Audit Log Notes / Reasons</label>
+            <input
+              type="text"
+              required
+              value={editPaymentNotes}
+              onChange={(e) => setEditPaymentNotes(e.target.value)}
+              placeholder="e.g. Correct typo error from ₹10000 to ₹1000"
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
+          </div>
+        </form>
+      </ResponsiveModal>
 
       {/* View Receipt Modal */}
-      {showReceiptModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-lg bg-card border rounded-3xl p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+      <ResponsiveModal
+        isOpen={showReceiptModal}
+        onClose={() => {
+          setShowReceiptModal(false);
+          setReceiptDetails(null);
+        }}
+        title="Invoice Payment Receipt"
+        maxWidthClass="max-w-lg"
+        footer={
+          <div className="flex flex-wrap gap-2 w-full">
             <button
+              type="button"
               onClick={() => {
                 setShowReceiptModal(false);
                 setReceiptDetails(null);
               }}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer"
+              className="py-2.5 px-4 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl text-xs cursor-pointer min-h-[44px]"
             >
-              <XCircle className="w-5 h-5" />
+              Close
             </button>
-
-            <h2 className="text-xl font-bold mb-4">Invoice Payment Receipt</h2>
-
-            <div className="flex-grow overflow-y-auto pr-1 space-y-4 text-xs">
-              {loadingReceipt ? (
-                <div className="flex justify-center py-12">
-                  <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
-                </div>
-              ) : !receiptDetails ? (
-                <p className="text-center text-muted-foreground">Error loading invoice metadata.</p>
-              ) : (
-                <div className="space-y-4">
-                  {/* Branding Header */}
-                  <div className="text-center border-b pb-4">
-                    <h3 className="text-lg font-black text-foreground uppercase tracking-tight">{receiptDetails.branding?.gymName}</h3>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">{receiptDetails.branding?.address}</p>
-                    <p className="text-[10px] text-muted-foreground">Contact: {receiptDetails.branding?.contactNumber}</p>
-                  </div>
-
-                  {/* Receipt Metadata Grid */}
-                  <div className="grid grid-cols-2 gap-4 border-b pb-4">
-                    <div>
-                      <div className="text-[10px] font-semibold text-muted-foreground uppercase">Transaction Details</div>
-                      <div className="mt-1 font-bold">Receipt #: {receiptDetails.receiptNumber}</div>
-                      <div>Date: {new Date(receiptDetails.paymentDate).toLocaleString('en-IN')}</div>
-                      <div>Method: <span className="uppercase font-semibold">{receiptDetails.paymentMethod}</span></div>
-                      <div>Collected By: <span className="font-semibold">{receiptDetails.operatorName || 'Admin'}</span></div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] font-semibold text-muted-foreground uppercase">Payer Details</div>
-                      <div className="mt-1 font-bold">Name: {receiptDetails.member?.name}</div>
-                      <div>Contact: {receiptDetails.member?.phone}</div>
-                      <div>Plan Name: <span className="font-bold text-primary">{receiptDetails.member?.planId?.name || 'Gym Membership'}</span></div>
-                    </div>
-                  </div>
-
-                  {/* Receipt Audit History details */}
-                  {(receiptDetails.originalAmount !== undefined || receiptDetails.isVoided) && (
-                    <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 rounded-xl text-rose-800 dark:text-rose-300 space-y-1">
-                      <div className="font-bold flex items-center gap-1">
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" /> Audited Transaction Log
-                      </div>
-                      {receiptDetails.isVoided && <div className="text-[10px] font-extrabold uppercase text-rose-700 dark:text-rose-400">✓ THIS TRANSACTION IS VOIDED / CANCELLED</div>}
-                      {receiptDetails.originalAmount !== undefined && (
-                        <div className="text-[10px] space-y-0.5">
-                          <div>Original Amount: ₹{receiptDetails.originalAmount}</div>
-                          <div>Updated Amount: ₹{receiptDetails.updatedAmount}</div>
-                          <div>Updated By: {receiptDetails.updatedBy}</div>
-                          <div>Updated Date: {receiptDetails.updatedDate ? new Date(receiptDetails.updatedDate).toLocaleString('en-IN') : 'N/A'}</div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Receipt Row Table */}
-                  <div className="border rounded-xl overflow-hidden bg-muted/15">
-                    <div className="flex justify-between items-center p-3 font-semibold bg-muted/30 border-b">
-                      <span>Description</span>
-                      <span>Amount Collected</span>
-                    </div>
-                    <div className="flex justify-between items-center p-3 font-medium">
-                      <span>Gym Studio Membership Fees ({receiptDetails.member?.planId?.name || 'Custom Plan'})</span>
-                      <span className="font-bold">₹{receiptDetails.amount}</span>
-                    </div>
-                  </div>
-
-                  {/* Balances */}
-                  <div className="space-y-1.5 text-right pt-3 border-t border-border/40 text-xs text-muted-foreground">
-                    {receiptDetails.originalPrice !== undefined ? (
-                      <>
-                        <div>Original Plan Price: <span className="font-bold text-foreground">₹{receiptDetails.originalPrice}</span></div>
-                        <div>Discount Given: <span className="font-bold text-amber-500">₹{receiptDetails.discount || 0}</span></div>
-                        <div>Final Payable Amount: <span className="font-bold text-foreground">₹{receiptDetails.finalPayable}</span></div>
-                        <div className="text-sm font-black text-foreground">Amount Paid (Current): ₹{receiptDetails.amount}</div>
-                        <div>Previous Outstanding: <span className="font-bold text-rose-500/80 dark:text-rose-400/80">₹{receiptDetails.previousOutstanding || 0}</span></div>
-                        <div>Current Membership Due: <span className="font-bold text-rose-500/80 dark:text-rose-400/80">₹{receiptDetails.currentOutstanding || 0}</span></div>
-                        <div className="text-sm font-black text-rose-500 dark:text-rose-400">Total Outstanding Due: ₹{receiptDetails.totalOutstanding || 0}</div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="text-sm font-black text-foreground">Total Paid: ₹{receiptDetails.amount}</div>
-                        <div className="text-muted-foreground">Outstanding Dues Balance: ₹{receiptDetails.pendingAmount}</div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Notes */}
-                  {receiptDetails.notes && (
-                    <div className="p-3 rounded-xl bg-muted/20 italic text-muted-foreground">
-                      Remarks: {receiptDetails.notes}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            <div className="flex gap-3 pt-6 mt-4 border-t">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowReceiptModal(false);
-                  setReceiptDetails(null);
-                }}
-                className="py-2 px-3 bg-muted hover:bg-muted/80 text-foreground font-semibold rounded-xl text-xs cursor-pointer"
-              >
-                Close
-              </button>
-              {receiptDetails && (
-                <>
-                  <button
-                    onClick={downloadReceiptPDF}
-                    className="flex-1 py-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
-                  >
-                    <Printer className="w-3.5 h-3.5" /> Print PDF
-                  </button>
-                  <a
-                    href={`https://wa.me/${receiptDetails.member?.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(
-                      `Hello ${receiptDetails.member?.name || 'Member'},\n\n` +
-                      `Here is your payment receipt from ${receiptDetails.branding?.gymName || 'GymLedger'}.\n\n` +
-                      `Transaction ID: ${receiptDetails.receiptNumber}\n` +
-                      `Plan Name: ${receiptDetails.member?.planId?.name || 'Gym Membership'}\n` +
-                      `Amount Paid: ₹${receiptDetails.amount}\n` +
-                      `Remaining Due: ₹${receiptDetails.pendingAmount}\n` +
-                      `Payment Method: ${receiptDetails.paymentMethod.toUpperCase()}\n` +
-                      `Date & Time: ${new Date(receiptDetails.paymentDate).toLocaleString('en-IN')}\n` +
-                      `Collected By: ${receiptDetails.operatorName || 'Admin'}\n\n` +
-                      `Thank you for working out with us!`
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
-                  </a>
-                </>
-              )}
-            </div>
+            {receiptDetails && (
+              <>
+                <button
+                  onClick={downloadReceiptPDF}
+                  className="flex-1 py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md min-h-[44px]"
+                >
+                  <Printer className="w-3.5 h-3.5" /> Print PDF
+                </button>
+                <a
+                  href={`https://wa.me/${receiptDetails.member?.phone?.replace(/\D/g, '')}?text=${encodeURIComponent(
+                    `Hello ${receiptDetails.member?.name || 'Member'},\n\n` +
+                    `Here is your payment receipt from ${receiptDetails.branding?.gymName || 'GymLedger'}.\n\n` +
+                    `Transaction ID: ${receiptDetails.receiptNumber}\n` +
+                    `Plan Name: ${receiptDetails.member?.planId?.name || 'Gym Membership'}\n` +
+                    `Amount Paid: ₹${receiptDetails.amount}\n` +
+                    `Remaining Due: ₹${receiptDetails.pendingAmount}\n` +
+                    `Payment Method: ${receiptDetails.paymentMethod.toUpperCase()}\n` +
+                    `Date & Time: ${new Date(receiptDetails.paymentDate).toLocaleString('en-IN')}\n` +
+                    `Collected By: ${receiptDetails.operatorName || 'Admin'}\n\n` +
+                    `Thank you for working out with us!`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-md min-h-[44px]"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
+                </a>
+              </>
+            )}
           </div>
+        }
+      >
+        <div className="space-y-4 text-xs">
+          {loadingReceipt ? (
+            <div className="flex justify-center py-12">
+              <div className="w-8 h-8 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+            </div>
+          ) : !receiptDetails ? (
+            <p className="text-center text-muted-foreground">Error loading invoice metadata.</p>
+          ) : (
+            <div className="space-y-4">
+              {/* Branding Header */}
+              <div className="text-center border-b pb-4">
+                <h3 className="text-lg font-black text-foreground uppercase tracking-tight">{receiptDetails.branding?.gymName}</h3>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{receiptDetails.branding?.address}</p>
+                <p className="text-[10px] text-muted-foreground">Contact: {receiptDetails.branding?.contactNumber}</p>
+              </div>
+
+              {/* Receipt Metadata Grid */}
+              <div className="grid grid-cols-2 gap-4 border-b pb-4">
+                <div>
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase">Transaction Details</div>
+                  <div className="mt-1 font-bold">Receipt #: {receiptDetails.receiptNumber}</div>
+                  <div>Date: {new Date(receiptDetails.paymentDate).toLocaleString('en-IN')}</div>
+                  <div>Method: <span className="uppercase font-semibold">{receiptDetails.paymentMethod}</span></div>
+                  <div>Collected By: <span className="font-semibold">{receiptDetails.operatorName || 'Admin'}</span></div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-semibold text-muted-foreground uppercase">Payer Details</div>
+                  <div className="mt-1 font-bold">Name: {receiptDetails.member?.name}</div>
+                  <div>Contact: {receiptDetails.member?.phone}</div>
+                  <div>Plan Name: <span className="font-bold text-primary">{receiptDetails.member?.planId?.name || 'Gym Membership'}</span></div>
+                </div>
+              </div>
+
+              {/* Receipt Audit History details */}
+              {(receiptDetails.originalAmount !== undefined || receiptDetails.isVoided) && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/40 rounded-xl text-rose-800 dark:text-rose-300 space-y-1">
+                  <div className="font-bold flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-rose-600 dark:text-rose-400 shrink-0" /> Audited Transaction Log
+                  </div>
+                  {receiptDetails.isVoided && <div className="text-[10px] font-extrabold uppercase text-rose-700 dark:text-rose-400">✓ THIS TRANSACTION IS VOIDED / CANCELLED</div>}
+                  {receiptDetails.originalAmount !== undefined && (
+                    <div className="text-[10px] space-y-0.5">
+                      <div>Original Amount: ₹{receiptDetails.originalAmount}</div>
+                      <div>Updated Amount: ₹{receiptDetails.updatedAmount}</div>
+                      <div>Updated By: {receiptDetails.updatedBy}</div>
+                      <div>Updated Date: {receiptDetails.updatedDate ? new Date(receiptDetails.updatedDate).toLocaleString('en-IN') : 'N/A'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Receipt Row Table */}
+              <div className="border rounded-xl overflow-hidden bg-muted/15">
+                <div className="flex justify-between items-center p-3 font-semibold bg-muted/30 border-b">
+                  <span>Description</span>
+                  <span>Amount Collected</span>
+                </div>
+                <div className="flex justify-between items-center p-3 font-medium">
+                  <span>Gym Studio Membership Fees ({receiptDetails.member?.planId?.name || 'Custom Plan'})</span>
+                  <span className="font-bold">₹{receiptDetails.amount}</span>
+                </div>
+              </div>
+
+              {/* Balances */}
+              <div className="space-y-1.5 text-right pt-3 border-t border-border/40 text-xs text-muted-foreground">
+                {receiptDetails.originalPrice !== undefined ? (
+                  <>
+                    <div>Original Plan Price: <span className="font-bold text-foreground">₹{receiptDetails.originalPrice}</span></div>
+                    <div>Discount Given: <span className="font-bold text-amber-500">₹{receiptDetails.discount || 0}</span></div>
+                    <div>Final Payable Amount: <span className="font-bold text-foreground">₹{receiptDetails.finalPayable}</span></div>
+                    <div className="text-sm font-black text-foreground">Amount Paid (Current): ₹{receiptDetails.amount}</div>
+                    <div>Previous Outstanding: <span className="font-bold text-rose-500/80 dark:text-rose-400/80">₹{receiptDetails.previousOutstanding || 0}</span></div>
+                    <div>Current Membership Due: <span className="font-bold text-rose-500/80 dark:text-rose-400/80">₹{receiptDetails.currentOutstanding || 0}</span></div>
+                    <div className="text-sm font-black text-rose-500 dark:text-rose-400">Total Outstanding Due: ₹{receiptDetails.totalOutstanding || 0}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-sm font-black text-foreground">Total Paid: ₹{receiptDetails.amount}</div>
+                    <div className="text-muted-foreground">Outstanding Dues Balance: ₹{receiptDetails.pendingAmount}</div>
+                  </>
+                )}
+              </div>
+
+              {/* Notes */}
+              {receiptDetails.notes && (
+                <div className="p-3 rounded-xl bg-muted/20 italic text-muted-foreground">
+                  Remarks: {receiptDetails.notes}
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </ResponsiveModal>
 
     </div>
   );

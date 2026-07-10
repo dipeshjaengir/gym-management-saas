@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { UserCheck, Plus, Trash2, Edit3, X, Play, Pause, PhoneCall } from 'lucide-react';
+import { ResponsiveModal } from '../../components/ResponsiveModal';
 
 interface Trainer {
   _id: string;
@@ -222,165 +223,153 @@ export const TrainerManagement: React.FC = () => {
       )}
 
       {/* Add Trainer Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-card border rounded-3xl p-6 shadow-2xl relative">
+      <ResponsiveModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        title="Register Trainer"
+        maxWidthClass="max-w-md"
+        footer={
+          <>
             <button
+              type="button"
               onClick={() => setShowAddModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+              className="flex-1 h-11 border hover:bg-muted rounded-xl text-sm font-semibold cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              Cancel
             </button>
-
-            <h2 className="text-xl font-bold mb-4">Register Trainer</h2>
-
-            <form onSubmit={handleCreateTrainer} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Trainer Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Karan Dev"
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Phone</label>
-                <input
-                  type="tel"
-                  required
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. +91 97777 97777"
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Specialization / Expertise</label>
-                <input
-                  type="text"
-                  value={specialization}
-                  onChange={(e) => setSpecialization(e.target.value)}
-                  placeholder="e.g. Bodybuilding, Yoga, CrossFit"
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Roster Status</label>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2 border hover:bg-muted rounded-xl text-sm font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={adding}
-                  className="flex-1 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-semibold"
-                >
-                  {adding ? 'Saving...' : 'Register Trainer'}
-                </button>
-              </div>
-            </form>
+            <button
+              type="submit"
+              form="add-trainer-form"
+              disabled={adding}
+              className="flex-1 h-11 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-semibold cursor-pointer disabled:opacity-50"
+            >
+              {adding ? 'Saving...' : 'Register Trainer'}
+            </button>
+          </>
+        }
+      >
+        <form id="add-trainer-form" onSubmit={handleCreateTrainer} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Trainer Full Name</label>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Karan Dev"
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Phone</label>
+            <input
+              type="tel"
+              required
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="e.g. +91 97777 97777"
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Specialization / Expertise</label>
+            <input
+              type="text"
+              value={specialization}
+              onChange={(e) => setSpecialization(e.target.value)}
+              placeholder="e.g. Bodybuilding, Yoga, CrossFit"
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Roster Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as any)}
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </form>
+      </ResponsiveModal>
 
       {/* Edit Trainer Modal */}
-      {showEditModal && selectedTrainer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-card border rounded-3xl p-6 shadow-2xl relative">
+      <ResponsiveModal
+        isOpen={showEditModal && !!selectedTrainer}
+        onClose={() => setShowEditModal(false)}
+        title="Edit Trainer Profile"
+        maxWidthClass="max-w-md"
+        footer={
+          <>
             <button
+              type="button"
               onClick={() => setShowEditModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+              className="flex-1 h-11 border hover:bg-muted rounded-xl text-sm font-semibold cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              Cancel
             </button>
-
-            <h2 className="text-xl font-bold mb-4">Edit Trainer Profile</h2>
-
-            <form onSubmit={handleEditTrainer} className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Trainer Full Name</label>
-                <input
-                  type="text"
-                  required
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Phone</label>
-                <input
-                  type="tel"
-                  required
-                  value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Specialization</label>
-                <input
-                  type="text"
-                  value={editSpecialization}
-                  onChange={(e) => setEditSpecialization(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Status</label>
-                <select
-                  value={editStatus}
-                  onChange={(e) => setEditStatus(e.target.value as any)}
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                </select>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="flex-1 py-2 border hover:bg-muted rounded-xl text-sm font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={updating}
-                  className="flex-1 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-semibold"
-                >
-                  {updating ? 'Updating...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
+            <button
+              type="submit"
+              form="edit-trainer-form"
+              disabled={updating}
+              className="flex-1 h-11 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-semibold cursor-pointer disabled:opacity-50"
+            >
+              {updating ? 'Updating...' : 'Save Changes'}
+            </button>
+          </>
+        }
+      >
+        <form id="edit-trainer-form" onSubmit={handleEditTrainer} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Trainer Full Name</label>
+            <input
+              type="text"
+              required
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
           </div>
-        </div>
-      )}
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Phone</label>
+            <input
+              type="tel"
+              required
+              value={editPhone}
+              onChange={(e) => setEditPhone(e.target.value)}
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Specialization</label>
+            <input
+              type="text"
+              value={editSpecialization}
+              onChange={(e) => setEditSpecialization(e.target.value)}
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Status</label>
+            <select
+              value={editStatus}
+              onChange={(e) => setEditStatus(e.target.value as any)}
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+        </form>
+      </ResponsiveModal>
     </div>
   );
 };

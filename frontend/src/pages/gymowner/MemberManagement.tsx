@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { generateMemberCardPDF, exportToExcel } from '../../utils/exportHelpers';
+import { ResponsiveModal } from '../../components/ResponsiveModal';
 
 interface Plan {
   _id: string;
@@ -1508,433 +1509,433 @@ export const MemberManagement: React.FC = () => {
       )}
 
       {/* Add Member Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-lg bg-card border rounded-3xl p-6 shadow-2xl relative my-8">
+      <ResponsiveModal
+        isOpen={showAddModal}
+        onClose={() => {
+          setShowAddModal(false);
+          resetAddForm();
+        }}
+        title="Register New Member"
+        subtitle="Create a new gym membership profile"
+        maxWidthClass="max-w-lg"
+        footer={
+          <>
             <button
-              onClick={() => setShowAddModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+              type="button"
+              onClick={() => {
+                setShowAddModal(false);
+                resetAddForm();
+              }}
+              className="flex-1 h-11 border hover:bg-muted rounded-xl text-sm font-semibold cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              Cancel
             </button>
+            <button
+              type="submit"
+              form="register-member-form"
+              disabled={adding}
+              className="flex-1 h-11 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-semibold cursor-pointer disabled:opacity-50"
+            >
+              {adding ? 'Registering...' : 'Register Member'}
+            </button>
+          </>
+        }
+      >
+        <form id="register-member-form" onSubmit={handleRegisterMember} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Full Name</label>
+              <input
+                type="text"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g. Rohan Khanna"
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+              {formErrors.name && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.name}</p>}
+            </div>
 
-            <h2 className="text-xl font-bold mb-4">Register New Member</h2>
-
-            <form onSubmit={handleRegisterMember} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Rohan Khanna"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                  {formErrors.name && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.name}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. +91 91111 91111"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                  {formErrors.phone && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.phone}</p>}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="member@gmail.com"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                  {formErrors.email && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.email}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gender</label>
-                  <select
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value as any)}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">DOB</label>
-                  <input
-                    type="date"
-                    required
-                    value={dob}
-                    onChange={(e) => setDob(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                  {formErrors.dob && <p className="text-[10px] text-rose-500 mt-1 font-medium">{formErrors.dob}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Height (cm)</label>
-                  <input
-                    type="number"
-                    required
-                    value={height}
-                    onChange={(e) => setHeight(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                  {formErrors.height && <p className="text-[10px] text-rose-500 mt-1 font-medium">{formErrors.height}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Weight (kg)</label>
-                  <input
-                    type="number"
-                    required
-                    value={weight}
-                    onChange={(e) => setWeight(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                  {formErrors.weight && <p className="text-[10px] text-rose-500 mt-1 font-medium">{formErrors.weight}</p>}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Address Location</label>
-                <input
-                  type="text"
-                  required
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Street and Area details..."
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Membership Plan</label>
-                  {plansLoading ? (
-                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
-                      <option className="bg-card text-foreground">Loading Plans...</option>
-                    </select>
-                  ) : !plansLoaded ? (
-                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
-                      <option className="bg-card text-foreground">Plans Not Loaded</option>
-                    </select>
-                  ) : plans.length === 0 ? (
-                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
-                      <option className="bg-card text-foreground">No Plans Available</option>
-                    </select>
-                  ) : (
-                    <select
-                      value={planId}
-                      onChange={(e) => {
-                        setPlanId(e.target.value);
-                        const planObj = plans.find((p) => p._id === e.target.value);
-                        if (planObj) setInitialPayment(planObj.price);
-                      }}
-                      className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none z-10"
-                    >
-                      <option value="" className="bg-card text-foreground">Select a plan</option>
-                      {plans.map((p) => (
-                        <option key={p._id} value={p._id} className="bg-card text-foreground">
-                          {p.name} (₹{p.price})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {formErrors.planId && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.planId}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={membershipStart}
-                    onChange={(e) => setMembershipStart(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Deposit Collected (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    value={initialPayment}
-                    onChange={(e) => setInitialPayment(Number(e.target.value))}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Emergency Contact</label>
-                  <input
-                    type="tel"
-                    required
-                    value={emergencyContact}
-                    onChange={(e) => setEmergencyContact(e.target.value)}
-                    placeholder="Guardian Phone..."
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                  {formErrors.emergencyContact && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.emergencyContact}</p>}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Staff Notes</label>
-                <input
-                  type="text"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Medical conditions, goals..."
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="flex-1 py-2 border hover:bg-muted rounded-xl text-sm font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={adding}
-                  className="flex-1 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-semibold"
-                >
-                  {adding ? 'Registering...' : 'Register Member'}
-                </button>
-              </div>
-            </form>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Phone Number</label>
+              <input
+                type="tel"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="e.g. +91 91111 91111"
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+              {formErrors.phone && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.phone}</p>}
+            </div>
           </div>
-        </div>
-      )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="member@gmail.com"
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+              {formErrors.email && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.email}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gender</label>
+              <select
+                value={gender}
+                onChange={(e) => setGender(e.target.value as any)}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              >
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-1">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">DOB</label>
+              <input
+                type="date"
+                required
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border bg-background text-xs focus:outline-none"
+              />
+              {formErrors.dob && <p className="text-[10px] text-rose-500 mt-1 font-medium">{formErrors.dob}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Height (cm)</label>
+                <input
+                  type="number"
+                  required
+                  value={height}
+                  onChange={(e) => setHeight(Number(e.target.value))}
+                  className="w-full h-11 px-3 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+                {formErrors.height && <p className="text-[10px] text-rose-500 mt-1 font-medium">{formErrors.height}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Weight (kg)</label>
+                <input
+                  type="number"
+                  required
+                  value={weight}
+                  onChange={(e) => setWeight(Number(e.target.value))}
+                  className="w-full h-11 px-3 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+                {formErrors.weight && <p className="text-[10px] text-rose-500 mt-1 font-medium">{formErrors.weight}</p>}
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Address Location</label>
+            <input
+              type="text"
+              required
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Street and Area details..."
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border/80">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Membership Plan</label>
+              {plansLoading ? (
+                <select disabled className="w-full h-11 px-4 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                  <option className="bg-card text-foreground">Loading Plans...</option>
+                </select>
+              ) : !plansLoaded ? (
+                <select disabled className="w-full h-11 px-4 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                  <option className="bg-card text-foreground">Plans Not Loaded</option>
+                </select>
+              ) : plans.length === 0 ? (
+                <select disabled className="w-full h-11 px-4 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                  <option className="bg-card text-foreground">No Plans Available</option>
+                </select>
+              ) : (
+                <select
+                  value={planId}
+                  onChange={(e) => {
+                    setPlanId(e.target.value);
+                    const planObj = plans.find((p) => p._id === e.target.value);
+                    if (planObj) setInitialPayment(planObj.price);
+                  }}
+                  className="w-full h-11 px-4 rounded-xl border border-muted bg-card text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none z-10"
+                >
+                  <option value="" className="bg-card text-foreground">Select a plan</option>
+                  {plans.map((p) => (
+                    <option key={p._id} value={p._id} className="bg-card text-foreground">
+                      {p.name} (₹{p.price})
+                    </option>
+                  ))}
+                </select>
+              )}
+              {formErrors.planId && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.planId}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Start Date</label>
+              <input
+                type="date"
+                required
+                value={membershipStart}
+                onChange={(e) => setMembershipStart(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Deposit Collected (₹)</label>
+              <input
+                type="number"
+                required
+                value={initialPayment}
+                onChange={(e) => setInitialPayment(Number(e.target.value))}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Emergency Contact</label>
+              <input
+                type="tel"
+                required
+                value={emergencyContact}
+                onChange={(e) => setEmergencyContact(e.target.value)}
+                placeholder="Guardian Phone..."
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+              {formErrors.emergencyContact && <p className="text-xs text-rose-500 mt-1 font-medium">{formErrors.emergencyContact}</p>}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Staff Notes</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Medical conditions, goals..."
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
+          </div>
+        </form>
+      </ResponsiveModal>
 
       {/* Edit Member Modal */}
-      {showEditModal && selectedMember && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-lg bg-card border rounded-3xl p-6 shadow-2xl relative my-8">
+      <ResponsiveModal
+        isOpen={showEditModal && !!selectedMember}
+        onClose={() => setShowEditModal(false)}
+        title="Edit Member Profile"
+        subtitle="Update member contact and membership parameters"
+        maxWidthClass="max-w-lg"
+        footer={
+          <>
             <button
+              type="button"
               onClick={() => setShowEditModal(false)}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+              className="flex-1 h-11 border hover:bg-muted rounded-xl text-sm font-semibold cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              Cancel
             </button>
+            <button
+              type="submit"
+              form="edit-member-form"
+              disabled={updating}
+              className="flex-1 h-11 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-semibold cursor-pointer disabled:opacity-50"
+            >
+              {updating ? 'Updating...' : 'Save Changes'}
+            </button>
+          </>
+        }
+      >
+        <form id="edit-member-form" onSubmit={handleUpdateMember} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Full Name</label>
+              <input
+                type="text"
+                required
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
 
-            <h2 className="text-xl font-bold mb-4">Edit Member Profile</h2>
-
-            <form onSubmit={handleUpdateMember} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Phone Number</label>
-                  <input
-                    type="tel"
-                    required
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    required
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gender</label>
-                  <select
-                    value={editGender}
-                    onChange={(e) => setEditGender(e.target.value as any)}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">DOB</label>
-                  <input
-                    type="date"
-                    required
-                    value={editDob}
-                    onChange={(e) => setEditDob(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Height (cm)</label>
-                  <input
-                    type="number"
-                    required
-                    value={editHeight}
-                    onChange={(e) => setEditHeight(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Weight (kg)</label>
-                  <input
-                    type="number"
-                    required
-                    value={editWeight}
-                    onChange={(e) => setEditWeight(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Address</label>
-                <input
-                  type="text"
-                  required
-                  value={editAddress}
-                  onChange={(e) => setEditAddress(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Active Plan</label>
-                  {plansLoading ? (
-                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
-                      <option className="bg-card text-foreground">Loading Plans...</option>
-                    </select>
-                  ) : !plansLoaded ? (
-                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
-                      <option className="bg-card text-foreground">Plans Not Loaded</option>
-                    </select>
-                  ) : plans.length === 0 ? (
-                    <select disabled className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
-                      <option className="bg-card text-foreground">No Plans Available</option>
-                    </select>
-                  ) : (
-                    <select
-                      value={editPlanId}
-                      onChange={(e) => setEditPlanId(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none z-10"
-                    >
-                      {plans.map((p) => (
-                        <option key={p._id} value={p._id} className="bg-card text-foreground">
-                          {p.name} (₹{p.price})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    required
-                    value={editMembershipStart}
-                    onChange={(e) => setEditMembershipStart(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-card text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Dues Paid (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    value={editAmountPaid}
-                    onChange={(e) => setEditAmountPaid(Number(e.target.value))}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Emergency Contact</label>
-                  <input
-                    type="tel"
-                    required
-                    value={editEmergency}
-                    onChange={(e) => setEditEmergency(e.target.value)}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Staff Notes</label>
-                <input
-                  type="text"
-                  value={editNotes}
-                  onChange={(e) => setEditNotes(e.target.value)}
-                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                />
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setShowEditModal(false)}
-                  className="flex-1 py-2 border hover:bg-muted rounded-xl text-sm font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={updating}
-                  className="flex-1 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-semibold"
-                >
-                  {updating ? 'Updating...' : 'Save Changes'}
-                </button>
-              </div>
-            </form>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Phone Number</label>
+              <input
+                type="tel"
+                required
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
           </div>
-        </div>
-      )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
+              <input
+                type="email"
+                required
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gender</label>
+              <select
+                value={editGender}
+                onChange={(e) => setEditGender(e.target.value as any)}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              >
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-1">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">DOB</label>
+              <input
+                type="date"
+                required
+                value={editDob}
+                onChange={(e) => setEditDob(e.target.value)}
+                className="w-full h-11 px-3 rounded-xl border bg-background text-xs focus:outline-none"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Height (cm)</label>
+                <input
+                  type="number"
+                  required
+                  value={editHeight}
+                  onChange={(e) => setEditHeight(Number(e.target.value))}
+                  className="w-full h-11 px-3 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Weight (kg)</label>
+                <input
+                  type="number"
+                  required
+                  value={editWeight}
+                  onChange={(e) => setEditWeight(Number(e.target.value))}
+                  className="w-full h-11 px-3 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Address</label>
+            <input
+              type="text"
+              required
+              value={editAddress}
+              onChange={(e) => setEditAddress(e.target.value)}
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border/80">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Active Plan</label>
+              {plansLoading ? (
+                <select disabled className="w-full h-11 px-4 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                  <option className="bg-card text-foreground">Loading Plans...</option>
+                </select>
+              ) : !plansLoaded ? (
+                <select disabled className="w-full h-11 px-4 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                  <option className="bg-card text-foreground">Plans Not Loaded</option>
+                </select>
+              ) : plans.length === 0 ? (
+                <select disabled className="w-full h-11 px-4 rounded-xl border border-muted bg-card text-muted-foreground text-sm focus:outline-none">
+                  <option className="bg-card text-foreground">No Plans Available</option>
+                </select>
+              ) : (
+                <select
+                  value={editPlanId}
+                  onChange={(e) => setEditPlanId(e.target.value)}
+                  className="w-full h-11 px-4 rounded-xl border border-muted bg-card text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none z-10"
+                >
+                  {plans.map((p) => (
+                    <option key={p._id} value={p._id} className="bg-card text-foreground">
+                      {p.name} (₹{p.price})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Start Date</label>
+              <input
+                type="date"
+                required
+                value={editMembershipStart}
+                onChange={(e) => setEditMembershipStart(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border border-muted bg-card text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Dues Paid (₹)</label>
+              <input
+                type="number"
+                required
+                value={editAmountPaid}
+                onChange={(e) => setEditAmountPaid(Number(e.target.value))}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Emergency Contact</label>
+              <input
+                type="tel"
+                required
+                value={editEmergency}
+                onChange={(e) => setEditEmergency(e.target.value)}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Staff Notes</label>
+            <input
+              type="text"
+              value={editNotes}
+              onChange={(e) => setEditNotes(e.target.value)}
+              className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+            />
+          </div>
+        </form>
+      </ResponsiveModal>
 
       {/* Member Detail Drawer */}
       {showDrawer && detailMember && (
@@ -2062,60 +2063,63 @@ export const MemberManagement: React.FC = () => {
       )}
 
       {/* WhatsApp Welcome Confirmation Modal */}
-      {whatsAppModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-          <div className="w-full max-w-sm bg-card border rounded-3xl p-6 shadow-2xl relative text-center">
-            <h3 className="text-lg font-bold text-foreground mb-2">Member Registered Successfully</h3>
-            <p className="text-xs text-muted-foreground mb-6">
-              Would you like to send the welcome WhatsApp message to this member now?
-            </p>
-            <div className="flex flex-col gap-2">
-              <button
-                onClick={() => {
-                  if (pendingWhatsAppUrl) {
-                    window.open(pendingWhatsAppUrl, '_blank');
-                  }
-                  setWhatsAppModalOpen(false);
-                  setPendingWhatsAppUrl(null);
-                }}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-md"
-              >
-                Send WhatsApp
-              </button>
-              <button
-                onClick={() => {
-                  setWhatsAppModalOpen(false);
-                  setPendingWhatsAppUrl(null);
-                }}
-                className="w-full py-2.5 bg-secondary hover:bg-secondary-hover text-foreground rounded-xl text-xs font-semibold transition-all border border-border/40"
-              >
-                Skip
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Migration Hub Modal */}
-      {showMigrationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-4xl bg-card border rounded-3xl p-6 shadow-2xl relative my-8 flex flex-col max-h-[90vh]">
+      <ResponsiveModal
+        isOpen={whatsAppModalOpen}
+        onClose={() => {
+          setWhatsAppModalOpen(false);
+          setPendingWhatsAppUrl(null);
+        }}
+        title="Member Registered Successfully"
+        maxWidthClass="max-w-sm"
+        zIndexClass="z-[100]"
+        footer={
+          <div className="flex flex-col gap-2 w-full">
             <button
               onClick={() => {
-                setShowMigrationModal(false);
-                setPreviewRows([]);
-                setUploadFileName('');
-                setImportSummary(null);
+                if (pendingWhatsAppUrl) {
+                  window.open(pendingWhatsAppUrl, '_blank');
+                }
+                setWhatsAppModalOpen(false);
+                setPendingWhatsAppUrl(null);
               }}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground z-10"
+              className="w-full h-11 bg-emerald-650 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              Send WhatsApp
             </button>
+            <button
+              onClick={() => {
+                setWhatsAppModalOpen(false);
+                setPendingWhatsAppUrl(null);
+              }}
+              className="w-full h-11 bg-secondary hover:bg-secondary-hover text-foreground rounded-xl text-xs font-semibold transition-all border border-border/40 cursor-pointer"
+            >
+              Skip
+            </button>
+          </div>
+        }
+      >
+        <p className="text-xs sm:text-sm text-muted-foreground text-center">
+          Would you like to send the welcome WhatsApp message to this member now?
+        </p>
+      </ResponsiveModal>
 
-            <div className="flex items-center gap-2 mb-4">
-              <Database className="w-6 h-6 text-indigo-500" />
-              <h2 className="text-xl font-bold">Existing Member Migration Hub</h2>
-            </div>
+      {/* Migration Hub Modal */}
+      <ResponsiveModal
+        isOpen={showMigrationModal}
+        onClose={() => {
+          setShowMigrationModal(false);
+          setPreviewRows([]);
+          setUploadFileName('');
+          setImportSummary(null);
+        }}
+        title="Existing Member Migration Hub"
+        maxWidthClass="max-w-4xl"
+      >
+        <div className="flex flex-col h-full">
+          <div className="flex items-center gap-2 mb-4">
+            <Database className="w-6 h-6 text-indigo-500" />
+            <span className="text-xs text-muted-foreground font-semibold">Bulk upload tools</span>
+          </div>
 
             {/* Tabs */}
             <div className="flex border-b mb-6 gap-4 text-sm font-semibold">
@@ -2704,287 +2708,286 @@ export const MemberManagement: React.FC = () => {
                 )}
               </div>
             )}
-          </div>
         </div>
-      )}
+      </ResponsiveModal>
 
       {/* Manual Existing Member Migration Modal */}
-      {showManualMigrateModal && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm overflow-y-auto">
-          <div className="w-full max-w-2xl bg-card border rounded-3xl p-6 shadow-2xl relative my-8 flex flex-col max-h-[90vh]">
+      <ResponsiveModal
+        isOpen={showManualMigrateModal}
+        onClose={() => {
+          setShowManualMigrateModal(false);
+          setManualFormErrors({});
+        }}
+        title="Add Existing Migrated Member"
+        subtitle="Log history records from previous softwares"
+        maxWidthClass="max-w-2xl"
+        zIndexClass="z-[60]"
+        footer={
+          <>
             <button
+              type="button"
               onClick={() => {
                 setShowManualMigrateModal(false);
                 setManualFormErrors({});
               }}
-              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground z-10"
+              className="flex-1 h-11 border hover:bg-muted rounded-xl text-xs font-bold cursor-pointer"
             >
-              <X className="w-5 h-5" />
+              Cancel
             </button>
-
-            <h2 className="text-xl font-bold mb-4">Add Existing Migrated Member</h2>
-
-            <form onSubmit={handleManualMigrationSubmit} className="space-y-4 overflow-y-auto pr-2 flex-1">
-              <div className="border-b pb-2 font-bold text-xs text-indigo-400 uppercase tracking-wide">
-                1. Personal Details
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={manualForm.name}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="Amit Kumar"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                  {manualFormErrors.name && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.name}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Phone Number (10 digits)</label>
-                  <input
-                    type="tel"
-                    required
-                    value={manualForm.phone}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="9876543210"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                  {manualFormErrors.phone && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.phone}</p>}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
-                  <input
-                    type="email"
-                    value={manualForm.email}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="amit@example.com"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gender</label>
-                  <select
-                    value={manualForm.gender}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, gender: e.target.value }))}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  >
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">DOB</label>
-                  <input
-                    type="date"
-                    required
-                    value={manualForm.dob}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, dob: e.target.value }))}
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                  {manualFormErrors.dob && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.dob}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Height (cm)</label>
-                  <input
-                    type="number"
-                    required
-                    value={manualForm.height}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, height: e.target.value }))}
-                    placeholder="175"
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                  {manualFormErrors.height && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.height}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Weight (kg)</label>
-                  <input
-                    type="number"
-                    required
-                    value={manualForm.weight}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, weight: e.target.value }))}
-                    placeholder="70"
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                  {manualFormErrors.weight && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.weight}</p>}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Address</label>
-                  <input
-                    type="text"
-                    value={manualForm.address}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, address: e.target.value }))}
-                    placeholder="Area, City..."
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Emergency Contact</label>
-                  <input
-                    type="tel"
-                    value={manualForm.emergencyContact}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, emergencyContact: e.target.value }))}
-                    placeholder="Emergency Phone..."
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="border-b pb-2 pt-4 font-bold text-xs text-indigo-400 uppercase tracking-wide">
-                2. Membership Plan & Financial Opening Balances
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Membership Plan Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={manualForm.planName}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, planName: e.target.value }))}
-                    placeholder="e.g. Premium Annual"
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                  {manualFormErrors.planName && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.planName}</p>}
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Start Date</label>
-                    <input
-                      type="date"
-                      required
-                      value={manualForm.startDate}
-                      onChange={(e) => setManualForm(prev => ({ ...prev, startDate: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                    />
-                    {manualFormErrors.startDate && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.startDate}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Expiry Date</label>
-                    <input
-                      type="date"
-                      required
-                      value={manualForm.expiryDate}
-                      onChange={(e) => setManualForm(prev => ({ ...prev, expiryDate: e.target.value }))}
-                      className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                    />
-                    {manualFormErrors.expiryDate && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.expiryDate}</p>}
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Total Price (₹)</label>
-                  <input
-                    type="number"
-                    required
-                    value={manualForm.totalAmount}
-                    onChange={(e) => {
-                      const val = Number(e.target.value);
-                      const paid = Number(manualForm.amountPaid || 0);
-                      setManualForm(prev => ({
-                        ...prev,
-                        totalAmount: e.target.value,
-                        remainingDue: String(val - paid)
-                      }));
-                    }}
-                    placeholder="12000"
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                  {manualFormErrors.totalAmount && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.totalAmount}</p>}
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Amount Paid (₹)</label>
-                  <input
-                    type="number"
-                    value={manualForm.amountPaid}
-                    onChange={(e) => {
-                      const paid = Number(e.target.value);
-                      const total = Number(manualForm.totalAmount || 0);
-                      setManualForm(prev => ({
-                        ...prev,
-                        amountPaid: e.target.value,
-                        remainingDue: String(total - paid)
-                      }));
-                    }}
-                    placeholder="10000"
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Remaining Due (₹)</label>
-                  <input
-                    type="number"
-                    value={manualForm.remainingDue}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, remainingDue: e.target.value }))}
-                    placeholder="2000"
-                    className="w-full px-3 py-2 rounded-xl border bg-background text-xs focus:outline-none bg-muted/20"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Payment Status</label>
-                  <select
-                    value={manualForm.paymentStatus}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, paymentStatus: e.target.value }))}
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  >
-                    <option value="paid">Paid (Fully)</option>
-                    <option value="partial">Partial Dues</option>
-                    <option value="unpaid">Unpaid / Pending</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Medical Notes</label>
-                  <input
-                    type="text"
-                    value={manualForm.notes}
-                    onChange={(e) => setManualForm(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Any previous ailments or details..."
-                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-4 border-t">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowManualMigrateModal(false);
-                    setManualFormErrors({});
-                  }}
-                  className="flex-1 py-2.5 border hover:bg-muted rounded-xl text-xs font-bold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingManualMigration}
-                  className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition-all shadow-md"
-                >
-                  {savingManualMigration ? 'Saving Migration...' : 'Confirm Manual Migration'}
-                </button>
-              </div>
-            </form>
+            <button
+              type="submit"
+              form="manual-migration-form"
+              disabled={savingManualMigration}
+              className="flex-1 h-11 bg-indigo-650 hover:bg-indigo-600 text-white rounded-xl text-xs font-bold transition-all shadow-md cursor-pointer disabled:opacity-50"
+            >
+              {savingManualMigration ? 'Saving Migration...' : 'Confirm Manual Migration'}
+            </button>
+          </>
+        }
+      >
+        <form id="manual-migration-form" onSubmit={handleManualMigrationSubmit} className="space-y-4">
+          <div className="border-b pb-2 font-bold text-xs text-indigo-450 uppercase tracking-wide">
+            1. Personal Details
           </div>
-        </div>
-      )}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Full Name</label>
+              <input
+                type="text"
+                required
+                value={manualForm.name}
+                onChange={(e) => setManualForm(prev => ({ ...prev, name: e.target.value }))}
+                placeholder="Amit Kumar"
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+              {manualFormErrors.name && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.name}</p>}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Phone Number (10 digits)</label>
+              <input
+                type="tel"
+                required
+                value={manualForm.phone}
+                onChange={(e) => setManualForm(prev => ({ ...prev, phone: e.target.value }))}
+                placeholder="9876543210"
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+              {manualFormErrors.phone && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.phone}</p>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
+              <input
+                type="email"
+                value={manualForm.email}
+                onChange={(e) => setManualForm(prev => ({ ...prev, email: e.target.value }))}
+                placeholder="amit@example.com"
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gender</label>
+              <select
+                value={manualForm.gender}
+                onChange={(e) => setManualForm(prev => ({ ...prev, gender: e.target.value }))}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              >
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-1">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">DOB</label>
+              <input
+                type="date"
+                required
+                value={manualForm.dob}
+                onChange={(e) => setManualForm(prev => ({ ...prev, dob: e.target.value }))}
+                className="w-full h-11 px-3 rounded-xl border bg-background text-xs focus:outline-none"
+              />
+              {manualFormErrors.dob && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.dob}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Height (cm)</label>
+                <input
+                  type="number"
+                  required
+                  value={manualForm.height}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, height: e.target.value }))}
+                  placeholder="175"
+                  className="w-full h-11 px-3 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+                {manualFormErrors.height && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.height}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Weight (kg)</label>
+                <input
+                  type="number"
+                  required
+                  value={manualForm.weight}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, weight: e.target.value }))}
+                  placeholder="70"
+                  className="w-full h-11 px-3 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+                {manualFormErrors.weight && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.weight}</p>}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Address</label>
+              <input
+                type="text"
+                value={manualForm.address}
+                onChange={(e) => setManualForm(prev => ({ ...prev, address: e.target.value }))}
+                placeholder="Area, City..."
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Emergency Contact</label>
+              <input
+                type="tel"
+                value={manualForm.emergencyContact}
+                onChange={(e) => setManualForm(prev => ({ ...prev, emergencyContact: e.target.value }))}
+                placeholder="Emergency Phone..."
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
+          </div>
+
+          <div className="border-b pb-2 pt-4 font-bold text-xs text-indigo-450 uppercase tracking-wide">
+            2. Membership Plan &amp; Financial Opening Balances
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Membership Plan Name</label>
+              <input
+                type="text"
+                required
+                value={manualForm.planName}
+                onChange={(e) => setManualForm(prev => ({ ...prev, planName: e.target.value }))}
+                placeholder="e.g. Premium Annual"
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+              {manualFormErrors.planName && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.planName}</p>}
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Start Date</label>
+                <input
+                  type="date"
+                  required
+                  value={manualForm.startDate}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, startDate: e.target.value }))}
+                  className="w-full h-11 px-3 rounded-xl border bg-background text-xs focus:outline-none"
+                />
+                {manualFormErrors.startDate && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.startDate}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Expiry Date</label>
+                <input
+                  type="date"
+                  required
+                  value={manualForm.expiryDate}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, expiryDate: e.target.value }))}
+                  className="w-full h-11 px-3 rounded-xl border bg-background text-xs focus:outline-none"
+                />
+                {manualFormErrors.expiryDate && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.expiryDate}</p>}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="sm:col-span-1">
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Total Price (₹)</label>
+              <input
+                type="number"
+                required
+                value={manualForm.totalAmount}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  const paid = Number(manualForm.amountPaid || 0);
+                  setManualForm(prev => ({
+                    ...prev,
+                    totalAmount: e.target.value,
+                    remainingDue: String(val - paid)
+                  }));
+                }}
+                placeholder="12000"
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+              {manualFormErrors.totalAmount && <p className="text-xs text-rose-500 mt-1">{manualFormErrors.totalAmount}</p>}
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:col-span-2">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Amount Paid (₹)</label>
+                <input
+                  type="number"
+                  value={manualForm.amountPaid}
+                  onChange={(e) => {
+                    const paid = Number(e.target.value);
+                    const total = Number(manualForm.totalAmount || 0);
+                    setManualForm(prev => ({
+                      ...prev,
+                      amountPaid: e.target.value,
+                      remainingDue: String(total - paid)
+                    }));
+                  }}
+                  placeholder="10000"
+                  className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Remaining Due (₹)</label>
+                <input
+                  type="number"
+                  value={manualForm.remainingDue}
+                  onChange={(e) => setManualForm(prev => ({ ...prev, remainingDue: e.target.value }))}
+                  placeholder="2000"
+                  className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none bg-muted/20"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Payment Status</label>
+              <select
+                value={manualForm.paymentStatus}
+                onChange={(e) => setManualForm(prev => ({ ...prev, paymentStatus: e.target.value }))}
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              >
+                <option value="paid">Paid (Fully)</option>
+                <option value="partial">Partial Dues</option>
+                <option value="unpaid">Unpaid / Pending</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Medical Notes</label>
+              <input
+                type="text"
+                value={manualForm.notes}
+                onChange={(e) => setManualForm(prev => ({ ...prev, notes: e.target.value }))}
+                placeholder="Any previous ailments or details..."
+                className="w-full h-11 px-4 rounded-xl border bg-background text-sm focus:outline-none"
+              />
+            </div>
+          </div>
+        </form>
+      </ResponsiveModal>
     </div>
   );
 };

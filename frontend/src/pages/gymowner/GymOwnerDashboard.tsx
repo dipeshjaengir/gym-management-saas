@@ -44,6 +44,7 @@ import {
   Download,
   MessageCircle
 } from 'lucide-react';
+import { ResponsiveModal } from '../../components/ResponsiveModal';
 
 interface DashboardStats {
   metrics: {
@@ -1220,116 +1221,97 @@ export const GymOwnerDashboard: React.FC = () => {
       </button>
 
       {/* Upgrade Subscription Modal */}
-      {showUpgradeModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-md w-full relative">
-            <button
-              onClick={() => {
-                setShowUpgradeModal(false);
-              }}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all hover:bg-muted p-1 rounded-lg"
-            >
-              <X className="w-5 h-5" />
-            </button>
- 
-            <div className="space-y-6">
-              <div className="text-center space-y-1">
-                <h3 className="text-xl font-bold text-foreground">Upgrade to Premium Plan</h3>
-                <p className="text-xs text-muted-foreground">
-                  Upgrade your gym workspace and unlock full management tools.
-                </p>
-              </div>
- 
-              <div className="space-y-4">
-                {/* Gym Details */}
-                <div className="bg-secondary/20 border border-border/30 rounded-xl p-3.5 space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Gym Name</span>
-                    <span className="font-semibold text-foreground">{user?.branding?.gymName || user?.gymName || 'My Gym'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Owner Name</span>
-                    <span className="font-semibold text-foreground">{user?.ownerName || user?.name || 'Gym Owner'}</span>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Select Subscription Plan</label>
-                  <select
-                    value={selectedUpgradePlan?.name || ''}
-                    onChange={(e) => {
-                      const selected = platformPlans.find(p => p.name === e.target.value);
-                      if (selected) setSelectedUpgradePlan(selected);
-                    }}
-                    className="w-full px-4 py-2.5 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
-                  >
-                    {platformPlans.length > 0 ? (
-                      platformPlans.map((p) => (
-                        <option key={p._id} value={p.name}>{p.name} (₹{p.price})</option>
-                      ))
-                    ) : (
-                      <>
-                        <option value="Monthly">Monthly (₹179)</option>
-                        <option value="Quarterly">Quarterly (₹449)</option>
-                        <option value="Half-Yearly">Half-Yearly (₹699)</option>
-                        <option value="Yearly">Yearly (₹1299)</option>
-                      </>
-                    )}
-                  </select>
-                </div>
- 
-                {selectedUpgradePlan && (
-                  <div className="border-t border-muted/30 pt-4 space-y-2">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Plan Price</span>
-                      <span>₹{selectedUpgradePlan.price}</span>
-                    </div>
-                    <div className="flex justify-between font-bold text-sm text-foreground border-t border-muted/20 pt-2">
-                      <span>Total Amount</span>
-                      <span>₹{selectedUpgradePlan.price}</span>
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  onClick={handleWhatsAppUpgrade}
-                  className="w-full mt-2 py-3 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/95 text-xs text-center transition-all flex items-center justify-center gap-2"
-                >
-                  Confirm & Buy via WhatsApp <PhoneCall className="w-4 h-4" />
-                </button>
-              </div>
+      <ResponsiveModal
+        isOpen={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        title="Upgrade to Premium Plan"
+        subtitle="Upgrade your gym workspace and unlock full management tools."
+        maxWidthClass="max-w-md"
+        footer={
+          <button
+            onClick={handleWhatsAppUpgrade}
+            className="w-full h-11 rounded-xl font-bold bg-primary text-primary-foreground hover:bg-primary/95 text-xs text-center transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md"
+          >
+            Confirm &amp; Buy via WhatsApp <PhoneCall className="w-4 h-4" />
+          </button>
+        }
+      >
+        <div className="space-y-4">
+          {/* Gym Details */}
+          <div className="bg-secondary/20 border border-border/30 rounded-xl p-3.5 space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Gym Name</span>
+              <span className="font-semibold text-foreground">{user?.branding?.gymName || user?.gymName || 'My Gym'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Owner Name</span>
+              <span className="font-semibold text-foreground">{user?.ownerName || user?.name || 'Gym Owner'}</span>
             </div>
           </div>
-        </div>
-      )}
-      {/* Subscription History Modal */}
-      {showHistoryModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-4xl w-full relative max-h-[90vh] flex flex-col shadow-2xl">
-            <button
-              onClick={() => setShowHistoryModal(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all hover:bg-muted p-1 rounded-lg cursor-pointer animate-pulse"
+
+          <div>
+            <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Select Subscription Plan</label>
+            <select
+              value={selectedUpgradePlan?.name || ''}
+              onChange={(e) => {
+                const selected = platformPlans.find(p => p.name === e.target.value);
+                if (selected) setSelectedUpgradePlan(selected);
+              }}
+              className="w-full h-11 px-4 rounded-xl border border-muted bg-background text-foreground text-sm focus:ring-1 focus:ring-primary focus:outline-none"
             >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-center justify-between border-b pb-3 mb-4 pr-10">
-              <div>
-                <h3 className="text-lg font-bold text-foreground">Workspace Subscription History</h3>
-                <p className="text-xs text-muted-foreground">Ledger of platform renewals and workspace license logs.</p>
-              </div>
-              <button
-                onClick={handleExportHistoryCSV}
-                className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold bg-background border hover:bg-muted text-foreground text-xs shadow-sm cursor-pointer"
-              >
-                <Download className="w-3.5 h-3.5" /> CSV Export
-              </button>
-            </div>
-
-            <div className="flex-grow overflow-y-auto">
-              {(!user?.subscriptionHistory || user.subscriptionHistory.length === 0) ? (
-                <p className="text-center text-xs text-muted-foreground py-12">No subscription renewal logs recorded yet.</p>
+              {platformPlans.length > 0 ? (
+                platformPlans.map((p) => (
+                  <option key={p._id} value={p.name}>{p.name} (₹{p.price})</option>
+                ))
               ) : (
+                <>
+                  <option value="Monthly">Monthly (₹179)</option>
+                  <option value="Quarterly">Quarterly (₹449)</option>
+                  <option value="Half-Yearly">Half-Yearly (₹699)</option>
+                  <option value="Yearly">Yearly (₹1299)</option>
+                </>
+              )}
+            </select>
+          </div>
+
+          {selectedUpgradePlan && (
+            <div className="border-t border-muted/30 pt-4 space-y-2 text-xs">
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>Plan Price</span>
+                <span>₹{selectedUpgradePlan.price}</span>
+              </div>
+              <div className="flex justify-between font-bold text-sm text-foreground border-t border-muted/25 pt-2">
+                <span>Total Amount</span>
+                <span>₹{selectedUpgradePlan.price}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </ResponsiveModal>
+
+      {/* Subscription History Modal */}
+      <ResponsiveModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        title="Workspace Subscription History"
+        subtitle="Ledger of platform renewals and workspace license logs."
+        maxWidthClass="max-w-4xl"
+      >
+        <div className="flex flex-col h-full space-y-4">
+          <div className="flex justify-end">
+            <button
+              onClick={handleExportHistoryCSV}
+              className="flex items-center justify-center gap-1.5 h-11 px-4 rounded-xl font-semibold bg-background border hover:bg-muted text-foreground text-xs shadow-sm cursor-pointer"
+            >
+              <Download className="w-3.5 h-3.5" /> CSV Export
+            </button>
+          </div>
+
+          <div className="w-full overflow-x-auto border border-border/80 rounded-2xl bg-card">
+            {(!user?.subscriptionHistory || user.subscriptionHistory.length === 0) ? (
+              <p className="text-center text-xs text-muted-foreground py-12">No subscription renewal logs recorded yet.</p>
+            ) : (
+              <div className="min-w-[800px]">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b bg-muted/40 text-muted-foreground uppercase font-bold">
@@ -1352,7 +1334,7 @@ export const GymOwnerDashboard: React.FC = () => {
                         <td className="p-3 font-bold">₹{h.amountPaid}</td>
                         <td className="p-3 uppercase font-semibold text-muted-foreground">{h.paymentMethod || 'cash'}</td>
                         <td className="p-3">{h.startDate ? new Date(h.startDate).toLocaleDateString('en-IN') : 'N/A'}</td>
-                        <td className="p-3 text-rose-400 font-semibold">{h.expiryDate ? new Date(h.expiryDate).toLocaleDateString('en-IN') : 'N/A'}</td>
+                        <td className="p-3 text-rose-450 font-semibold">{h.expiryDate ? new Date(h.expiryDate).toLocaleDateString('en-IN') : 'N/A'}</td>
                         <td className="p-3 text-muted-foreground">{h.renewedBy || 'System'}</td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-bold uppercase tracking-wider text-[9px]">
@@ -1364,93 +1346,82 @@ export const GymOwnerDashboard: React.FC = () => {
                     ))}
                   </tbody>
                 </table>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
+      </ResponsiveModal>
 
       {/* Plan Details Modal */}
-      {showPlanDetailsModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-card border border-muted/50 p-6 rounded-3xl max-w-md w-full relative shadow-2xl">
-            <button
-              onClick={() => setShowPlanDetailsModal(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-all hover:bg-muted p-1 rounded-lg cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="text-center space-y-2 border-b pb-4 mb-4">
-              <h3 className="text-lg font-bold text-foreground">Current Plan Details</h3>
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20 uppercase tracking-wide">
-                {user?.subscription?.planType || 'Free Trial'}
+      <ResponsiveModal
+        isOpen={showPlanDetailsModal}
+        onClose={() => setShowPlanDetailsModal(false)}
+        title="Current Plan Details"
+        subtitle={`Current Subscription Type: ${user?.subscription?.planType || 'Free Trial'}`}
+        maxWidthClass="max-w-md"
+        footer={
+          <button
+            onClick={() => {
+              setShowPlanDetailsModal(false);
+              setShowUpgradeModal(true);
+            }}
+            className="w-full h-11 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-center shadow transition-all cursor-pointer flex items-center justify-center"
+          >
+            Upgrade or Extend Plan
+          </button>
+        }
+      >
+        <div className="space-y-4 text-xs sm:text-sm">
+          <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 border rounded-2xl">
+            <div>
+              <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Price Paid</span>
+              <span className="font-bold text-foreground text-sm">₹{user?.subscription?.amountPaid || 0}</span>
+            </div>
+            <div>
+              <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Days Remaining</span>
+              <span className="font-bold text-rose-400 text-sm">{daysRemaining > 0 ? daysRemaining : 0} Days</span>
+            </div>
+            <div>
+              <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Starts</span>
+              <span className="font-bold text-foreground">
+                {user?.subscription?.startDate ? new Date(user.subscription.startDate).toLocaleDateString('en-IN') : 'N/A'}
               </span>
             </div>
-
-            <div className="space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4 bg-muted/20 p-4 border rounded-2xl">
-                <div>
-                  <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Price Paid</span>
-                  <span className="font-bold text-foreground text-sm">₹{user?.subscription?.amountPaid || 0}</span>
-                </div>
-                <div>
-                  <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Days Remaining</span>
-                  <span className="font-bold text-rose-400 text-sm">{daysRemaining > 0 ? daysRemaining : 0} Days</span>
-                </div>
-                <div>
-                  <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Starts</span>
-                  <span className="font-bold text-foreground">
-                    {user?.subscription?.startDate ? new Date(user.subscription.startDate).toLocaleDateString('en-IN') : 'N/A'}
-                  </span>
-                </div>
-                <div>
-                  <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Expires</span>
-                  <span className="font-bold text-foreground">
-                    {user?.subscription?.expiryDate ? new Date(user.subscription.expiryDate).toLocaleDateString('en-IN') : 'N/A'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <h4 className="font-bold text-foreground uppercase tracking-wider text-[9px]">Platform Plan Inclusions</h4>
-                <ul className="space-y-1.5 pl-1.5">
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span>Complete Roster Members Registry</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span>QR Code Attendance Simulator Scanner</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span>Auto Expiry &amp; Outstanding Dues Reminders</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span>WhatsApp Click-to-Chat Welcome &amp; Due Receipts</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-emerald-400 font-bold">✓</span>
-                    <span>Financial Ledger, Auditing and PDF Invoice Exports</span>
-                  </li>
-                </ul>
-              </div>
-
-              <button
-                onClick={() => {
-                  setShowPlanDetailsModal(false);
-                  setShowUpgradeModal(true);
-                }}
-                className="w-full mt-2 py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground font-bold rounded-xl text-center shadow transition-all cursor-pointer"
-              >
-                Upgrade or Extend Plan
-              </button>
+            <div>
+              <span className="block text-muted-foreground uppercase tracking-wider text-[9px]">Expires</span>
+              <span className="font-bold text-foreground">
+                {user?.subscription?.expiryDate ? new Date(user.subscription.expiryDate).toLocaleDateString('en-IN') : 'N/A'}
+              </span>
             </div>
           </div>
+
+          <div className="space-y-2">
+            <h4 className="font-bold text-foreground uppercase tracking-wider text-[9px]">Platform Plan Inclusions</h4>
+            <ul className="space-y-1.5 pl-1.5 text-xs">
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400 font-bold">✓</span>
+                <span>Complete Roster Members Registry</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400 font-bold">✓</span>
+                <span>QR Code Attendance Simulator Scanner</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400 font-bold">✓</span>
+                <span>Auto Expiry &amp; Outstanding Dues Reminders</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400 font-bold">✓</span>
+                <span>WhatsApp Click-to-Chat Welcome &amp; Due Receipts</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-emerald-400 font-bold">✓</span>
+                <span>Financial Ledger, Auditing and PDF Invoice Exports</span>
+              </li>
+            </ul>
+          </div>
         </div>
-      )}
+      </ResponsiveModal>
     </div>
   );
 };
