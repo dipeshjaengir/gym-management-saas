@@ -27,7 +27,28 @@ desktop.ini
 # IDE files
 .vscode/
 .idea/
+# IDE files
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
+
+# Test & logs directories
+coverage/
+logs/
+*.log
+
+# Temporary and upload directories
+uploads/
+temp/
+cache/
+
+# Android generated APKs and local configurations
+*.apk
+*.aar
+*.ap_
+android/app/build/
+android/.gradle/
+android/local.properties
+.gradle/
+local.properties

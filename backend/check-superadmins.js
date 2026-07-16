@@ -24,9 +24,10 @@ async function run() {
         role: sa.role,
         passwordHash: sa.passwordHash
       });
-      // Check password admin123
-      const isMatch = await bcrypt.compare('admin123', sa.passwordHash);
-      console.log(`Password "admin123" matches:`, isMatch);
+      // Check password
+      const superAdminPass = process.env.SUPERADMIN_PASSWORD || 'As12qw34.@';
+      const isMatch = await bcrypt.compare(superAdminPass, sa.passwordHash);
+      console.log(`Password "${superAdminPass}" matches:`, isMatch);
     }
 
     // Get gym owners

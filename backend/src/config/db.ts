@@ -7,18 +7,21 @@ dotenv.config();
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/gym-management-saas';
 
+const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@gymledger.com';
+const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'As12qw34.@';
+
 export async function ensureDefaultSuperAdmin() {
   try {
-    const existingAdmin = await SuperAdmin.findOne({ email: 'dipeshjangir12@gmail.com' });
+    const existingAdmin = await SuperAdmin.findOne({ email: SUPERADMIN_EMAIL });
     if (!existingAdmin) {
-      const hashedAdminPassword = await bcrypt.hash('As12qw34.@', 10);
+      const hashedAdminPassword = await bcrypt.hash(SUPERADMIN_PASSWORD, 10);
       await SuperAdmin.create({
-        name: 'Dipesh Jangir (SaaS Admin)',
-        email: 'dipeshjangir12@gmail.com',
+        name: 'Super Admin',
+        email: SUPERADMIN_EMAIL,
         passwordHash: hashedAdminPassword,
         role: 'super_admin'
       });
-      console.log('[AUTO-SEED] Created default Super Admin: dipeshjangir12@gmail.com');
+      console.log(`[AUTO-SEED] Created default Super Admin: ${SUPERADMIN_EMAIL}`);
     } else {
       console.log(`[AUTO-SEED] Default Super Admin already exists: ${existingAdmin.email}.`);
     }
