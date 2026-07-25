@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Logo } from '../components/Logo';
 import { APP_VERSION } from '../utils/version';
 import { 
@@ -8,7 +8,6 @@ import {
   QrCode, 
   ShieldCheck, 
   Cpu, 
-  Info, 
   BookOpen, 
   Sparkles 
 } from 'lucide-react';
@@ -16,6 +15,35 @@ import { useNavigate } from 'react-router-dom';
 
 export const DownloadAppPage: React.FC = () => {
   const navigate = useNavigate();
+  const [apkStatus, setApkStatus] = useState<'checking' | 'available' | 'unavailable'>('checking');
+  const [apkSize, setApkSize] = useState<string>('~4.5 MB');
+
+  useEffect(() => {
+    const checkApkAvailability = async () => {
+      try {
+        const response = await fetch('/GymLedger.apk', { method: 'HEAD' });
+        const contentType = response.headers.get('content-type') || '';
+        
+        // If Vercel rewrote to index.html (content-type includes text/html), the file is missing
+        if (response.ok && !contentType.includes('text/html')) {
+          setApkStatus('available');
+          const contentLength = response.headers.get('content-length');
+          if (contentLength) {
+            const bytes = parseInt(contentLength, 10);
+            if (!isNaN(bytes)) {
+              setApkSize(`${(bytes / (1024 * 1024)).toFixed(2)} MB`);
+            }
+          }
+        } else {
+          setApkStatus('unavailable');
+        }
+      } catch (err) {
+        setApkStatus('unavailable');
+      }
+    };
+
+    checkApkAvailability();
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-between p-4 md:p-8 relative overflow-hidden">
@@ -96,13 +124,28 @@ export const DownloadAppPage: React.FC = () => {
           </div>
 
           {/* Download Action Button */}
-          <a
-            href="/GymLedger.apk"
-            download
-            className="w-full h-12 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:opacity-95 shadow-md shadow-primary/20 transition-all cursor-pointer text-sm"
-          >
-            <Download className="w-4 h-4" /> Download APK File
-          </a>
+          {apkStatus === 'available' ? (
+            <a
+              href="/GymLedger.apk"
+              download="GymLedger.apk"
+              className="w-full h-12 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:opacity-95 shadow-md shadow-primary/20 transition-all cursor-pointer text-sm"
+            >
+              <Download className="w-4 h-4" /> Download APK File
+            </a>
+          ) : (
+            <button
+              disabled
+              className="w-full h-12 bg-muted text-muted-foreground font-semibold rounded-2xl flex items-center justify-center gap-2 cursor-not-allowed text-sm border"
+            >
+              {apkStatus === 'checking' ? 'Checking APK availability...' : 'APK not available.'}
+            </button>
+          )}
+
+          {apkStatus === 'unavailable' && (
+            <p className="text-[11px] text-rose-500 font-semibold bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl w-full">
+              ⚠️ Android APK is temporarily unavailable.
+            </p>
+          )}
 
           <div className="w-full pt-4 border-t border-muted/30 space-y-2 text-left text-[11px] text-muted-foreground">
             <div className="flex justify-between">
@@ -111,10 +154,14 @@ export const DownloadAppPage: React.FC = () => {
             </div>
             <div className="flex justify-between">
               <span>File Size:</span>
-              <span className="font-semibold text-foreground">~4.5 MB</span>
+              <span className="font-semibold text-foreground">{apkSize}</span>
             </div>
             <div className="flex justify-between">
               <span>Release Date:</span>
+              <span className="font-semibold text-foreground">{APP_VERSION.releaseDate}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Last Updated:</span>
               <span className="font-semibold text-foreground">{APP_VERSION.releaseDate}</span>
             </div>
           </div>
