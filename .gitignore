@@ -45,6 +45,7 @@ cache/
 
 # Android generated APKs and local configurations
 *.apk
+!frontend/public/GymLedger.apk
 *.aar
 *.ap_
 android/app/build/

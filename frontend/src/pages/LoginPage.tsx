@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useNotification } from '../contexts/NotificationContext';
 import { Eye, EyeOff, Lock, Mail, PhoneCall } from 'lucide-react';
 import { Logo } from '../components/Logo';
 import { APP_VERSION } from '../utils/version';
+import { api } from '../services/api';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -15,9 +16,63 @@ export const LoginPage: React.FC = () => {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  const { login } = useAuth();
+  const { login, loginWithToken } = useAuth();
   const { showToast } = useNotification();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const initGoogleSignIn = () => {
+      const google = (window as any).google;
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      if (google && clientId) {
+        google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleLoginCallback,
+          auto_select: false
+        });
+        google.accounts.id.renderButton(
+          document.getElementById('google-signin-btn'),
+          { 
+            theme: 'outline', 
+            size: 'large', 
+            width: '100%', 
+            text: 'signin_with',
+            shape: 'rectangular'
+          }
+        );
+      }
+    };
+
+    const interval = setInterval(() => {
+      if ((window as any).google) {
+        initGoogleSignIn();
+        clearInterval(interval);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleGoogleLoginCallback = async (response: any) => {
+    setLoading(true);
+    setSuspendedError(null);
+    try {
+      const res = await api.post('/auth/google', { credential: response.credential });
+      loginWithToken(res.token, res.user);
+      showToast('Logged in successfully!', 'success');
+      navigate('/app');
+    } catch (err: any) {
+      console.error(err);
+      if (err.status === 403 && err.data?.status === 'suspended') {
+        setSuspendedError(err.message || 'Your account is suspended.');
+        showToast('Account suspended.', 'error');
+      } else {
+        showToast(err.message || 'Google authentication failed.', 'error');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -109,58 +164,71 @@ export const LoginPage: React.FC = () => {
             </button>
           </div>
         ) : (
-          <form onSubmit={handleLogin} className="space-y-5">
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
-                  <Mail className="w-4 h-4" />
+          <div className="space-y-5">
+            <form onSubmit={handleLogin} className="space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Email Address</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@gym.com"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:border-primary focus:outline-none transition-colors"
+                  />
                 </div>
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@gym.com"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:border-primary focus:outline-none transition-colors"
-                />
+                {emailError && <p className="text-xs text-rose-500 mt-1 font-medium">{emailError}</p>}
               </div>
-              {emailError && <p className="text-xs text-rose-500 mt-1 font-medium">{emailError}</p>}
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+                    <Lock className="w-4 h-4" />
+                  </div>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:border-primary focus:outline-none transition-colors"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+                {passwordError && <p className="text-xs text-rose-500 mt-1 font-medium">{passwordError}</p>}
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full mt-2 py-3 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-all flex items-center justify-center gap-2 text-sm shadow-md shadow-primary/20"
+              >
+                {loading ? 'Authenticating...' : 'Sign In'}
+              </button>
+            </form>
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border"></div>
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">Or continue with</span>
+              </div>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Password</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
-                  <Lock className="w-4 h-4" />
-                </div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full pl-10 pr-10 py-2.5 rounded-xl border border-border bg-background text-foreground text-sm focus:border-primary focus:outline-none transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              {passwordError && <p className="text-xs text-rose-500 mt-1 font-medium">{passwordError}</p>}
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full mt-2 py-3 rounded-xl font-semibold bg-primary hover:bg-primary/90 text-primary-foreground transition-all flex items-center justify-center gap-2 text-sm shadow-md shadow-primary/20"
-            >
-              {loading ? 'Authenticating...' : 'Sign In'}
-            </button>
-          </form>
+            <div id="google-signin-btn" className="w-full flex justify-center" />
+          </div>
         )}
       </div>
       <footer className="mt-8 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1">

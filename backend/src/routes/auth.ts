@@ -1,6 +1,7 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import { SuperAdmin, GymOwner } from '../models';
 import { authenticateToken, AuthenticatedRequest } from '../middleware/auth';
 import { logAudit } from '../utils/auditLogger';
@@ -8,6 +9,7 @@ import { validateBody, loginSchema } from '../middleware/validation';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-for-india-gym-saas-2026';
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 
 // 1. Unified Login Endpoint
@@ -96,6 +98,92 @@ router.post('/login', validateBody(loginSchema), async (req, res) => {
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ message: 'Internal server error.' });
+  }
+});
+
+// 3. Google OAuth Sign-In
+router.post('/google', async (req, res) => {
+  const { credential } = req.body;
+
+  if (!credential) {
+    return res.status(400).json({ message: 'Google credential token is required.' });
+  }
+
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      return res.status(400).json({ message: 'Invalid Google token payload.' });
+    }
+
+    const email = payload.email;
+
+    // A. Check if user is Super Admin
+    const superAdmin = await SuperAdmin.findOne({ email });
+    if (superAdmin) {
+      const token = jwt.sign(
+        { id: superAdmin._id, email: superAdmin.email, role: 'super_admin' },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      await logAudit('Super Admin Logged In via Google', superAdmin.email, req);
+
+      return res.json({
+        token,
+        user: { id: superAdmin._id, name: superAdmin.name, email: superAdmin.email, role: 'super_admin' }
+      });
+    }
+
+    // B. Check if user is Gym Owner
+    const gymOwner = await GymOwner.findOne({ email, isDeleted: false });
+    if (gymOwner) {
+      if (gymOwner.status === 'pending_activation') {
+        return res.status(403).json({
+          message: 'Your account is pending activation. Please use the activation link to set a password and activate your account.',
+          status: 'pending_activation'
+        });
+      }
+
+      const now = new Date();
+      if (new Date(gymOwner.subscription.expiryDate) < now && gymOwner.subscription.status === 'active') {
+        gymOwner.subscription.status = 'expired';
+        await gymOwner.save();
+      }
+
+      const token = jwt.sign(
+        { id: gymOwner._id, email: gymOwner.email, role: 'gym_owner', gymName: gymOwner.gymName },
+        JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      await logAudit('Gym Owner Logged In via Google', gymOwner.email, req);
+
+      return res.json({
+        token,
+        user: {
+          id: gymOwner._id,
+          ownerName: gymOwner.ownerName,
+          gymName: gymOwner.gymName,
+          email: gymOwner.email,
+          role: 'gym_owner',
+          subscription: gymOwner.subscription,
+          branding: gymOwner.branding,
+          subscriptionHistory: gymOwner.subscriptionHistory,
+          isTrial: gymOwner.isTrial,
+          status: gymOwner.status
+        }
+      });
+    }
+
+    return res.status(400).json({ message: 'No registered account found with this Google email address.' });
+  } catch (err: any) {
+    console.error('Google login error:', err);
+    return res.status(500).json({ message: err.message || 'Failed to authenticate with Google.' });
   }
 });
 
