@@ -204,47 +204,12 @@ router.post('/google', async (req, res) => {
       });
     }
 
-    // C. Create new Google account
-    const newOwner = await GymOwner.create({
-      ownerName: payload.name || 'Gym Owner',
-      gymName: `${payload.name || 'My'}'s Gym`,
+    // C. Redirect to complete registration for new Google users
+    return res.json({
+      status: 'requires_registration',
+      googleToken: credential,
       email: email,
-      phone: '0000000000',
-      status: 'active',
-      isTrial: true,
-      subscription: {
-        planType: '1_month',
-        startDate: new Date(),
-        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30-day trial
-        status: 'active',
-        amountPaid: 0
-      },
-      authProviders: ['google'],
-      googleId: payload.sub
-    });
-
-    const token = jwt.sign(
-      { id: newOwner._id, email: newOwner.email, role: 'gym_owner', gymName: newOwner.gymName },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-
-    await logAudit('Gym Owner Registered via Google', newOwner.email, req);
-
-    return res.status(201).json({
-      token,
-      user: {
-        id: newOwner._id,
-        ownerName: newOwner.ownerName,
-        gymName: newOwner.gymName,
-        email: newOwner.email,
-        role: 'gym_owner',
-        subscription: newOwner.subscription,
-        branding: newOwner.branding,
-        subscriptionHistory: newOwner.subscriptionHistory,
-        isTrial: newOwner.isTrial,
-        status: newOwner.status
-      }
+      name: payload.name || ''
     });
   } catch (err: any) {
     console.error('Google login error:', err);
@@ -349,6 +314,94 @@ router.post('/link-google', authenticateToken, async (req: AuthenticatedRequest,
   } catch (err: any) {
     console.error('Google linking error:', err);
     return res.status(500).json({ message: err.message || 'Failed to link Google account.' });
+  }
+});
+
+// 5. Complete Google Registration Onboarding
+router.post('/register-google', async (req, res) => {
+  const { credential, gymName, ownerName, phone, address, city, state, country, businessInfo } = req.body;
+
+  if (!credential || !gymName || !ownerName || !phone || !city || !state || !country) {
+    return res.status(400).json({ message: 'All required registration fields must be provided.' });
+  }
+
+  try {
+    // A. Verify Google Token again to authenticate identity
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      return res.status(400).json({ message: 'Invalid Google token payload.' });
+    }
+
+    const email = payload.email.toLowerCase();
+
+    // B. Check duplicate user email to prevent race condition/double-registration
+    const existingOwner = await GymOwner.findOne({ email });
+    if (existingOwner) {
+      return res.status(400).json({ message: 'This email is already registered.' });
+    }
+
+    const existingAdmin = await SuperAdmin.findOne({ email });
+    if (existingAdmin) {
+      return res.status(400).json({ message: 'This email is already registered.' });
+    }
+
+    // C. Create Gym Owner with Onboarding business data
+    const newOwner = await GymOwner.create({
+      gymName,
+      ownerName,
+      email,
+      phone,
+      address: address || `${city}, ${state}, ${country}`,
+      city,
+      state,
+      country,
+      businessInfo: businessInfo || '',
+      status: 'active',
+      isTrial: true,
+      subscription: {
+        planType: '1_month',
+        startDate: new Date(),
+        expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30-day trial
+        status: 'active',
+        amountPaid: 0
+      },
+      authProviders: ['google'],
+      googleId: payload.sub
+    });
+
+    // D. Issue token
+    const token = jwt.sign(
+      { id: newOwner._id, email: newOwner.email, role: 'gym_owner', gymName: newOwner.gymName },
+      JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    await logAudit('Gym Owner Onboarded and Registered via Google', newOwner.email, req);
+
+    return res.status(201).json({
+      token,
+      user: {
+        id: newOwner._id,
+        ownerName: newOwner.ownerName,
+        gymName: newOwner.gymName,
+        email: newOwner.email,
+        role: 'gym_owner',
+        subscription: newOwner.subscription,
+        branding: newOwner.branding,
+        subscriptionHistory: newOwner.subscriptionHistory,
+        isTrial: newOwner.isTrial,
+        status: newOwner.status
+      }
+    });
+
+  } catch (err: any) {
+    console.error('Google onboarding registration error:', err);
+    return res.status(500).json({ message: err.message || 'Failed to complete registration.' });
   }
 });
 

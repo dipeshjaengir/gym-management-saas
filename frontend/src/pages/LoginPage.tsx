@@ -63,6 +63,17 @@ export const LoginPage: React.FC = () => {
     setSuspendedError(null);
     try {
       const res = await api.post('/auth/google', { credential: response.credential });
+      if (res.status === 'requires_registration') {
+        showToast('Google identity verified! Let\'s complete registration.', 'success');
+        navigate('/register', { 
+          state: { 
+            googleToken: res.googleToken, 
+            email: res.email, 
+            name: res.name 
+          } 
+        });
+        return;
+      }
       loginWithToken(res.token, res.user);
       showToast('Logged in successfully!', 'success');
       navigate('/app');

@@ -9,6 +9,7 @@ import { App as CapApp } from '@capacitor/app';
 // Pages
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
+import { RegisterPage } from './pages/RegisterPage';
 import { ActivateAccountPage } from './pages/ActivateAccountPage';
 import { DownloadAppPage } from './pages/DownloadAppPage';
 
@@ -94,6 +95,7 @@ export const App: React.FC = () => {
               {/* Public Routes */}
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
               <Route path="/activate-account" element={<ActivateAccountPage />} />
               <Route path="/download-app" element={<DownloadAppPage />} />
 

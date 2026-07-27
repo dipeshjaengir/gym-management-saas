@@ -93,6 +93,10 @@ export interface IGymOwner extends Document {
   isDeleted: boolean;
   googleId?: string;
   authProviders?: string[];
+  city?: string;
+  state?: string;
+  country?: string;
+  businessInfo?: string;
 }
 
 const GymOwnerSchema = new Schema<IGymOwner>({
@@ -134,7 +138,11 @@ const GymOwnerSchema = new Schema<IGymOwner>({
   isTrial: { type: Boolean, default: false },
   isDeleted: { type: Boolean, default: false },
   googleId: { type: String, default: null },
-  authProviders: { type: [String], default: ['password'] }
+  authProviders: { type: [String], default: ['password'] },
+  city: { type: String, default: '' },
+  state: { type: String, default: '' },
+  country: { type: String, default: '' },
+  businessInfo: { type: String, default: '' }
 }, { timestamps: true });
 
 export const GymOwner = mongoose.model<IGymOwner>('GymOwner', GymOwnerSchema);

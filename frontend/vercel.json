@@ -28,6 +28,10 @@
       "destination": "/index.html"
     },
     {
+      "source": "/register",
+      "destination": "/index.html"
+    },
+    {
       "source": "/app",
       "destination": "/index.html"
     },
