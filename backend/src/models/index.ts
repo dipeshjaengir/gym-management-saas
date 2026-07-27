@@ -8,13 +8,17 @@ export interface ISuperAdmin extends Document {
   email: string;
   passwordHash: string;
   role: 'super_admin';
+  googleId?: string;
+  authProviders?: string[];
 }
 
 const SuperAdminSchema = new Schema<ISuperAdmin>({
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true, index: true },
   passwordHash: { type: String, required: true },
-  role: { type: String, default: 'super_admin' }
+  role: { type: String, default: 'super_admin' },
+  googleId: { type: String, default: null },
+  authProviders: { type: [String], default: ['password'] }
 }, { timestamps: true });
 
 export const SuperAdmin = mongoose.model<ISuperAdmin>('SuperAdmin', SuperAdminSchema);
@@ -87,6 +91,8 @@ export interface IGymOwner extends Document {
   subscriptionHistory?: ISubscriptionHistory[];
   isTrial: boolean;
   isDeleted: boolean;
+  googleId?: string;
+  authProviders?: string[];
 }
 
 const GymOwnerSchema = new Schema<IGymOwner>({
@@ -126,7 +132,9 @@ const GymOwnerSchema = new Schema<IGymOwner>({
     status: { type: String, default: 'Completed' }
   }],
   isTrial: { type: Boolean, default: false },
-  isDeleted: { type: Boolean, default: false }
+  isDeleted: { type: Boolean, default: false },
+  googleId: { type: String, default: null },
+  authProviders: { type: [String], default: ['password'] }
 }, { timestamps: true });
 
 export const GymOwner = mongoose.model<IGymOwner>('GymOwner', GymOwnerSchema);

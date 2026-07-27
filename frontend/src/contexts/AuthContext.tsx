@@ -25,6 +25,7 @@ export interface User {
   };
   isTrial?: boolean;
   subscriptionHistory?: any[];
+  authProviders?: string[];
 }
 
 interface AuthContextType {
@@ -65,7 +66,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               branding: res.user.branding,
               isTrial: res.user.isTrial,
               status: res.user.status,
-              subscriptionHistory: res.user.subscriptionHistory
+              subscriptionHistory: res.user.subscriptionHistory,
+              authProviders: res.user.authProviders || ['password']
             };
             setUser(mappedUser);
             localStorage.setItem('user', JSON.stringify(mappedUser));
@@ -97,7 +99,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         branding: res.user.branding,
         isTrial: res.user.isTrial,
         status: res.user.status,
-        subscriptionHistory: res.user.subscriptionHistory
+        subscriptionHistory: res.user.subscriptionHistory,
+        authProviders: res.user.authProviders || ['password']
       };
       setUser(mappedUser);
       localStorage.setItem('user', JSON.stringify(mappedUser));
@@ -117,7 +120,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       branding: rawUser.branding,
       isTrial: rawUser.isTrial,
       status: rawUser.status,
-      subscriptionHistory: rawUser.subscriptionHistory
+      subscriptionHistory: rawUser.subscriptionHistory,
+      authProviders: rawUser.authProviders || ['password']
     };
     setUser(mappedUser);
     localStorage.setItem('user', JSON.stringify(mappedUser));

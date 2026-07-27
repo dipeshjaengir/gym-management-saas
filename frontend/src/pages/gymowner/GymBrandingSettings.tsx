@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { Settings, Save, Dumbbell, Globe, Phone, Palette, Info, CheckCircle2, XCircle } from 'lucide-react';
+import { Dumbbell, Globe, Phone, Palette, Info, CheckCircle2, XCircle, Lock, Save } from 'lucide-react';
 import { APP_VERSION } from '../../utils/version';
 
 export const GymBrandingSettings: React.FC = () => {
@@ -18,6 +18,8 @@ export const GymBrandingSettings: React.FC = () => {
 
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null);
   const [dbConnected, setDbConnected] = useState<boolean | null>(null);
+
+  const [isGoogleLinked, setIsGoogleLinked] = useState(false);
 
   useEffect(() => {
     async function loadBranding() {
@@ -52,6 +54,64 @@ export const GymBrandingSettings: React.FC = () => {
     checkHealth();
   }, [showToast]);
 
+  useEffect(() => {
+    if (user && user.authProviders) {
+      setIsGoogleLinked(user.authProviders.includes('google'));
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (isGoogleLinked) return;
+
+    const initGoogleLinking = () => {
+      const google = (window as any).google;
+      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      if (google && clientId) {
+        google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleLinkCallback,
+          auto_select: false
+        });
+        google.accounts.id.renderButton(
+          document.getElementById('google-link-btn'),
+          { 
+            theme: 'outline', 
+            size: 'medium', 
+            text: 'signup_with',
+            shape: 'rectangular'
+          }
+        );
+      }
+    };
+
+    const interval = setInterval(() => {
+      if ((window as any).google && document.getElementById('google-link-btn')) {
+        initGoogleLinking();
+        clearInterval(interval);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [isGoogleLinked]);
+
+  const handleGoogleLinkCallback = async (response: any) => {
+    try {
+      const res = await api.post('/auth/link-google', { credential: response.credential });
+      showToast(res.message || 'Google account linked successfully!', 'success');
+      setIsGoogleLinked(true);
+      
+      // Update local storage user authProviders
+      const localUser = localStorage.getItem('user');
+      if (localUser) {
+        const parsed = JSON.parse(localUser);
+        parsed.authProviders = res.authProviders || ['password', 'google'];
+        localStorage.setItem('user', JSON.stringify(parsed));
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to link Google account.', 'error');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gymName || !address || !contactNumber || !whatsAppNumber) {
@@ -69,7 +129,6 @@ export const GymBrandingSettings: React.FC = () => {
         whatsAppNumber
       });
       showToast('Gym branding configuration saved successfully!', 'success');
-      // Sync with global auth state for instantaneous header updates
       updateUserBranding(res.branding);
     } catch (err: any) {
       showToast(err.message || 'Failed to save branding.', 'error');
@@ -88,77 +147,113 @@ export const GymBrandingSettings: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         {/* Settings Form */}
-        <div className="md:col-span-2 p-6 rounded-2xl bg-card border shadow-sm">
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Name</label>
-              <input
-                type="text"
-                required
-                value={gymName}
-                onChange={(e) => setGymName(e.target.value)}
-                placeholder="e.g. Iron Forge HSR"
-                className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Logo (URL)</label>
-              <input
-                type="url"
-                value={gymLogo}
-                onChange={(e) => setGymLogo(e.target.value)}
-                placeholder="e.g. https://images.unsplash.com/photo-logo..."
-                className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Address</label>
-              <input
-                type="text"
-                required
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="e.g. 12th Cross, Sector 4, Bangalore"
-                className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="md:col-span-2 space-y-6">
+          <div className="p-6 rounded-2xl bg-card border shadow-sm">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Number</label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Name</label>
                 <input
-                  type="tel"
+                  type="text"
                   required
-                  value={contactNumber}
-                  onChange={(e) => setContactNumber(e.target.value)}
-                  placeholder="e.g. +91 90000 90000"
+                  value={gymName}
+                  onChange={(e) => setGymName(e.target.value)}
+                  placeholder="e.g. Iron Forge HSR"
                   className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">WhatsApp Number</label>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Logo (URL)</label>
                 <input
-                  type="tel"
-                  required
-                  value={whatsAppNumber}
-                  onChange={(e) => setWhatsAppNumber(e.target.value)}
-                  placeholder="e.g. +91 90000 90000"
+                  type="url"
+                  value={gymLogo}
+                  onChange={(e) => setGymLogo(e.target.value)}
+                  placeholder="e.g. https://images.unsplash.com/photo-logo..."
                   className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
                 />
               </div>
-            </div>
 
-            <button
-              type="submit"
-              disabled={submitting}
-              className="mt-6 w-full py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-primary/10"
-            >
-              <Save className="w-4 h-4" /> {submitting ? 'Saving Branding...' : 'Save Branding Changes'}
-            </button>
-          </form>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Gym Address</label>
+                <input
+                  type="text"
+                  required
+                  value={address}
+                  onChange={(e) => setAddress(e.target.value)}
+                  placeholder="e.g. 12th Cross, Sector 4, Bangalore"
+                  className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">Contact Number</label>
+                  <input
+                    type="tel"
+                    required
+                    value={contactNumber}
+                    onChange={(e) => setContactNumber(e.target.value)}
+                    placeholder="e.g. +91 90000 90000"
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase mb-1">WhatsApp Number</label>
+                  <input
+                    type="tel"
+                    required
+                    value={whatsAppNumber}
+                    onChange={(e) => setWhatsAppNumber(e.target.value)}
+                    placeholder="e.g. +91 90000 90000"
+                    className="w-full px-4 py-2 rounded-xl border bg-background text-sm focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="mt-6 w-full py-2.5 bg-primary hover:bg-primary/95 text-primary-foreground rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all shadow-md shadow-primary/10"
+              >
+                <Save className="w-4 h-4" /> {submitting ? 'Saving Branding...' : 'Save Branding Changes'}
+              </button>
+            </form>
+          </div>
+
+          {/* Security Settings Card */}
+          <div className="p-6 rounded-2xl bg-card border shadow-sm space-y-4">
+            <h2 className="font-bold text-sm text-foreground flex items-center gap-2">
+              <Lock className="w-4 h-4 text-primary" /> Security &amp; Login Methods
+            </h2>
+            <p className="text-xs text-muted-foreground">Manage your authentication providers and secure Google account linking.</p>
+
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between p-4 rounded-xl bg-background border">
+                <div>
+                  <div className="font-bold text-xs">Email / Password Login</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Use email and secure hashed password.</div>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                  Active
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between p-4 rounded-xl bg-background border">
+                <div>
+                  <div className="font-bold text-xs">Google Account Sign-In</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Quick single-tap secure social login.</div>
+                </div>
+                {isGoogleLinked ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-primary/10 border border-primary/20 text-primary">
+                    Linked
+                  </span>
+                ) : (
+                  <div id="google-link-btn" />
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Live Preview Panel & About App Panel */}
