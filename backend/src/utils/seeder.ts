@@ -24,8 +24,8 @@ async function seed() {
     console.log('[SEEDER] Cleared all database collections.');
 
     // Seed default Super Admin
-    const adminEmail = process.env.SUPERADMIN_EMAIL || 'admin@gymledger.com';
-    const adminPassword = process.env.SUPERADMIN_PASSWORD || 'As12qw34.@';
+    const adminEmail = process.env.SUPERADMIN_EMAIL || 'YOUR_SUPERADMIN_EMAIL';
+    const adminPassword = process.env.SUPERADMIN_PASSWORD || 'YOUR_STRONG_SUPERADMIN_PASSWORD';
     const hashedAdminPassword = await bcrypt.hash(adminPassword, 10);
     const admin = await SuperAdmin.create({
       name: 'Super Admin',

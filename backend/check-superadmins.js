@@ -25,7 +25,7 @@ async function run() {
         passwordHash: sa.passwordHash
       });
       // Check password
-      const superAdminPass = process.env.SUPERADMIN_PASSWORD || 'As12qw34.@';
+      const superAdminPass = process.env.SUPERADMIN_PASSWORD || 'YOUR_STRONG_SUPERADMIN_PASSWORD';
       const isMatch = await bcrypt.compare(superAdminPass, sa.passwordHash);
       console.log(`Password "${superAdminPass}" matches:`, isMatch);
     }

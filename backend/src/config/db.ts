@@ -7,8 +7,8 @@ dotenv.config();
 
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/gym-management-saas';
 
-const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'admin@gymledger.com';
-const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'As12qw34.@';
+const SUPERADMIN_EMAIL = process.env.SUPERADMIN_EMAIL || 'YOUR_SUPERADMIN_EMAIL';
+const SUPERADMIN_PASSWORD = process.env.SUPERADMIN_PASSWORD || 'YOUR_STRONG_SUPERADMIN_PASSWORD';
 
 export async function ensureDefaultSuperAdmin() {
   try {
