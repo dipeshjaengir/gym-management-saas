@@ -7,7 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '../components/Logo';
 import { ResponsiveModal } from '../components/ResponsiveModal';
-import { APP_VERSION, mapPlanToEnum } from '../utils/version';
+import { APP_VERSION, BUILD_NUMBER, COPYRIGHT, mapPlanToEnum } from '../utils/version';
 import {
 
   Dumbbell,
@@ -898,12 +898,12 @@ export const LandingPage: React.FC = () => {
           </div>
         </div>
         <div className="max-w-7xl mx-auto px-4 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1 border-t border-border pt-6">
-          <p>{APP_VERSION.copyright} SaaS Gym Management.</p>
+          <p>{COPYRIGHT} SaaS Gym Management.</p>
           <p>
             Designed & Developed by{' '}
             <span className="text-[#F59E0B] font-semibold">Dipesh Jangir</span>
           </p>
-          <p className="text-[10px] opacity-75 mt-0.5">Version {APP_VERSION.version} (Build {APP_VERSION.build})</p>
+          <p className="text-[10px] opacity-75 mt-0.5">Version {APP_VERSION} (Build {BUILD_NUMBER})</p>
         </div>
       </footer>
 

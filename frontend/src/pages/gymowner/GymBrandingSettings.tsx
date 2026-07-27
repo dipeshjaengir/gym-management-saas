@@ -3,7 +3,7 @@ import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { Dumbbell, Globe, Phone, Palette, Info, CheckCircle2, XCircle, Lock, Save } from 'lucide-react';
-import { APP_VERSION } from '../../utils/version';
+import { APP_VERSION, BUILD_NUMBER, COPYRIGHT } from '../../utils/version';
 
 export const GymBrandingSettings: React.FC = () => {
   const { user, updateUserBranding } = useAuth();
@@ -301,22 +301,22 @@ export const GymBrandingSettings: React.FC = () => {
                 <div className="font-bold text-foreground">GymLedger Android</div>
                 <div className="text-muted-foreground flex justify-between mt-1">
                   <span>Version:</span>
-                  <span className="font-semibold text-foreground">{APP_VERSION.version}</span>
+                  <span className="font-semibold text-foreground">{APP_VERSION}</span>
                 </div>
                 <div className="text-muted-foreground flex justify-between mt-0.5">
                   <span>Build:</span>
-                  <span className="font-semibold text-foreground">{APP_VERSION.build}</span>
+                  <span className="font-semibold text-foreground">{BUILD_NUMBER}</span>
                 </div>
               </div>
 
               <div className="border-t border-border/60 pt-2.5">
                 <div className="text-muted-foreground flex justify-between">
                   <span>Website Version:</span>
-                  <span className="font-semibold text-foreground">{APP_VERSION.websiteVersion}</span>
+                  <span className="font-semibold text-foreground">{APP_VERSION}</span>
                 </div>
                 <div className="text-muted-foreground flex justify-between mt-0.5">
                   <span>API Version:</span>
-                  <span className="font-semibold text-foreground">{APP_VERSION.apiVersion}</span>
+                  <span className="font-semibold text-foreground">v1</span>
                 </div>
               </div>
 
@@ -345,7 +345,7 @@ export const GymBrandingSettings: React.FC = () => {
               </div>
 
               <div className="border-t border-border/60 pt-2.5 text-[10px] text-muted-foreground text-center">
-                {APP_VERSION.copyright} GymLedger
+                {COPYRIGHT} GymLedger
               </div>
             </div>
           </div>

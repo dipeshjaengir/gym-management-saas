@@ -1,12 +1,8 @@
-export const APP_VERSION = {
-  version: 'v1.0.0',
-  build: 100,
-  releaseDate: 'July 10, 2026',
-  status: 'Stable Release',
-  websiteVersion: 'v1.0.0',
-  apiVersion: 'v1',
-  copyright: '© 2026 GymLedger'
-};
+export const APP_VERSION = "1.2.0";
+export const BUILD_NUMBER = 101;
+export const RELEASE_CHANNEL = "Production";
+export const RELEASE_DATE = "2026-07-27";
+export const COPYRIGHT = "© 2026 GymLedger";
 
 export const mapPlanToEnum = (durationMonths: number): '1_month' | '3_month' | '6_month' | '12_month' | undefined => {
   if (durationMonths === 1) return '1_month';

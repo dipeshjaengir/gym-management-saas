@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Logo } from '../components/Logo';
-import { APP_VERSION } from '../utils/version';
+import { APP_VERSION, BUILD_NUMBER, RELEASE_DATE, COPYRIGHT } from '../utils/version';
 import { 
   ArrowLeft, 
   Download, 
@@ -118,9 +118,9 @@ export const DownloadAppPage: React.FC = () => {
 
           {/* Version Pill */}
           <div className="px-3 py-1 bg-muted rounded-full text-[10px] font-bold text-foreground inline-flex items-center gap-1">
-            <span>{APP_VERSION.version}</span>
+            <span>{APP_VERSION}</span>
             <span className="opacity-50">•</span>
-            <span>Build {APP_VERSION.build}</span>
+            <span>Build {BUILD_NUMBER}</span>
           </div>
 
           {/* Download Action Button */}
@@ -158,11 +158,11 @@ export const DownloadAppPage: React.FC = () => {
             </div>
             <div className="flex justify-between">
               <span>Release Date:</span>
-              <span className="font-semibold text-foreground">{APP_VERSION.releaseDate}</span>
+              <span className="font-semibold text-foreground">{RELEASE_DATE}</span>
             </div>
             <div className="flex justify-between">
               <span>Last Updated:</span>
-              <span className="font-semibold text-foreground">{APP_VERSION.releaseDate}</span>
+              <span className="font-semibold text-foreground">{RELEASE_DATE}</span>
             </div>
           </div>
         </div>
@@ -199,7 +199,7 @@ export const DownloadAppPage: React.FC = () => {
 
       {/* Footer */}
       <footer className="w-full max-w-4xl text-center text-[10px] text-muted-foreground pt-12 z-10">
-        <p>{APP_VERSION.copyright} GymLedger SaaS. All rights reserved.</p>
+        <p>{COPYRIGHT} GymLedger SaaS. All rights reserved.</p>
       </footer>
     </div>
   );

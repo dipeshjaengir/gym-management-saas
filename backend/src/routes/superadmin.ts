@@ -627,6 +627,177 @@ router.get('/imports', async (req: AuthenticatedRequest, res: Response) => {
   }
 });
 
+// 8. Super Admin Subscription Manager
+router.put('/owners/:id/subscription', async (req: AuthenticatedRequest, res: Response) => {
+  const { action, reason, days, startDate, expiryDate, planType, pauseUntilDate } = req.body;
+
+  if (!action || !reason) {
+    return res.status(400).json({ message: 'Action and audit reason are required.' });
+  }
+
+  try {
+    const owner = await GymOwner.findOne({ _id: req.params.id, isDeleted: false });
+    if (!owner) return res.status(404).json({ message: 'Gym Owner not found.' });
+
+    const adminName = req.user?.email || 'Super Admin';
+    const now = new Date();
+    owner.subscriptionTimeline = owner.subscriptionTimeline || [];
+
+    if (action === 'extend') {
+      const daysCount = parseInt(days);
+      if (isNaN(daysCount) || daysCount <= 0) {
+        return res.status(400).json({ message: 'Invalid number of days to extend.' });
+      }
+      
+      const currentExpiry = new Date(owner.subscription.expiryDate);
+      const newExpiry = new Date(currentExpiry.getTime() + daysCount * 24 * 60 * 60 * 1000);
+      
+      owner.subscription.expiryDate = newExpiry;
+      
+      owner.subscriptionTimeline.push({
+        action: 'extended',
+        date: now,
+        adminName,
+        reason,
+        details: `Extended subscription by +${daysCount} Days. New Expiry: ${newExpiry.toISOString().split('T')[0]}`
+      });
+
+      await logAudit(`Subscription Extended by ${daysCount} Days for ${owner.gymName} (${owner.email}) - Reason: ${reason}`, adminName, req);
+    } 
+    else if (action === 'complimentary') {
+      const daysCount = parseInt(days);
+      if (isNaN(daysCount) || daysCount <= 0) {
+        return res.status(400).json({ message: 'Invalid number of complimentary days.' });
+      }
+
+      const currentExpiry = new Date(owner.subscription.expiryDate);
+      const newExpiry = new Date(currentExpiry.getTime() + daysCount * 24 * 60 * 60 * 1000);
+      
+      owner.subscription.expiryDate = newExpiry;
+      
+      owner.subscriptionTimeline.push({
+        action: 'complimentary',
+        date: now,
+        adminName,
+        reason,
+        details: `Granted ${daysCount} Complimentary Days. New Expiry: ${newExpiry.toISOString().split('T')[0]}`
+      });
+
+      await logAudit(`Complimentary Subscription of ${daysCount} Days granted to ${owner.gymName} (${owner.email}) - Reason: ${reason}`, adminName, req);
+    } 
+    else if (action === 'set_dates') {
+      if (!startDate || !expiryDate) {
+        return res.status(400).json({ message: 'Start Date and End Date are required.' });
+      }
+
+      const newStart = new Date(startDate);
+      const newExpiry = new Date(expiryDate);
+
+      if (isNaN(newStart.getTime()) || isNaN(newExpiry.getTime()) || newExpiry <= newStart) {
+        return res.status(400).json({ message: 'Invalid start or end dates configuration.' });
+      }
+
+      owner.subscription.startDate = newStart;
+      owner.subscription.expiryDate = newExpiry;
+      
+      owner.subscriptionTimeline.push({
+        action: 'plan_changed',
+        date: now,
+        adminName,
+        reason,
+        details: `Set Custom Dates. Start: ${newStart.toISOString().split('T')[0]}, End: ${newExpiry.toISOString().split('T')[0]}`
+      });
+
+      await logAudit(`Custom subscription dates configured for ${owner.gymName} (${owner.email}) - Reason: ${reason}`, adminName, req);
+    } 
+    else if (action === 'change_plan') {
+      if (!['Trial', 'Basic', 'Premium', 'Enterprise'].includes(planType)) {
+        return res.status(400).json({ message: 'Invalid plan type selected.' });
+      }
+
+      const oldPlan = owner.subscription.planType;
+      owner.subscription.planType = planType;
+      
+      owner.subscriptionTimeline.push({
+        action: 'plan_changed',
+        date: now,
+        adminName,
+        reason,
+        details: `Changed plan from ${oldPlan} to ${planType}`
+      });
+
+      await logAudit(`Plan changed from ${oldPlan} to ${planType} for ${owner.gymName} (${owner.email}) - Reason: ${reason}`, adminName, req);
+    } 
+    else if (action === 'pause') {
+      if (owner.subscription.status === 'paused') {
+        return res.status(400).json({ message: 'Subscription is already paused.' });
+      }
+
+      if (!pauseUntilDate) {
+        return res.status(400).json({ message: 'A pause-until date must be selected.' });
+      }
+
+      const pauseUntil = new Date(pauseUntilDate);
+      if (isNaN(pauseUntil.getTime()) || pauseUntil <= now) {
+        return res.status(400).json({ message: 'Pause-until date must be in the future.' });
+      }
+
+      const currentExpiry = new Date(owner.subscription.expiryDate);
+      const remainingMs = currentExpiry.getTime() - now.getTime();
+      const remainingDays = Math.max(0, Math.ceil(remainingMs / (24 * 60 * 60 * 1000)));
+
+      owner.subscription.status = 'paused';
+      owner.pausedAt = now;
+      owner.pauseRemainingDays = remainingDays;
+      owner.pauseUntilDate = pauseUntil;
+
+      owner.subscriptionTimeline.push({
+        action: 'paused',
+        date: now,
+        adminName,
+        reason,
+        details: `Subscription paused. Remaining Days preserved: ${remainingDays}. Pause until: ${pauseUntil.toISOString().split('T')[0]}`
+      });
+
+      await logAudit(`Subscription Paused for ${owner.gymName} (${owner.email}) until ${pauseUntil.toISOString().split('T')[0]} - Reason: ${reason}`, adminName, req);
+    } 
+    else if (action === 'resume') {
+      if (owner.subscription.status !== 'paused') {
+        return res.status(400).json({ message: 'Subscription is not currently paused.' });
+      }
+
+      const remainingDays = owner.pauseRemainingDays || 0;
+      const newExpiry = new Date(now.getTime() + remainingDays * 24 * 60 * 60 * 1000);
+
+      owner.subscription.status = 'active';
+      owner.subscription.expiryDate = newExpiry;
+      owner.pausedAt = null;
+      owner.pauseRemainingDays = 0;
+      owner.pauseUntilDate = null;
+
+      owner.subscriptionTimeline.push({
+        action: 'resumed',
+        date: now,
+        adminName,
+        reason,
+        details: `Subscription resumed. New Expiry: ${newExpiry.toISOString().split('T')[0]}`
+      });
+
+      await logAudit(`Subscription Resumed for ${owner.gymName} (${owner.email}) - Reason: ${reason}`, adminName, req);
+    } 
+    else {
+      return res.status(400).json({ message: 'Invalid subscription management action.' });
+    }
+
+    await owner.save();
+    return res.json({ message: 'Subscription settings successfully updated.', owner });
+
+  } catch (err: any) {
+    console.error('Subscription management error:', err);
+    return res.status(500).json({ message: err.message || 'Error updating subscription settings.' });
+  }
+});
+
 // Execute seeders on startup
 seedDefaultPlans();
 seedDefaultCoupons();

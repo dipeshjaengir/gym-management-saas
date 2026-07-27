@@ -4,11 +4,12 @@ import { useAuth } from '../contexts/AuthContext';
 import { Navbar } from './Navbar';
 import { Sidebar } from './Sidebar';
 import { Users, PieChart, FileText, Settings } from 'lucide-react';
-import { APP_VERSION } from '../utils/version';
+import { APP_VERSION, BUILD_NUMBER, RELEASE_CHANNEL, RELEASE_DATE, COPYRIGHT } from '../utils/version';
 
 export const Layout: React.FC = () => {
   const { isAuthenticated, loading, user } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showReleaseNotes, setShowReleaseNotes] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -60,15 +61,69 @@ export const Layout: React.FC = () => {
             <Outlet />
           </div>
           <footer className="mt-8 pt-4 border-t border-border/40 text-center text-xs footer-text flex flex-col items-center justify-center space-y-1">
-            <p>{APP_VERSION.copyright} SaaS Gym Management.</p>
+            <p>{COPYRIGHT} SaaS Gym Management.</p>
             <p>
               Designed & Developed by{' '}
               <span className="text-[#F59E0B] font-semibold">Dipesh Jangir</span>
             </p>
-            <p className="text-[10px] opacity-75 mt-0.5">Version {APP_VERSION.version} (Build {APP_VERSION.build})</p>
+            <button 
+              onClick={() => setShowReleaseNotes(true)}
+              className="text-[10px] opacity-75 mt-0.5 hover:underline hover:text-primary transition-all cursor-pointer focus:outline-none"
+            >
+              Version {APP_VERSION} • Build {BUILD_NUMBER} <br/>
+              <span className="text-[9px] opacity-90 tracking-wide uppercase font-semibold">{RELEASE_CHANNEL}</span>
+            </button>
           </footer>
         </main>
       </div>
+
+      {showReleaseNotes && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#111827] border border-slate-800 rounded-3xl p-6 max-w-sm w-full shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <h3 className="font-bold text-base text-slate-100">Release Notes</h3>
+              <button 
+                onClick={() => setShowReleaseNotes(false)}
+                className="text-muted-foreground hover:text-foreground text-xs font-semibold cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+            
+            <div className="space-y-3 text-xs text-slate-300">
+              <div className="flex justify-between items-center bg-[#1f2937]/50 p-2.5 rounded-xl border border-slate-800">
+                <div>
+                  <div className="font-bold text-slate-100">Version {APP_VERSION}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">Released: {RELEASE_DATE}</div>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] font-bold text-primary">{RELEASE_CHANNEL}</span>
+                  <span className="text-[9px] text-muted-foreground">Build {BUILD_NUMBER}</span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <div className="font-bold text-slate-200 uppercase text-[9px] tracking-wider">New Features</div>
+                <ul className="space-y-1 pl-1 text-[11px] list-disc list-inside">
+                  <li>Google Sign-In Authentication</li>
+                  <li>Secure Google Account Linking</li>
+                  <li>Google Registration Onboarding Flow</li>
+                  <li>Super Admin Subscription Manager</li>
+                </ul>
+              </div>
+
+              <div className="space-y-1.5 pt-1.5 border-t border-slate-850/60">
+                <div className="font-bold text-slate-200 uppercase text-[9px] tracking-wider">Bug Fixes</div>
+                <ul className="space-y-1 pl-1 text-[11px] list-disc list-inside">
+                  <li>OAuth Origin Mismatch Resolved</li>
+                  <li>Subscription Renewal Calculation Fix</li>
+                  <li>Mobile Interface Layout Adjustments</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Bottom Navigation Bar for Gym Owners */}
       {user?.role === 'gym_owner' && (

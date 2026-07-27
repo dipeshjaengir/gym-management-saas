@@ -85,7 +85,7 @@ export interface IGymOwner extends Document {
     planType: string;
     startDate: Date;
     expiryDate: Date;
-    status: 'active' | 'expired' | 'suspended';
+    status: 'active' | 'expired' | 'suspended' | 'paused';
     amountPaid: number;
   };
   subscriptionHistory?: ISubscriptionHistory[];
@@ -97,6 +97,18 @@ export interface IGymOwner extends Document {
   state?: string;
   country?: string;
   businessInfo?: string;
+  subscriptionTimeline?: ISubscriptionTimelineEntry[];
+  pausedAt?: Date | null;
+  pauseRemainingDays?: number;
+  pauseUntilDate?: Date | null;
+}
+
+export interface ISubscriptionTimelineEntry {
+  action: 'renewed' | 'extended' | 'complimentary' | 'paused' | 'resumed' | 'plan_changed';
+  date: Date;
+  adminName: string;
+  reason: string;
+  details?: string;
 }
 
 const GymOwnerSchema = new Schema<IGymOwner>({
@@ -121,7 +133,7 @@ const GymOwnerSchema = new Schema<IGymOwner>({
     planType: { type: String, default: '1_month' },
     startDate: { type: Date, required: true },
     expiryDate: { type: Date, required: true, index: true },
-    status: { type: String, enum: ['active', 'expired', 'suspended'], default: 'active', index: true },
+    status: { type: String, enum: ['active', 'expired', 'suspended', 'paused'], default: 'active', index: true },
     amountPaid: { type: Number, required: true }
   },
   subscriptionHistory: [{
@@ -142,7 +154,17 @@ const GymOwnerSchema = new Schema<IGymOwner>({
   city: { type: String, default: '' },
   state: { type: String, default: '' },
   country: { type: String, default: '' },
-  businessInfo: { type: String, default: '' }
+  businessInfo: { type: String, default: '' },
+  subscriptionTimeline: [{
+    action: { type: String, required: true },
+    date: { type: Date, default: Date.now },
+    adminName: { type: String, required: true },
+    reason: { type: String, required: true },
+    details: { type: String, default: '' }
+  }],
+  pausedAt: { type: Date, default: null },
+  pauseRemainingDays: { type: Number, default: 0 },
+  pauseUntilDate: { type: Date, default: null }
 }, { timestamps: true });
 
 export const GymOwner = mongoose.model<IGymOwner>('GymOwner', GymOwnerSchema);
