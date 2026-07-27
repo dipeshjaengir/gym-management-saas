@@ -18,14 +18,18 @@
       ]
     }
   ],
-  "rewrites": [
+  "routes": [
     {
-      "source": "/api/:path*",
-      "destination": "/api/:path*"
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
     },
     {
-      "source": "/((?!GymLedger\\.apk).*)$",
-      "destination": "/index.html"
+      "src": "/GymLedger.apk",
+      "dest": "/GymLedger.apk"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
