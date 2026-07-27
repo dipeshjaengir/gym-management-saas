@@ -24,6 +24,11 @@ export const LoginPage: React.FC = () => {
     const initGoogleSignIn = () => {
       const google = (window as any).google;
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+      
+      if (import.meta.env.DEV) {
+        console.log('[DEBUG] Loaded Google Client ID:', clientId);
+      }
+
       if (google && clientId) {
         google.accounts.id.initialize({
           client_id: clientId,
