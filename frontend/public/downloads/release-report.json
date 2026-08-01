@@ -1,0 +1,19 @@
+{
+  "version": "1.2.1",
+  "buildNumber": 102,
+  "gitCommitHash": "d6f12e5dcdeef467dc449e5d39df0063a928c1ee",
+  "releaseDate": "2026-08-01",
+  "packageName": "com.gymledger.app",
+  "versionName": "1.2.1",
+  "versionCode": 102,
+  "minSdk": 24,
+  "targetSdk": 36,
+  "apkSize": "14.86 MB",
+  "sha256": "b7e0b17e2c661c2eda074c46fda30907e1e7e1b3f61def043dc570b4e221e679",
+  "signingCertFingerprint": "85a1fd8aca2fd0ffbf36a3bb3770af056952e546e085796f0322683032e09ea2",
+  "securityScanStatus": "PASSED",
+  "apkValidationStatus": "PASSED",
+  "githubReleaseUrl": "https://github.com/dipeshjaengir/gym-management-saas/releases/tag/v1.2.1",
+  "downloadUrl": "https://github.com/dipeshjaengir/gym-management-saas/releases/download/v1.2.1/GymLedger.apk",
+  "verificationResult": "SUCCESSFUL"
+}

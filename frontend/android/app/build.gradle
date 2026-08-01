@@ -1,14 +1,50 @@
 apply plugin: 'com.android.application'
 
+def getVersionFromTS() {
+    def versionFile = file('../../src/utils/version.ts')
+    def version = "1.0.0"
+    def build = 1
+    if (versionFile.exists()) {
+        versionFile.eachLine { line ->
+            def versionMatcher = line =~ /export const APP_VERSION\s*=\s*["']([^"']+)["']/
+            if (versionMatcher) {
+                version = versionMatcher[0][1]
+            }
+            def buildMatcher = line =~ /export const BUILD_NUMBER\s*=\s*(\d+)/
+            if (buildMatcher) {
+                build = buildMatcher[0][1].toInteger()
+            }
+        }
+    }
+    return [version, build]
+}
+def (appVersionName, appVersionCode) = getVersionFromTS()
+
+def keystorePropertiesFile = file('../keystore.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.gymledger.app"
     compileSdk = rootProject.ext.compileSdkVersion
+    
+    signingConfigs {
+        release {
+            storeFile file(keystoreProperties['storeFile'] ?: (System.getenv('ANDROID_KEYSTORE_FILE') ?: 'gymledger-release.keystore'))
+            storePassword keystoreProperties['storePassword'] ?: System.getenv('ANDROID_KEYSTORE_PASSWORD')
+            keyAlias keystoreProperties['keyAlias'] ?: System.getenv('ANDROID_KEYSTORE_ALIAS')
+            keyPassword keystoreProperties['keyPassword'] ?: System.getenv('ANDROID_KEY_PASSWORD')
+        }
+    }
+
     defaultConfig {
         applicationId "com.gymledger.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,6 +56,7 @@ android {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.release
         }
     }
 }

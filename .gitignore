@@ -42,10 +42,8 @@ logs/
 uploads/
 temp/
 cache/
-
 # Android generated APKs and local configurations
 *.apk
-!frontend/public/GymLedger.apk
 *.aar
 *.ap_
 android/app/build/
@@ -53,3 +51,6 @@ android/.gradle/
 android/local.properties
 .gradle/
 local.properties
+keystore.properties
+*.keystore
+*.jks

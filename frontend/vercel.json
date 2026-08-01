@@ -1,4 +1,11 @@
 {
+  "redirects": [
+    {
+      "source": "/downloads/latest.apk",
+      "destination": "https://github.com/dipeshjaengir/gym-management-saas/releases/latest/download/GymLedger.apk",
+      "permanent": false
+    }
+  ],
   "headers": [
     {
       "source": "/GymLedger.apk",

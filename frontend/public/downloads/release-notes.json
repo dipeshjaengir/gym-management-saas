@@ -1,0 +1,27 @@
+{
+  "1.2.0": {
+    "version": "1.2.0",
+    "build": 101,
+    "releaseDate": "2026-07-27",
+    "changes": [
+      "Added professional centralized application versioning",
+      "Integrated clickable release notes popup in dashboard footer",
+      "Enhanced Super Admin subscription adjustments panel"
+    ],
+    "bugFixes": [
+      "Resolved compilation import mismatch on landing page"
+    ]
+  },
+  "1.2.1": {
+    "version": "1.2.1",
+    "build": 102,
+    "releaseDate": "2026-08-01",
+    "changes": [
+      "Performance optimizations",
+      "Version update telemetry"
+    ],
+    "bugFixes": [
+      "Stability enhancements"
+    ]
+  }
+}

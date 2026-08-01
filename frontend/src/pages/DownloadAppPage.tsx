@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Logo } from '../components/Logo';
-import { APP_VERSION, BUILD_NUMBER, RELEASE_DATE, COPYRIGHT } from '../utils/version';
+import { COPYRIGHT } from '../utils/version';
 import { 
   ArrowLeft, 
   Download, 
@@ -9,41 +9,139 @@ import {
   ShieldCheck, 
   Cpu, 
   BookOpen, 
-  Sparkles 
+  Sparkles,
+  Info
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+
+interface ReleaseNotesData {
+  version: string;
+  build: number;
+  releaseDate: string;
+  changes: string[];
+  bugFixes: string[];
+}
+
+interface MetadataData {
+  version: string;
+  build: number;
+  releaseDate: string;
+  releaseChannel: string;
+  minAndroidVersion: string;
+  fileSize: string;
+  sha256: string;
+  apkUrl: string;
+  downloadUrl?: string;
+  githubUrl?: string;
+  backupUrl?: string;
+}
 
 export const DownloadAppPage: React.FC = () => {
   const navigate = useNavigate();
   const [apkStatus, setApkStatus] = useState<'checking' | 'available' | 'unavailable'>('checking');
-  const [apkSize, setApkSize] = useState<string>('~4.5 MB');
+  const [installedVersion, setInstalledVersion] = useState<string>('');
+  const [installedBuild, setInstalledBuild] = useState<number>(0);
+  const [latestMetadata, setLatestMetadata] = useState<MetadataData | null>(null);
+  const [releaseNotes, setReleaseNotes] = useState<ReleaseNotesData | null>(null);
+  const [isUpdateAvailable, setIsUpdateAvailable] = useState<boolean>(false);
+  
+  // Custom Release Security and Health States
+  const [downloadClicked, setDownloadClicked] = useState<boolean>(false);
+  const [isLinkHealthy, setIsLinkHealthy] = useState<boolean | null>(null);
+  const [isCheckingLink, setIsCheckingLink] = useState<boolean>(false);
+  const [linkCheckError, setLinkCheckError] = useState<string>('');
 
   useEffect(() => {
-    const checkApkAvailability = async () => {
+    const fetchReleaseData = async () => {
       try {
-        const response = await fetch('/GymLedger.apk', { method: 'HEAD' });
-        const contentType = response.headers.get('content-type') || '';
-        
-        // If Vercel rewrote to index.html (content-type includes text/html), the file is missing
-        if (response.ok && !contentType.includes('text/html')) {
-          setApkStatus('available');
-          const contentLength = response.headers.get('content-length');
-          if (contentLength) {
-            const bytes = parseInt(contentLength, 10);
-            if (!isNaN(bytes)) {
-              setApkSize(`${(bytes / (1024 * 1024)).toFixed(2)} MB`);
-            }
-          }
-        } else {
+        // 1. Fetch latest metadata
+        const metadataResponse = await fetch('/downloads/metadata.json', { cache: 'no-cache' });
+        if (!metadataResponse.ok) {
           setApkStatus('unavailable');
+          return;
+        }
+        const metadata: MetadataData = await metadataResponse.json();
+        setLatestMetadata(metadata);
+
+        // 2. Fetch release notes
+        const notesResponse = await fetch('/downloads/release-notes.json', { cache: 'no-cache' });
+        if (notesResponse.ok) {
+          const allNotes = await notesResponse.json();
+          setReleaseNotes(allNotes[metadata.version] || null);
+        }
+
+        setApkStatus('available');
+
+        // 3. CORS-Safe Link Verification
+        if (metadata.githubUrl) {
+          setIsCheckingLink(true);
+          try {
+            const checkRes = await fetch(`/api/check-download?url=${encodeURIComponent(metadata.githubUrl)}`);
+            if (checkRes.ok) {
+              const checkResult = await checkRes.json();
+              if (
+                checkResult.status === 200 &&
+                (checkResult.contentType.includes('octet-stream') || checkResult.contentType.includes('android.package-archive')) &&
+                checkResult.contentLength > 0
+              ) {
+                setIsLinkHealthy(true);
+              } else {
+                setIsLinkHealthy(false);
+                setLinkCheckError(`Download asset verification failed (HTTP ${checkResult.status || 'invalid'})`);
+              }
+            } else {
+              throw new Error('Check API returned non-200');
+            }
+          } catch (e) {
+            console.error('Verify check failed:', e);
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+              setIsLinkHealthy(true); // Local dev fallback
+            } else {
+              setIsLinkHealthy(false);
+              setLinkCheckError('Temporarily unable to confirm download link status');
+            }
+          } finally {
+            setIsCheckingLink(false);
+          }
+        }
+
+        // 4. Detect installed version if running inside native app WebView
+        try {
+          const { App } = await import('@capacitor/app');
+          const info = await App.getInfo();
+          const currentVersion = info.version;
+          const currentBuild = parseInt(info.build, 10);
+          
+          setInstalledVersion(currentVersion);
+          setInstalledBuild(currentBuild);
+
+          const latestBuild = parseInt(metadata.build.toString(), 10);
+          if (latestBuild > currentBuild || isVersionNewer(metadata.version, currentVersion)) {
+            setIsUpdateAvailable(true);
+          }
+        } catch (e) {
+          // Silent catch: We are running in a regular web browser, not WebView
         }
       } catch (err) {
+        console.error('Failed to load release assets:', err);
         setApkStatus('unavailable');
       }
     };
 
-    checkApkAvailability();
+    fetchReleaseData();
   }, []);
+
+  const isVersionNewer = (latest: string, installed: string) => {
+    const latestParts = latest.split('.').map(Number);
+    const installedParts = installed.split('.').map(Number);
+    for (let i = 0; i < Math.max(latestParts.length, installedParts.length); i++) {
+      const l = latestParts[i] || 0;
+      const inst = installedParts[i] || 0;
+      if (l > inst) return true;
+      if (l < inst) return false;
+    }
+    return false;
+  };
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col items-center justify-between p-4 md:p-8 relative overflow-hidden">
@@ -68,23 +166,56 @@ export const DownloadAppPage: React.FC = () => {
       </header>
 
       {/* Main Content */}
-      <main className="w-full max-w-4xl flex flex-col md:flex-row items-center gap-8 my-10 z-10">
-        {/* Left Side: Copy and Details */}
-        <div className="flex-1 space-y-6 text-left">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-primary/15 border border-primary/20 text-primary uppercase tracking-wider">
-            <Sparkles className="w-3 h-3 text-primary animate-pulse" /> Official Android Release
+      <main className="w-full max-w-4xl flex flex-col md:flex-row items-start gap-8 my-10 z-10">
+        {/* Left Side: Copy and Dynamic Release Notes */}
+        <div className="flex-1 space-y-6 text-left self-stretch flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-primary/15 border border-primary/20 text-primary uppercase tracking-wider">
+              <Sparkles className="w-3 h-3 text-primary animate-pulse" /> Official Android Release
+            </div>
+            
+            <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
+              Manage your Gym on the go with{' '}
+              <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
+                GymLedger Mobile
+              </span>
+            </h1>
+            
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-xl">
+              Carry your entire member registry in your pocket. Access the instant camera QR scanner, run attendance simulations, review pending dues, and trigger automated WhatsApp notifications anywhere, anytime.
+            </p>
           </div>
-          
-          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight leading-tight">
-            Manage your Gym on the go with{' '}
-            <span className="bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              GymLedger Mobile
-            </span>
-          </h1>
-          
-          <p className="text-sm text-muted-foreground leading-relaxed max-w-xl">
-            Carry your entire member registry in your pocket. Access the instant camera QR scanner, run attendance simulations, review pending dues, and trigger automated WhatsApp notifications anywhere, anytime.
-          </p>
+
+          {/* Dynamic Release Notes Section */}
+          {apkStatus === 'available' && releaseNotes && (
+            <div className="p-5 rounded-2xl bg-card border border-muted/50 space-y-4 max-w-xl">
+              <h3 className="font-bold text-sm tracking-tight border-b pb-2 flex items-center gap-2">
+                <Info className="w-4 h-4 text-primary" /> What's New in v{releaseNotes.version}
+              </h3>
+              
+              {releaseNotes.changes && releaseNotes.changes.length > 0 && (
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold text-foreground">New Features:</h4>
+                  <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1 pl-1">
+                    {releaseNotes.changes.map((change, idx) => (
+                      <li key={idx}>{change}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {releaseNotes.bugFixes && releaseNotes.bugFixes.length > 0 && (
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold text-foreground">Bug Fixes:</h4>
+                  <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1 pl-1">
+                    {releaseNotes.bugFixes.map((fix, idx) => (
+                      <li key={idx}>{fix}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 gap-4 max-w-md">
@@ -117,21 +248,68 @@ export const DownloadAppPage: React.FC = () => {
           </div>
 
           {/* Version Pill */}
-          <div className="px-3 py-1 bg-muted rounded-full text-[10px] font-bold text-foreground inline-flex items-center gap-1">
-            <span>{APP_VERSION}</span>
-            <span className="opacity-50">•</span>
-            <span>Build {BUILD_NUMBER}</span>
-          </div>
+          {apkStatus === 'available' && latestMetadata && (
+            <div className="px-3 py-1 bg-muted rounded-full text-[10px] font-bold text-foreground inline-flex items-center gap-1">
+              <span>v{latestMetadata.version}</span>
+              <span className="opacity-50">•</span>
+              <span>Build {latestMetadata.build}</span>
+            </div>
+          )}
 
-          {/* Download Action Button */}
-          {apkStatus === 'available' ? (
-            <a
-              href="/GymLedger.apk"
-              download="GymLedger.apk"
-              className="w-full h-12 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:opacity-95 shadow-md shadow-primary/20 transition-all cursor-pointer text-sm"
-            >
-              <Download className="w-4 h-4" /> Download APK File
-            </a>
+          {/* Download Action Button with Security and MIME Checks */}
+          {apkStatus === 'available' && latestMetadata ? (
+            <div className="w-full space-y-3">
+              {isCheckingLink ? (
+                <button
+                  disabled
+                  className="w-full h-12 bg-muted text-muted-foreground font-semibold rounded-2xl flex items-center justify-center gap-2 cursor-wait text-sm border animate-pulse"
+                >
+                  Verifying APK integrity...
+                </button>
+              ) : isLinkHealthy ? (
+                <a
+                  href={latestMetadata.downloadUrl || "/downloads/latest.apk"}
+                  download="GymLedger.apk"
+                  onClick={() => setDownloadClicked(true)}
+                  className="w-full h-12 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:opacity-95 shadow-md shadow-primary/20 transition-all cursor-pointer text-sm"
+                >
+                  <Download className="w-4 h-4" /> 
+                  {isUpdateAvailable ? 'Update Available (Get APK)' : 'Download APK File'}
+                </a>
+              ) : (
+                <div className="space-y-2.5">
+                  <button
+                    disabled
+                    className="w-full h-12 bg-rose-500/10 text-rose-500 font-semibold rounded-2xl flex items-center justify-center gap-2 cursor-not-allowed text-sm border border-rose-500/20"
+                  >
+                    APK Temporarily Unavailable
+                  </button>
+                  <p className="text-[10px] text-rose-400 leading-relaxed text-left">
+                    <strong>Notice:</strong> The primary package signature or release link is undergoing verification. 
+                    {linkCheckError ? ` (${linkCheckError})` : ''}
+                  </p>
+                  
+                  {/* Backup Mirror Download Option */}
+                  {latestMetadata.backupUrl && (
+                    <a
+                      href={latestMetadata.backupUrl}
+                      download={`GymLedger-v${latestMetadata.version}.apk`}
+                      className="w-full h-10 bg-card border hover:bg-muted text-foreground font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer text-xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Try Backup Mirror URL
+                    </a>
+                  )}
+                </div>
+              )}
+              
+              {downloadClicked && isLinkHealthy && (
+                <div className="text-[10px] text-muted-foreground bg-muted/40 p-2.5 rounded-xl border leading-relaxed text-left animate-in fade-in duration-300">
+                  <span className="font-bold text-foreground block mb-1">Download started?</span>
+                  If the download does not start automatically, you can use the versioned download or install the <strong>PWA Option</strong> below.
+                </div>
+              )}
+            </div>
           ) : (
             <button
               disabled
@@ -141,30 +319,57 @@ export const DownloadAppPage: React.FC = () => {
             </button>
           )}
 
+          {/* Detailed Administrator Troubleshooting Message if APK is missing */}
           {apkStatus === 'unavailable' && (
-            <p className="text-[11px] text-rose-500 font-semibold bg-rose-500/10 border border-rose-500/20 px-3 py-1.5 rounded-xl w-full">
-              ⚠️ Android APK is temporarily unavailable.
-            </p>
+            <div className="text-[11px] text-rose-500 font-semibold bg-rose-500/10 border border-rose-500/20 p-4 rounded-xl w-full text-left space-y-2">
+              <div className="flex items-center gap-1.5 font-bold text-xs">
+                <span>⚠️ APK Release Unavailable</span>
+              </div>
+              <p className="text-[10px] font-normal leading-relaxed opacity-90 border-t border-rose-500/20 pt-2">
+                <strong className="text-rose-400">Administrator Notice:</strong> The latest Android production build metadata was not found. 
+                Please run the automated release pipeline script to compile and sign the release build:
+              </p>
+              <div className="bg-black/40 text-[9px] font-mono p-1.5 rounded border border-rose-500/30 overflow-x-auto text-rose-300">
+                npm run build:apk
+              </div>
+              <p className="text-[9px] font-normal opacity-75">
+                Ensure your keystore parameters are defined in <code className="bg-black/20 px-1 py-0.5 rounded">keystore.properties</code> (which is ignored by Git).
+              </p>
+            </div>
           )}
 
-          <div className="w-full pt-4 border-t border-muted/30 space-y-2 text-left text-[11px] text-muted-foreground">
-            <div className="flex justify-between">
-              <span>File Name:</span>
-              <span className="font-semibold text-foreground">GymLedger.apk</span>
+          {apkStatus === 'available' && latestMetadata && (
+            <div className="w-full pt-4 border-t border-muted/30 space-y-2 text-left text-[11px] text-muted-foreground">
+              <div className="flex justify-between">
+                <span>Release Channel:</span>
+                <span className="font-semibold text-foreground">{latestMetadata.releaseChannel}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>File Size:</span>
+                <span className="font-semibold text-foreground">{latestMetadata.fileSize}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Release Date:</span>
+                <span className="font-semibold text-foreground">{latestMetadata.releaseDate}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Min Android Version:</span>
+                <span className="font-semibold text-foreground">{latestMetadata.minAndroidVersion}</span>
+              </div>
+              {installedVersion && (
+                <div className="flex justify-between border-t border-muted/20 pt-2 mt-2">
+                  <span>Installed App:</span>
+                  <span className="font-semibold text-primary">v{installedVersion} ({installedBuild})</span>
+                </div>
+              )}
+              <div className="flex flex-col gap-1 border-t border-muted/20 pt-2 mt-2">
+                <span className="text-[10px] opacity-80">SHA256 Checksum:</span>
+                <span className="font-mono text-[9px] bg-muted px-1.5 py-1 rounded text-foreground overflow-x-auto select-all">
+                  {latestMetadata.sha256}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between">
-              <span>File Size:</span>
-              <span className="font-semibold text-foreground">{apkSize}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Release Date:</span>
-              <span className="font-semibold text-foreground">{RELEASE_DATE}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Last Updated:</span>
-              <span className="font-semibold text-foreground">{RELEASE_DATE}</span>
-            </div>
-          </div>
+          )}
         </div>
       </main>
 
