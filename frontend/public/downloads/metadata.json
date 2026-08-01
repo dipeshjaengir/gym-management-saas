@@ -1,12 +1,12 @@
 {
-  "version": "1.2.1",
-  "build": 102,
+  "version": "1.2.2",
+  "build": 103,
   "releaseDate": "2026-08-01",
   "releaseChannel": "Production",
   "minAndroidVersion": "Android 5.0 (API Level 24)",
-  "fileSize": "14.86 MB",
-  "sha256": "b7e0b17e2c661c2eda074c46fda30907e1e7e1b3f61def043dc570b4e221e679",
+  "fileSize": "34.22 MB",
+  "sha256": "4b409ba6d3fe99f0ba0ad594774d4de80ab87fc025fe2fbedac7bbec92e9e82c",
   "downloadUrl": "/downloads/latest.apk",
-  "githubUrl": "https://github.com/dipeshjaengir/gym-management-saas/releases/download/v1.2.1/GymLedger.apk",
-  "backupUrl": "https://github.com/dipeshjaengir/gym-management-saas/releases/download/v1.2.1/GymLedger-v1.2.1.apk"
+  "githubUrl": "https://github.com/dipeshjaengir/gym-management-saas/releases/download/v1.2.2/GymLedger.apk",
+  "backupUrl": "https://github.com/dipeshjaengir/gym-management-saas/releases/download/v1.2.2/GymLedger-v1.2.2.apk"
 }

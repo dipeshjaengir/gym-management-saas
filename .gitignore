@@ -44,6 +44,7 @@ temp/
 cache/
 # Android generated APKs and local configurations
 *.apk
+*.aab
 *.aar
 *.ap_
 android/app/build/

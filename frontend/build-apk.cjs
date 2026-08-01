@@ -538,10 +538,25 @@ async function runReleaseTransaction() {
     process.exit(1);
   }
 
+  console.log('Compiling Production Android App Bundle (.aab) with Gradle...');
+  try {
+    execSync(`${gradleCmd} bundleRelease --no-daemon --no-watch-fs`, { cwd: androidDir, stdio: 'inherit' });
+    console.log('✓ Gradle compiled Android App Bundle (.aab) successfully.');
+  } catch (err) {
+    console.error('❌ ERROR: Gradle App Bundle compilation failed.');
+    process.exit(1);
+  }
+
   // F. Validate generated APK
   const builtApkPath = path.join(androidDir, 'app', 'build', 'outputs', 'apk', 'release', 'app-release.apk');
+  const builtAabPath = path.join(androidDir, 'app', 'build', 'outputs', 'bundle', 'release', 'app-release.aab');
+  
   if (!fs.existsSync(builtApkPath)) {
     console.error(`❌ ERROR: Could not locate built release APK at ${builtApkPath}`);
+    process.exit(1);
+  }
+  if (!fs.existsSync(builtAabPath)) {
+    console.error(`❌ ERROR: Could not locate built Android App Bundle at ${builtAabPath}`);
     process.exit(1);
   }
 
@@ -655,6 +670,8 @@ async function runReleaseTransaction() {
   // Update local files
   fs.copyFileSync(builtApkPath, path.join(downloadsDir, versionedApkName));
   fs.copyFileSync(builtApkPath, path.join(downloadsDir, 'latest.apk'));
+  fs.copyFileSync(builtAabPath, path.join(downloadsDir, `GymLedger-v${newVersion}.aab`));
+  fs.copyFileSync(builtAabPath, path.join(downloadsDir, 'latest.aab'));
 
   // Load and format release-notes.json
   let changes = ["Performance optimizations", "Version update telemetry"];

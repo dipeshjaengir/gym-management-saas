@@ -255,58 +255,40 @@ export const DownloadAppPage: React.FC = () => {
               <span>Build {latestMetadata.build}</span>
             </div>
           )}
-
+ 
           {/* Download Action Button with Security and MIME Checks */}
           {apkStatus === 'available' && latestMetadata ? (
             <div className="w-full space-y-3">
-              {isCheckingLink ? (
-                <button
-                  disabled
-                  className="w-full h-12 bg-muted text-muted-foreground font-semibold rounded-2xl flex items-center justify-center gap-2 cursor-wait text-sm border animate-pulse"
-                >
-                  Verifying APK integrity...
-                </button>
-              ) : isLinkHealthy ? (
-                <a
-                  href={latestMetadata.downloadUrl || "/downloads/latest.apk"}
-                  download="GymLedger.apk"
-                  onClick={() => setDownloadClicked(true)}
-                  className="w-full h-12 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:opacity-95 shadow-md shadow-primary/20 transition-all cursor-pointer text-sm"
-                >
-                  <Download className="w-4 h-4" /> 
-                  {isUpdateAvailable ? 'Update Available (Get APK)' : 'Download APK File'}
-                </a>
-              ) : (
-                <div className="space-y-2.5">
-                  <button
-                    disabled
-                    className="w-full h-12 bg-rose-500/10 text-rose-500 font-semibold rounded-2xl flex items-center justify-center gap-2 cursor-not-allowed text-sm border border-rose-500/20"
-                  >
-                    APK Temporarily Unavailable
-                  </button>
-                  <p className="text-[10px] text-rose-400 leading-relaxed text-left">
-                    <strong>Notice:</strong> The primary package signature or release link is undergoing verification. 
-                    {linkCheckError ? ` (${linkCheckError})` : ''}
-                  </p>
-                  
-                  {/* Backup Mirror Download Option */}
-                  {latestMetadata.backupUrl && (
-                    <a
-                      href={latestMetadata.backupUrl}
-                      download={`GymLedger-v${latestMetadata.version}.apk`}
-                      className="w-full h-10 bg-card border hover:bg-muted text-foreground font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer text-xs"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      Try Backup Mirror URL
-                    </a>
-                  )}
-                </div>
-              )}
+              <a
+                href={isLinkHealthy && latestMetadata.githubUrl ? latestMetadata.githubUrl : (latestMetadata.backupUrl || latestMetadata.downloadUrl || "/downloads/latest.apk")}
+                download="GymLedger.apk"
+                onClick={() => setDownloadClicked(true)}
+                className="w-full h-12 bg-gradient-to-r from-primary to-secondary text-white font-bold rounded-2xl flex items-center justify-center gap-2 hover:opacity-95 shadow-md shadow-primary/20 transition-all cursor-pointer text-sm"
+              >
+                <Download className="w-4 h-4" /> 
+                {isUpdateAvailable ? 'Update Available (Get APK)' : 'Download APK File'}
+              </a>
+
+              {/* Status and Health Telemetry */}
+              <div className="text-[10px] text-left leading-relaxed px-1">
+                {isCheckingLink ? (
+                  <span className="text-muted-foreground animate-pulse">Checking link status...</span>
+                ) : isLinkHealthy ? (
+                  <span className="text-emerald-400 font-semibold">✓ Primary high-speed mirror active</span>
+                ) : (
+                  <div className="space-y-1">
+                    <span className="text-amber-400 font-semibold block">⚠️ Primary mirror offline. Routing via backup mirror.</span>
+                    {linkCheckError && (
+                      <span className="text-[9px] text-muted-foreground block">Reason: {linkCheckError}</span>
+                    )}
+                  </div>
+                )}
+              </div>
               
-              {downloadClicked && isLinkHealthy && (
+              {downloadClicked && (
                 <div className="text-[10px] text-muted-foreground bg-muted/40 p-2.5 rounded-xl border leading-relaxed text-left animate-in fade-in duration-300">
                   <span className="font-bold text-foreground block mb-1">Download started?</span>
-                  If the download does not start automatically, you can use the versioned download or install the <strong>PWA Option</strong> below.
+                  If the download does not start automatically, please use the backup mirror or install the <strong>PWA Option</strong> below.
                 </div>
               )}
             </div>
