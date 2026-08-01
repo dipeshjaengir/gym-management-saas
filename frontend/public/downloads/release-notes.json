@@ -35,5 +35,17 @@
     "bugFixes": [
       "Stability enhancements"
     ]
+  },
+  "1.2.3": {
+    "version": "1.2.3",
+    "build": 104,
+    "releaseDate": "2026-08-01",
+    "changes": [
+      "Performance optimizations",
+      "Version update telemetry"
+    ],
+    "bugFixes": [
+      "Stability enhancements"
+    ]
   }
 }

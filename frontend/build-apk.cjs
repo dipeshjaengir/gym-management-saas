@@ -484,6 +484,21 @@ async function runReleaseTransaction() {
   console.log('✓ Central version file updated.');
 
   // C. Build React bundle
+  console.log('Cleaning up old binaries from public/downloads to prevent recursive nesting...');
+  try {
+    if (fs.existsSync(downloadsDir)) {
+      const files = fs.readdirSync(downloadsDir);
+      for (const file of files) {
+        if (file.endsWith('.apk') || file.endsWith('.aab')) {
+          fs.unlinkSync(path.join(downloadsDir, file));
+          console.log(`- Removed old binary: ${file}`);
+        }
+      }
+    }
+  } catch (cleanErr) {
+    console.log('⚠️ WARNING: Could not clean downloads directory binaries: ' + cleanErr.message);
+  }
+
   console.log('Building React Frontend...');
   try {
     execSync('npm run build', { cwd: frontendDir, stdio: 'inherit' });

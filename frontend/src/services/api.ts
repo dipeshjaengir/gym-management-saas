@@ -1,6 +1,14 @@
+import { storage } from '../utils/storage';
+
 const getApiBase = () => {
   const url = (import.meta.env.VITE_API_BASE_URL as string) || '';
-  if (!url) return '/api';
+  if (!url) {
+    // Under native Capacitor Android, fallback to the production Render API endpoint
+    if (typeof window !== 'undefined' && (window as any).Capacitor !== undefined) {
+      return 'https://gym-management-saas.onrender.com/api';
+    }
+    return '/api';
+  }
   return url.endsWith('/api') ? url : `${url.replace(/\/$/, '')}/api`;
 };
 const API_BASE = getApiBase();
@@ -15,7 +23,7 @@ async function request<T = any>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const token = localStorage.getItem('token');
+  const token = await storage.getItem('token');
   const headers = new Headers(options.headers || {});
   
   if (token) {
@@ -34,8 +42,8 @@ async function request<T = any>(
   const response = await fetch(`${API_BASE}${endpoint}`, config);
 
   if (response.status === 401) {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+    await storage.removeItem('token');
+    await storage.removeItem('user');
     // If not on landing or login, redirect to login
     if (window.location.pathname !== '/' && window.location.pathname !== '/login') {
       window.location.href = '/login';

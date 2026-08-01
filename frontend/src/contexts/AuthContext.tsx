@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { api } from '../services/api';
+import { storage } from '../utils/storage';
 
 export interface User {
   id: string;
@@ -32,9 +33,9 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  loginWithToken: (token: string, user: any) => void;
-  logout: () => void;
-  updateUserBranding: (branding: NonNullable<User['branding']>) => void;
+  loginWithToken: (token: string, user: any) => Promise<void>;
+  logout: () => Promise<void>;
+  updateUserBranding: (branding: NonNullable<User['branding']>) => Promise<void>;
   isAuthenticated: boolean;
   isSuperAdmin: boolean;
   isGymOwner: boolean;
@@ -49,7 +50,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Restore session
   useEffect(() => {
     async function restoreSession() {
-      const token = localStorage.getItem('token');
+      const token = await storage.getItem('token');
       if (token) {
         try {
           const res = await api.get('/auth/me');
@@ -70,13 +71,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               authProviders: res.user.authProviders || ['password']
             };
             setUser(mappedUser);
-            localStorage.setItem('user', JSON.stringify(mappedUser));
+            await storage.setItem('user', JSON.stringify(mappedUser));
           } else {
-            logout();
+            await logout();
           }
         } catch (err) {
           console.error('Session restore failed:', err);
-          logout();
+          await logout();
         }
       }
       setLoading(false);
@@ -87,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const login = async (email: string, password: string) => {
     const res = await api.post('/auth/login', { email, password });
     if (res.token && res.user) {
-      localStorage.setItem('token', res.token);
+      await storage.setItem('token', res.token);
       const mappedUser: User = {
         id: res.user.id,
         name: res.user.name,
@@ -103,12 +104,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         authProviders: res.user.authProviders || ['password']
       };
       setUser(mappedUser);
-      localStorage.setItem('user', JSON.stringify(mappedUser));
+      await storage.setItem('user', JSON.stringify(mappedUser));
     }
   };
 
-  const loginWithToken = (token: string, rawUser: any) => {
-    localStorage.setItem('token', token);
+  const loginWithToken = async (token: string, rawUser: any) => {
+    await storage.setItem('token', token);
     const mappedUser: User = {
       id: rawUser._id || rawUser.id,
       name: rawUser.name || rawUser.ownerName,
@@ -124,20 +125,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       authProviders: rawUser.authProviders || ['password']
     };
     setUser(mappedUser);
-    localStorage.setItem('user', JSON.stringify(mappedUser));
+    await storage.setItem('user', JSON.stringify(mappedUser));
   };
 
-  const logout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
+  const logout = async () => {
+    await storage.removeItem('token');
+    await storage.removeItem('user');
     setUser(null);
   };
 
-  const updateUserBranding = (newBranding: NonNullable<User['branding']>) => {
+  const updateUserBranding = async (newBranding: NonNullable<User['branding']>) => {
     if (user) {
       const updated = { ...user, branding: newBranding, gymName: newBranding.gymName };
       setUser(updated);
-      localStorage.setItem('user', JSON.stringify(updated));
+      await storage.setItem('user', JSON.stringify(updated));
     }
   };
 

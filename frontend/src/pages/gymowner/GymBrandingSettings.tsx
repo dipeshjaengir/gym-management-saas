@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { api } from '../../services/api';
 import { useNotification } from '../../contexts/NotificationContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { storage } from '../../utils/storage';
 import { Dumbbell, Globe, Phone, Palette, Info, CheckCircle2, XCircle, Lock, Save } from 'lucide-react';
 import { APP_VERSION, BUILD_NUMBER, COPYRIGHT } from '../../utils/version';
 
@@ -101,11 +102,11 @@ export const GymBrandingSettings: React.FC = () => {
       setIsGoogleLinked(true);
       
       // Update local storage user authProviders
-      const localUser = localStorage.getItem('user');
+      const localUser = await storage.getItem('user');
       if (localUser) {
         const parsed = JSON.parse(localUser);
         parsed.authProviders = res.authProviders || ['password', 'google'];
-        localStorage.setItem('user', JSON.stringify(parsed));
+        await storage.setItem('user', JSON.stringify(parsed));
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to link Google account.', 'error');
